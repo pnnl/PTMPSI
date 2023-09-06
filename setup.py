@@ -8,6 +8,7 @@ setup(
         author='Daniel Mejia-Rodriguez',
         author_email='daniel.mejia@pnnl.gov',
         install_requires=[
+            'requests<=2.29.0',
             'pytest',
             'numpy', 
             'networkx',
