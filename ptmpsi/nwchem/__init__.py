@@ -183,10 +183,10 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
         for ele,atom in zip(elems,coord):
             geometry += f"{ele}   {atom[0]: 14.8f}   {atom[1]: 14.8f}   {atom[2]: 14.8f}\n"
         geometry = geometry[:-1]
-        phi_val, psi_val = get_torsion(*coord[phi]), get_torsion(*coord[psi])
         filename = f"conf{str(idx)}.nw"
         zcoord   = ""
         if not ligand:
+            phi_val, psi_val = get_torsion(*coord[phi]), get_torsion(*coord[psi])
             _phi = [x+1 for x in phi]
             _psi = [x+1 for x in psi]
             zcoord  += " zcoord\n"
@@ -212,17 +212,17 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, disp=nwchem.disp, delta=nwchem.delta,
                 geometry=_geometry))
-        filename = f"conf{str(idx)}_tdrive.nw"
-        with open(filename,"w") as infile:
-            infile.write(torsnw.format(
-                name=f"conf{str(idx)}-tdrive", charge=nwchem.charge,
-                mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
-                grid=nwchem.tdgrid, aobasis=nwchem.tdbasis, cdbasis=nwchem.cdbasis,
-                nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
-                geometry="@geometry@"))
-        with open(f"dihedrals{str(idx)}.txt","w") as infile:
-            infile.write("{} {} {} {}".format(*tdrive.torsions[-1]+1))
         if not ligand:
+            filename = f"conf{str(idx)}_tdrive.nw"
+            with open(filename,"w") as infile:
+                infile.write(torsnw.format(
+                    name=f"conf{str(idx)}-tdrive", charge=nwchem.charge,
+                    mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
+                    grid=nwchem.tdgrid, aobasis=nwchem.tdbasis, cdbasis=nwchem.cdbasis,
+                    nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
+                    geometry="@geometry@"))
+            with open(f"dihedrals{str(idx)}.txt","w") as infile:
+                infile.write("{} {} {} {}".format(*tdrive.torsions[-1]+1))
             with open(f"extras{str(idx)}.txt","w") as infile:
                 infile.write("$set\n dihedral  {}  {}  {}  {}  {}\n".format(*_phi,round(phi_val)))
                 infile.write(" dihedral  {}  {}  {}  {}  {}".format(*_psi,round(psi_val)))
@@ -244,17 +244,18 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
         infile.write("\npython modseminario.py\n")
         infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
-        for idx in range(len(coords)):
-            tail = f"conf{str(idx)}"
-            infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
-            infile.write(slurm_copy.format(filename=f"extras{str(idx)}.txt"))
-            infile.write(slurm_copy.format(filename=f"{tail}_tdrive.nw"))
-            infile.write(slurm_tdrive_run.format(
-                tail=tail, charge=nwchem.charge, mult=nwchem.mult, aobasis=nwchem.aobasis,
-                cdbasis=nwchem.cdbasis, nscf=nwchem.nscf, xcfun=nwchem.xcfun,
-                grid=nwchem.grid, disp=nwchem.disp, memory=nwchem.memory,
-                spacing=tdrive.spacing, idx=str(idx)))
-        infile.write("\n cleanup")
+        if not ligand:
+            for idx in range(len(coords)):
+                tail = f"conf{str(idx)}"
+                infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
+                infile.write(slurm_copy.format(filename=f"extras{str(idx)}.txt"))
+                infile.write(slurm_copy.format(filename=f"{tail}_tdrive.nw"))
+                infile.write(slurm_tdrive_run.format(
+                    tail=tail, charge=nwchem.charge, mult=nwchem.mult, aobasis=nwchem.aobasis,
+                    cdbasis=nwchem.cdbasis, nscf=nwchem.nscf, xcfun=nwchem.xcfun,
+                    grid=nwchem.grid, disp=nwchem.disp, memory=nwchem.memory,
+                    spacing=tdrive.spacing, idx=str(idx)))
+            infile.write("\n cleanup")
     with open("espfit.py","w") as fitting:
         fitting.write(fit.format(
             natoms=natoms, ncons=ncons, nconf=len(coords), charge=nwchem.charge,
