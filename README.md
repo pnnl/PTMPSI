@@ -16,6 +16,22 @@
 
 *PTM-Psi* is a Python Package to Facilitate the Computational Investigation of Post-Translational Modification on Protein Structures and Their Impacts on Dynamics and Functions. 
 
+## Installation
+
+### Virtual Environment
+
+The following instructions can be used to install *PTM-Psi* a virtual environment in editable mode. In this way, updates pulled from the repository will become available without the need to reinstall the package.
+
+```bash
+python -m venv ptmpsi
+source ptmpsi/bin/activate
+pip install --upgrade pip
+
+git clone https://github.com/pnnl/PTMPSI.git
+cd PTMPSI
+pip install -e .
+```
+
 ## Citation
 
 ## License
