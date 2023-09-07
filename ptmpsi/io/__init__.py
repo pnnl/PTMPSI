@@ -68,7 +68,7 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
             protein.addres(_residues,residue,atomid+1,names,elements,coordinates,chain,backbone)
             _residues, natoms, resid, nmissing = protein.addchain(_chains,chain,_residues,natoms,resid,nmissing)
             if line.split()[0] == "END": break
-            dolast = False
+            if line.split()[0] == "ENDMDL": dolast = False
             continue
             
         if line.split()[0] in ["ATOM", "HETATM"]:
