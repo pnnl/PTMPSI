@@ -330,6 +330,7 @@ CYM.nattach = -amidebond*bisector/np.linalg.norm(bisector) + CYM.coordinates[0]
 CYM.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 CYM.chi1 = np.array([
     CYM.find("N"), CYM.find("CA"), CYM.find ("CB"), CYM.find("SG") ])
+CYM.chi2 = None
 
 
 
@@ -369,6 +370,8 @@ CYS.nattach = -amidebond*bisector/np.linalg.norm(bisector) + CYS.coordinates[0]
 CYS.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 CYS.chi1 = np.array([
     CYS.find("N"), CYS.find("CA"), CYS.find ("CB"), CYS.find("SG") ])
+CYS.chi2 = np.array([
+    CYS.find("CA"), CYS.find("CB"), CYS.find ("SG"), CYS.find("HG") ])
 
 
 CYX = Template()
@@ -405,6 +408,7 @@ CYX.nattach = -amidebond*bisector/np.linalg.norm(bisector) + CYX.coordinates[0]
 CYX.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 CYX.chi1 = np.array([
     CYX.find("N"), CYX.find("CA"), CYX.find ("CB"), CYX.find("SG") ])
+CYX.chi2 = None
 
 
 GLH = Template()
@@ -1213,6 +1217,7 @@ SER.nattach = -amidebond*bisector/np.linalg.norm(bisector) + SER.coordinates[0]
 SER.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 SER.chi1 = np.array([
     SER.find("N"), SER.find("CA"), SER.find ("CB"), SER.find("OG") ])
+SER.chi2 = None
 
 
 THR = Template()
@@ -1257,6 +1262,7 @@ THR.nattach = -amidebond*bisector/np.linalg.norm(bisector) + THR.coordinates[0]
 THR.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 THR.chi1 = np.array([
     THR.find("N"), THR.find("CA"), THR.find ("CB"), THR.find("CG2") ])
+THR.chi2 = None
 
 
 TRP = Template()
@@ -1433,3 +1439,4 @@ VAL.nattach = -amidebond*bisector/np.linalg.norm(bisector) + VAL.coordinates[0]
 VAL.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 VAL.chi1 = np.array([
     VAL.find("N"), VAL.find("CA"), VAL.find ("CB"), VAL.find("CG1") ])
+VAL.chi2 = None
