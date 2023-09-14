@@ -122,13 +122,14 @@ for i,file in enumerate(files):
             grids[i][point] = [float(x) for x in line]
 
 for iconf in range(nconf):
-    for k in range(npoints[iconf]):
-        for iatom in range(natoms):
-            disti = np.linalg.norm(geometries[iconf,iatom] - grids[iconf][k,:3])
-            B[iatom] += grids[iconf][k,3]/disti
-            for jatom in range(iatom,natoms):
-                distj = np.linalg.norm(geometries[iconf,jatom] - grids[iconf][k,:3])
-                A[iatom,jatom] += 1.0/(disti*distj)
+    dists = np.zeros((natoms,npoints[iconf]))
+    for iatom in range(natoms):
+        for k in range(npoints[iconf]):
+            dists[iatom,k] = 1.0/norm2(geometries[iconf,iatom]-grids[iconf][k,:3])
+        B[iatom] += np.dot(grids[iconf][:,3],dists[iatom])
+    for iatom in range(natoms):
+        for jatom in range(iatom,natoms):
+            A[iatom,jatom] += np.dot(dists[iatom],dists[jatom])
 
 # Symmetrize matrix
 for iatom in range(natoms):
@@ -138,6 +139,7 @@ for iatom in range(natoms):
 # Total charge constraint
 A[:natoms,natoms] = 1.0
 A[natoms,:natoms] = 1.0
+B[natoms] = charge
 
 # NME, ACE, and amide bond constraints
 for icons in range(ncons):
@@ -153,7 +155,7 @@ for icons in range(hncons):
     A[natoms+ncons+icons+1,hcons[icons][1]] = -1.0
 
 # Start from solution without restraints
-qold = np.linalg.inv(A) @ B
+qold = np.linalg.solve(A,B)
 
 # Hyperbolic restraints are non-linear. Do 50 iterations at most
 for iter in range(50):
@@ -172,10 +174,10 @@ for iter in range(50):
                 skip = True
                 break
         if skip: continue
-        Acur[i,i] += 0.005 * qold[i]/np.sqrt(qold[i]**2 + 0.01)
+        Acur[i,i] += 0.005 / np.sqrt(qold[i]**2 + 0.01)
 
     # Solve linear equation system
-    q = np.linalg.inv(Acur) @ B
+    q = np.linalg.solve(Acur,B)
 
     # Check convergence
     delta = np.amax(np.abs(q-qold))

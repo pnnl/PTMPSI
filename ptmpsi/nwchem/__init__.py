@@ -176,6 +176,12 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
             printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
         consnw = consnw[:-1]
         conspy = conspy[:-2]
+    else:
+        iatom = 0
+        for ires in alpha:
+            for atom in ires.names:
+                iatom += 1
+                printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
 
     # Write files
     for idx,coord in enumerate(coords):
