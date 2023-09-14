@@ -14,6 +14,10 @@ class Residue:
         self.backbone = np.empty(3,dtype=int)
         self.resid = None
         self.chain = None
+        self.chi1  = None
+        self.chi2  = None
+        self.nattach = np.empty(3,dtype=float)
+        self.cattach = np.empty(3,dtype=float)
 
     def __eq__(self,other):
         if (self.resid == other.resid) and (self.chain == other.chain) and (self.name == other.name):

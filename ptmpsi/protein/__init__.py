@@ -213,6 +213,10 @@ class Protein:
                 newres.chain = chain
                 newres.backbone = _residue.backbone
                 newres.resid = len(_chain.residues) + 1
+                newres.chi1 = _residue.chi1
+                newres.chi2 = _residue.chi2
+                newres.cattach = _residue.cattach
+                newres.nattach = _residue.nattach
                 _chain.residues.insert(0,newres)
                 break
         self.update()

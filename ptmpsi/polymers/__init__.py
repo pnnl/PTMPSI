@@ -176,7 +176,7 @@ def addchain(label,idatom,coords,pdbfile):
         
 dict2 = {"N": "CE", "CE":"CD", "CD":"CG", "CG":"CB", "CB":"CA", "CA":"C", "C":"O", "O":"N"}
 
-def sortcoords(coords,nterminal,natoms,bonds):
+def sortcoords(coords,bonded_frag,nterminal,natoms,bonds):
     newcoords = []
     newcoords.append(coords[nterminal])
     done = np.empty(natoms,dtype=bool)
@@ -475,7 +475,7 @@ def gen_pdb(rangea=1, rangeb=1, rangec=1):
                     nterminal = ends[0]
                     break
         if nterminal is None: nterminal = ends[1]
-        coords_frag = sortcoords(coords_frag,nterminal,natoms_frag,bonded_frag)
-        idatom = addchain(dict3[idfrag%62],idatom,coords_frag,"nylon6_{rangea}{rangeb}{rangec}.pdb")
+        coords_frag = sortcoords(coords_frag,bonded_frag,nterminal,natoms_frag,bonded_frag)
+        idatom = addchain(dict3[idfrag%62],idatom,coords_frag,f"nylon6_{rangea}{rangeb}{rangec}.pdb")
         idatom = addchainmdl(idfrag+1,idatom,coords_frag,f"nylon6_models_{rangea}{rangeb}{rangec}.pdb")
     return
