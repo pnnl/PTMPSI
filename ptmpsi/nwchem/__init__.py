@@ -137,6 +137,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
     if not ligand and len(tdrive.torsions) == 0:
         if alpha[1].chi2 is not None:
             tdrive.torsions = [offset1+alpha[1].chi2]
+    dotorsions = False if len(tdrive.torsions)==0 else True
 
     # Update torsion list
     _list = [phi, psi]
@@ -218,7 +219,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, disp=nwchem.disp, delta=nwchem.delta,
                 geometry=_geometry))
-        if not ligand:
+        if dotorsions and not ligand:
             filename = f"conf{str(idx)}_tdrive.nw"
             with open(filename,"w") as infile:
                 infile.write(torsnw.format(
@@ -248,9 +249,10 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
             infile.write(runsingularity.format(scratch=slurm.scratch,name=f"{tail}_hess"))
         infile.write("\npython espfit.py\n")
         infile.write("\npython modseminario.py\n")
-        infile.write(slurm_tdrive.format(scratch=slurm.scratch))
+        if dotorsions and not ligand: 
+            infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
-        if not ligand:
+        if dotorsions and not ligand:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
                 infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
