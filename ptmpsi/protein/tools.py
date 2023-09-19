@@ -20,6 +20,8 @@ def get_residue(protein,residue):
             if len(residue) < 4:
                 raise KeyError("'{}' is not a 3-letter code + residue number".format(residue))
             lower = 3
+        else:
+            lower = 1
         # Check that the rest of the characters are digits
         for digit in residue[lower:]:
             if not digit.isdigit():

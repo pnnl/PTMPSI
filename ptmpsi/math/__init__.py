@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from copy import deepcopy as copy
 from ptmpsi.constants import amidebond, nhbond, amideangle
 
@@ -37,14 +38,17 @@ aminolist = [
         ]
 ####
 
+def norm(vec):
+    return math.sqrt( vec[0]**2 + vec[1]**2 + vec[2]**2 )
+
 def resdist(residue1,residue2):
     """
     Computes the minimum distance between two residues
     """
-    distance = np.finfo(np.float).max
+    distance = np.finfo(float).max
     for iatom,icoor in enumerate(residue1.coordinates):
         for jatom,jcoor in enumerate(residue2.coordinates):
-            _distance = np.linalg.norm(icoor-jcoor)
+            _distance = norm(icoor-jcoor)
             if _distance < distance:
                 distance = _distance
                 ipos = iatom
@@ -69,9 +73,9 @@ def nerf(atoma,atomb,atomc,bond,angle,torsion):
 
     AB = atomb - atoma
     BC = atomc - atomb
-    bc = BC/np.linalg.norm(BC)
+    bc = BC/norm(BC)
     n  = np.cross(AB,bc)
-    n  = n/np.linalg.norm(n)
+    n  = n/norm(n)
     nxbc = np.cross(n,bc)
 
     R = np.column_stack((bc,nxbc,n))
@@ -110,7 +114,7 @@ def appendc(chain,residue,psi=None):
     # the C atom will be placed at the origin
     if np.any(cterminus.names == "OXT"):
         vector1 = cterminus.find_coord("OXT") - c
-        vector1 = vector1/np.linalg.norm(vector1)*amidebond
+        vector1 = vector1/norm(vector1)*amidebond
         mask = [*range(0,len(cterminus.names))]
         mask.pop(cterminus.find("OXT"))
         cterminus.coordinates = cterminus.coordinates[mask]
@@ -123,8 +127,8 @@ def appendc(chain,residue,psi=None):
         _c  = c - c
         _ca = ca - c
         _o  = o - c
-        bisector = np.linalg.norm(_o)*_ca + np.linalg.norm(_ca)*_o
-        vector1 = -amidebond*bisector/np.linalg.norm(bisector)
+        bisector = norm(_o)*_ca + norm(_ca)*_o
+        vector1 = -amidebond*bisector/norm(bisector)
 
     # Attachment position should be already in the template
     # The N atom will be placed at the origin
@@ -144,7 +148,7 @@ def appendc(chain,residue,psi=None):
 
         if abs(dihedral) < 175.0:
             shift = copy(newcoords[residue.find("N")])
-            k = -(c - shift)/np.linalg.norm(c-shift)
+            k = -(c - shift)/norm(c-shift)
             dihedral = np.radians(180-dihedral)
             for i,coord in enumerate(newcoords):
                 coord = np.cos(dihedral)*(coord - shift) + (1-np.cos(dihedral))*k*np.dot(coord-shift,k) + np.cross(k,coord-shift)*np.sin(dihedral) + shift
@@ -173,7 +177,7 @@ def get_torsion(atoma,atomb,atomc,atomd):
     b0 = atoma - atomb
     b1 = atomc - atomb
     b2 = atomd - atomc
-    b1 /= np.linalg.norm(b1)
+    b1 /= norm(b1)
     v = b0 - np.dot(b0,b1)*b1
     w = b2 - np.dot(b2,b1)*b1
     x = np.dot(v,w)
@@ -282,10 +286,10 @@ def rotmatvec(vector1,vector2):
     Return the rotation matrix to align vector2
     into vector1
     """
-    vhat1 = vector1/np.linalg.norm(vector1)
-    vhat2 = vector2/np.linalg.norm(vector2)
+    vhat1 = vector1/norm(vector1)
+    vhat2 = vector2/norm(vector2)
     cross = np.cross(vhat2,vhat1)
-    sin = np.linalg.norm(cross)
+    sin = norm(cross)
     cos = np.dot(vhat2,vhat1)
     if np.isclose(cos,1,1.0E-6):
         R = np.eye(3)
@@ -305,7 +309,7 @@ def rotmataxis(k,theta):
     Obtain the rotation matrix through an angle theta 
     counterclockwise about the axis k
     """
-    khat = k/np.linalg.norm(k)
+    khat = k/norm(k)
     K = np.zeros((3,3))
     K[0] = [0,-khat[2],khat[1]]
     K[1] = [khat[2],0,-khat[0]]
@@ -398,7 +402,7 @@ def rotate_chi1(residue,atoms,chi1):
     internal = False
     for iatom in range(len(residue.coordinates)):
         for jatom in range(iatom+1,len(residue.coordinates)):
-            if np.linalg.norm(residue.coordinates[iatom] - residue.coordinates[jatom]) < 1.0:
+            if norm(residue.coordinates[iatom] - residue.coordinates[jatom]) < 1.0:
                 internal = True
                 break
     return internal
@@ -419,7 +423,7 @@ def rotate_chi2(residue,atoms,chi2):
     internal = False
     for iatom in range(len(residue.coordinates)):
         for jatom in range(iatom+1,len(residue.coordinates)):
-            if np.linalg.norm(residue.coordinates[iatom] - residue.coordinates[jatom]) < 1.0:
+            if norm(residue.coordinates[iatom] - residue.coordinates[jatom]) < 1.0:
                 internal = True
                 break
 
@@ -465,7 +469,7 @@ def find_clashes_residue(iresidue,proteins,printing=True,allres=None):
         _contiguous = _samechain and (abs(iresidue.resid-jresidue.resid) == 1)
 
         # Random distance
-        _distance = np.linalg.norm(iresidue.coordinates[0]-jresidue.coordinates[0])
+        _distance = norm(iresidue.coordinates[0]-jresidue.coordinates[0])
 
         # If large, it is safe to assume no clashes between residues
         if _distance > 10.0: continue
@@ -484,7 +488,7 @@ def find_clashes_residue(iresidue,proteins,printing=True,allres=None):
                 if _amide or _ssbond: continue
 
                 # Get distance between atoms
-                _distance = np.linalg.norm(iresidue.coordinates[iatom]-jresidue.coordinates[jatom])
+                _distance = norm(iresidue.coordinates[iatom]-jresidue.coordinates[jatom])
                 # Heavy atoms, longer threshold
                 threshold = 1.4 if (_ih or _jh) else 2.3
 

@@ -45,7 +45,6 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
             start = count
             break
 
-    dolast = True
     resid = 0
     nmissing = 0
     natoms = 0
@@ -57,27 +56,32 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
     for line in protein.pdbfile[start:]:
 
         # Skip ANISOU lines
-        if line.split()[0] == "ANISOU": continue
+        if line[:6] == "ANISOU": continue
+
+        # Skip CONECT lines
+        if line[:6] == "CONECT": continue
+
+        # Skip MASTER line
+        if line[:6] == "MASTER": continue
 
         # Skip HETATM
-        if (delhet) and (line.split()[0] == 'HETATM'): continue
+        if (delhet) and (line[:6] == 'HETATM'): continue
 
         # Save last residue information
-        if line.split()[0] in ["TER","END","ENDMDL"] and dolast:
+        if line.split()[0] in ["TER","END","ENDMDL"]:
+            if resid == 0: continue
             residue = protein.savessbond(ssbonds,residue,resid,nmissing,chain)
             protein.addres(_residues,residue,atomid+1,names,elements,coordinates,chain,backbone)
             _residues, natoms, resid, nmissing = protein.addchain(_chains,chain,_residues,natoms,resid,nmissing)
             if line.split()[0] == "END": break
-            if line.split()[0] == "ENDMDL": dolast = False
             continue
             
-        if line.split()[0] in ["ATOM", "HETATM"]:
+        if line[:4] == "ATOM" or line[:6] == "HETATM":
             # Check if we have a new chain
             if len(_residues) == 0:
                 chain   = line[21:22]
             # new chain was specified
             elif line[21:22] != chain:
-                dolast = True
                 residue = protein.savessbond(ssbonds,residue,resid,nmissing,chain)
                 protein.addres(_residues,residue,atomid+1,names,elements,coordinates,chain,backbone)
                 _residues, natoms, resid, nmissing = protein.addchain(_chains,chain,_residues,natoms,resid,nmissing)
