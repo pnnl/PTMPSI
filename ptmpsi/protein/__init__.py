@@ -7,7 +7,7 @@ from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, Residue
 from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
-from ptmpsi.io import digestpdb, writepdb
+from ptmpsi.io import digestpdb, writepdb, writexyz
 from ptmpsi.docking import dock_ligand
 
 
@@ -79,6 +79,8 @@ class Protein:
     def write_pdb(self,pdbfile):
         writepdb(self,pdbfile)
 
+    def write_xyz(self,xyzfile):
+        writexyz(self,xyzfile)
 
     def update(self):
         self.nresidues = 0

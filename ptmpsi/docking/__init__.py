@@ -1,17 +1,16 @@
 import subprocess
+import numpy as np
 from shutil import which, copyfileobj
 from ptmpsi.exceptions import MyDockingError
 from ptmpsi.constants import nwchem_input
+from ptmpsi.protein.tools import get_residue
 from xyz2mol import xyz2mol, read_xyz_file
 from rdkit import Chem
 from meeko import MoleculePreparation, PDBQTMolecule
 
 def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0):
 
-    # Check if prepare_ligand and prepare_receptor are in the path
-    if which("prepare_ligand") is None:
-        raise MyDockingError("Cannot find prepare_ligand")
-
+    # Check if prepare_receptor and vina are in the path
     if which("prepare_receptor") is None:
         raise MyDockingError("Cannot find prepare_receptor")
 
@@ -50,6 +49,9 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
         xcenter /= protein.natoms
         ycenter /= protein.natoms
         zcenter /= protein.natoms
+    elif isinstance(boxcenter,str):
+        residue = get_residue(protein,boxcenter)
+        xcenter, ycenter, zcenter = np.mean(residue.coordinates,axis=0)
     else:
         [xcenter,ycenter,zcenter] = boxcenter
 

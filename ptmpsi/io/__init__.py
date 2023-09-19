@@ -2,6 +2,16 @@ import numpy as np
 from copy import deepcopy as copy
 from ptmpsi.math import resdist
 
+def writexyz(protein,xyzfile):
+    with open(xyzfile,'w') as fh:
+        fh.write(f"{protein.natoms}\n\n")
+        for chain in protein.chains:
+            for residue in chain.residues:
+                for i in range(len(elements)):
+                    fh.write("{}  {}  {}  {}\n".format(elements[i],*coordinates[i]))
+    return
+             
+
 def writepdb(protein,pdbfile) :
     with open(pdbfile,'w') as fh:
         if protein.nssbonds > 0:
