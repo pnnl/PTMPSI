@@ -1,8 +1,9 @@
-from ptmpsi.protein import Protein
+from ptmpsi.protein import Protein, Chain
+from ptmpsi.residues import Residue
 from ptmpsi.nwchem.templates import * 
 from ptmpsi.nwchem.bonded import bondedks
 from ptmpsi.nwchem.reader import readoptim
-from ptmpsi.math import get_torsion
+from ptmpsi.math import get_torsion, norm
 from ptmpsi.constants import ang2bohr
 import copy
 import numpy as np
@@ -97,7 +98,7 @@ def get_qdata(files):
             qdata.write(f"FORCES {forces} \n\n")
 
 
-def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
+def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
     """ Get all QM data needed to parameterize a non-standard
     amino acid or a new ligand.
     """
@@ -107,11 +108,43 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
     nwchem = NWChem(**kwargs)
     tdrive = TorsionDrive(**kwargs)
 
+    if ligand and metal:
+        raise KeyError("ligand and metal cannot be both True")
+    single = not (ligand or metal) 
+
     # Generate the appropriate conformations
     alpha = copy.deepcopy(residue)
     if ligand:
+        if isinstance(alpha, Protein):
+            conformers = alpha.chains[0].residues
+        elif isinstance(alpha, Chain):
+            conformers = alpha.residues
+        elif isinstance(alpha, Residue):
+            conformers = [alpha]
+        else:
+            raise KeyError("residue must be a Protein, Chain, or Residue instance")
+        if len(conformers) > 1:
+            raise KeyError("Ligand parameterization only accepts one residue")
+    elif metal:
+        _alpha = []
+        if isinstance(alpha, Protein):
+            for _chain in alpha.chains:
+                for _residue in _chain.residues:
+                    _alpha.append(_residue)
+        elif isinstance(alpha, Chain):
+            for _residue in alpha.residues:
+                _alpha.append(_residue)
+        elif isinstance(alpha, Residue):
+            _alpha.append(alpha)
+        else:
+            raise KeyError("residue must be a Protein, Chain, or Residue instance")
+
+        alpha = copy.deepcopy(_alpha)
         conformers = [alpha]
     else:
+        if not isinstance(alpha, Protein):
+            raise KeyError("residue must be a Protein instance")
+
         alpha.prepend(chain="A",residue="ACE",phi=-60.0)
         alpha.append(chain="A",residue="NME",psi=-45.0)
         alpha = alpha.chains[0].residues
@@ -123,7 +156,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
 
     # Get phi and psi indices
     phi, psi = None, None
-    if not ligand:
+    if single:
         offset1 = len(alpha[0].names)
         phi = [alpha[0].find("C"),
                offset1+alpha[1].find("N"),
@@ -134,7 +167,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                offset1+offset2+alpha[2].find("N")]
     
     # Default torsion
-    if not ligand and len(tdrive.torsions) == 0:
+    if single and len(tdrive.torsions) == 0:
         if alpha[1].chi2 is not None:
             tdrive.torsions = [offset1+alpha[1].chi2]
     dotorsions = False if len(tdrive.torsions)==0 else True
@@ -148,7 +181,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
     names  = [name for residue in alpha for name in residue.names]
     elems  = [element for residue in alpha for element in residue.elements]
     coords = [np.array([coord for residue in alpha for coord in residue.coordinates])]
-    if not ligand:
+    if single:
         coords.append(np.array([coord for residue in beta for coord in residue.coordinates]))
     natoms = len(names)
 
@@ -156,27 +189,26 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
     consnw, conspy, printpy, ncons = "", "", "", 0
     if not ligand:
         iatom = 0
-        for atom in alpha[0].names:
-            ncons += 1
-            iatom += 1
-            consnw += f" constrain  {ACE[atom]: 10.6f}  {iatom:5d}\n"
-            conspy += f"[{iatom}, {ACE[atom]}],\n"
-            printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
-        for atom in alpha[1].names:
-            iatom += 1
-            if ff == "AMBER99" and atom in amide:
-                ncons += 1
-                consnw += f" constrain  {amide[atom]: 10.6f}  {iatom:5d}\n"
-                conspy += f"[{iatom}, {amide[atom]}],\n"
-            printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
-        for atom in alpha[2].names:
-            iatom += 1
-            ncons += 1
-            consnw += f" constrain  {NME[atom]: 10.6f}  {iatom:5d}\n"
-            conspy += f"[{iatom}, {NME[atom]}],\n"
-            printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
-        consnw = consnw[:-1]
-        conspy = conspy[:-2]
+        for _residue in alpha:
+            for atom in _residue.names:
+                iatom += 1
+                if _residue.name in ["ACE"]:
+                    ncons   += 1
+                    consnw  += f" constrain  {ACE[atom]: 10.6f}  {iatom:5d}\n"
+                    conspy  += f"[{iatom}, {ACE[atom]}],\n"
+                    printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
+                elif _residue.name in ["NME"]:
+                    ncons += 1
+                    consnw += f" constrain  {NME[atom]: 10.6f}  {iatom:5d}\n"
+                    conspy += f"[{iatom}, {NME[atom]}],\n"
+                    printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
+                else:
+                    if ff == "AMBER99" and atom in amide:
+                        ncons += 1
+                        consnw += f" constrain  {amide[atom]: 10.6f}  {iatom:5d}\n"
+                        conspy += f"[{iatom}, {amide[atom]}],\n"
+                        printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
+
     else:
         iatom = 0
         for ires in alpha:
@@ -192,7 +224,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
         geometry = geometry[:-1]
         filename = f"conf{str(idx)}.nw"
         zcoord   = ""
-        if not ligand:
+        if single:
             phi_val, psi_val = get_torsion(*coord[phi]), get_torsion(*coord[psi])
             _phi = [x+1 for x in phi]
             _psi = [x+1 for x in psi]
@@ -203,6 +235,15 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                 zcoord  += "  torsion {} {} {} {}\n end".format(*tdrive.torsions[-1]+1,120.0)
             else:
                 zcoord  += " end"
+        elif metal:
+            zcoord += " zcoord\n"
+            iatom = 0
+            for _residue in alpha:
+                for atom in _residue.names:
+                    iatom +=1
+                    if atom in ["CA","ZN","CU","FE","CO"]:
+                        zcoord += f"  fix atom {iatom}\n"
+            zcoord += " end"
         with open(filename,"w") as infile:
             infile.write(respnw.format(
                 name=f"conf{str(idx)}", zcoord=zcoord, charge=nwchem.charge,
@@ -219,7 +260,7 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, disp=nwchem.disp, delta=nwchem.delta,
                 geometry=_geometry))
-        if dotorsions and not ligand:
+        if dotorsions and single:
             filename = f"conf{str(idx)}_tdrive.nw"
             with open(filename,"w") as infile:
                 infile.write(torsnw.format(
@@ -249,10 +290,10 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
             infile.write(runsingularity.format(scratch=slurm.scratch,name=f"{tail}_hess"))
         infile.write("\npython espfit.py\n")
         infile.write("\npython modseminario.py\n")
-        if dotorsions and not ligand: 
+        if dotorsions and single: 
             infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
-        if dotorsions and not ligand:
+        if dotorsions and single:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
                 infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
@@ -265,9 +306,35 @@ def get_qm_data(residue,ligand=False,ff="AMBER99",**kwargs):
                     spacing=tdrive.spacing, idx=str(idx)))
             infile.write("\n cleanup")
     with open("espfit.py","w") as fitting:
+        hcons = []
+        for i,iname in enumerate(names):
+            if iname[0:2] not in ["HA","HB","HG","HD","HE","HH","H1","H2","H3"]: continue
+
+            bonded = None
+            for j in range(natoms):
+                if i == j: continue
+                if norm(coords[0][i]-coords[0][j]) < 1.15:
+                    bonded = j
+                    break
+            
+            if bonded is None:
+                raise KeyError(f"Could not find bond to hydrogen atom {iname}")
+
+            for j,jname in enumerate(names):
+                if j == i: continue
+                if jname[0:2] not in ["HA","HB","HG","HD","HE","HH","H1","H2","H3"]: continue
+                if norm(coords[0][j]-coords[0][bonded]) < 1.15:
+                    found = False
+                    for icons in hcons:
+                        if icons[0] == i and icons[1] == j: found = True
+                        if icons[0] == j and icons[1] == i: found = True
+                        if found: break
+                    if found: continue
+                    hcons.append([i,j])
+
         fitting.write(fit.format(
             natoms=natoms, ncons=ncons, nconf=len(coords), charge=nwchem.charge,
-            printing=printpy, names=names, cons=conspy,
+            printing=printpy, names=names, cons=conspy, hcons=hcons,
             files=[f"conf{str(idx)}" for idx in range(len(coords))]))
     filename = os.path.join(os.path.dirname(os.path.abspath(__file__)),"bonds_and_angles.py")
     with open(filename,"r") as fh: modseminario = fh.read()

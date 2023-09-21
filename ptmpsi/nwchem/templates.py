@@ -85,15 +85,9 @@ files  = {files}
 ncons  = {ncons}
 charge = {charge}
 
-# Constrain hydrogens to have same charge
-hncons = 0
-hcons = []
-for i,name in enumerate(names):
-    if name in ["HA2","HB2","HG2","HD2","HE2","HZ2","HG12","HD22"]: 
-        for j,jname in enumerate(names):
-            if jname[:-1]==name[:-1] and jname[-1] != name[-1]:
-                hncons += 1
-                hcons.append([i,j])
+# Constrain hydrogens bonded to the same atom to have same charge
+hcons = {hcons}
+hncons = len(hcons)
 
 # Constrain NME, ACE, and amide bond charges (for AMBER99)
 cons = [
