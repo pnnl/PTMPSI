@@ -225,6 +225,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
         filename = f"conf{str(idx)}.nw"
         zcoord   = ""
         gcons    = ""
+        noautoz  = ""
         if single:
             phi_val, psi_val = get_torsion(*coord[phi]), get_torsion(*coord[psi])
             _phi = [x+1 for x in phi]
@@ -237,6 +238,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
             else:
                 zcoord  += " end"
         elif metal:
+            noautoz = "noautoz"
             gcons += "constraints\n"
             iatom = 0
             for _residue in alpha:
@@ -251,7 +253,8 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
-                constraint=consnw,geometry=geometry,lshift=nwchem.lshift))
+                constraint=consnw,geometry=geometry,lshift=nwchem.lshift,
+                noautoz=noautoz))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
         with open(filename,"w") as infile:
@@ -305,7 +308,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
                     cdbasis=nwchem.cdbasis, nscf=nwchem.nscf, xcfun=nwchem.xcfun,
                     grid=nwchem.grid, disp=nwchem.disp, memory=nwchem.memory,
                     spacing=tdrive.spacing, idx=str(idx)))
-            infile.write("\n cleanup")
+        infile.write("\n cleanup")
     with open("espfit.py","w") as fitting:
         hcons = []
         for i,iname in enumerate(names):

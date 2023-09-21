@@ -7,7 +7,7 @@ set int:cando_nw f
 memory total {memory} mb noverify
 
 
-geometry nocenter
+geometry nocenter {noautoz}
 {geometry}
 {zcoord}
 end
@@ -215,7 +215,6 @@ module load python
 module load gcc/9.3.0
 module load openmpi
 
-export NWCHEM_BASIS_LIBRARY="/cluster/apps/nwchem/nwchem-7.0.2/src/basis/libraries.bse/"
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NWC_RANKS_PER_DEVICE=0
