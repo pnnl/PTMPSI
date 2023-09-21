@@ -224,6 +224,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
         geometry = geometry[:-1]
         filename = f"conf{str(idx)}.nw"
         zcoord   = ""
+        gcons    = ""
         if single:
             phi_val, psi_val = get_torsion(*coord[phi]), get_torsion(*coord[psi])
             _phi = [x+1 for x in phi]
@@ -236,20 +237,20 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
             else:
                 zcoord  += " end"
         elif metal:
-            zcoord += " zcoord\n"
+            gcons += "constraints\n"
             iatom = 0
             for _residue in alpha:
                 for atom in _residue.names:
                     iatom +=1
                     if atom in ["CA","ZN","CU","FE","CO"]:
-                        zcoord += f"  fix atom {iatom}\n"
-            zcoord += " end"
+                        gcons += f"  fix atom {iatom}\n"
+            gcons += "end"
         with open(filename,"w") as infile:
             infile.write(respnw.format(
                 name=f"conf{str(idx)}", zcoord=zcoord, charge=nwchem.charge,
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
-                nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp,
+                nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
                 constraint=consnw,geometry=geometry,lshift=nwchem.lshift))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """

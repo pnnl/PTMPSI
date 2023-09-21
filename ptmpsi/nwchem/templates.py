@@ -12,6 +12,8 @@ geometry nocenter
 {zcoord}
 end
 
+{gcons}
+
 charge {charge}
 
 xtb
