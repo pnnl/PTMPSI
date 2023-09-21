@@ -79,16 +79,16 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
 
         # Save last residue information
         if line.split()[0] in ["TER","END","ENDMDL"]:
-            if resid == 0: continue
-            residue = protein.savessbond(ssbonds,residue,resid,nmissing,chain)
-            protein.addres(_residues,residue,atomid+1,names,elements,coordinates,chain,backbone)
-            _residues, natoms, resid, nmissing = protein.addchain(_chains,chain,_residues,natoms,resid,nmissing)
+            if resid > 0:
+                residue = protein.savessbond(ssbonds,residue,resid,nmissing,chain)
+                protein.addres(_residues,residue,atomid+1,names,elements,coordinates,chain,backbone)
+                _residues, natoms, resid, nmissing = protein.addchain(_chains,chain,_residues,natoms,resid,nmissing)
             if line.split()[0] == "END": break
             continue
             
         if line[:4] == "ATOM" or line[:6] == "HETATM":
             # Check if we have a new chain
-            if len(_residues) == 0:
+            if len(_residues) == 0 and resid == 0:
                 chain   = line[21:22]
             # new chain was specified
             elif line[21:22] != chain:
