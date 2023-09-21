@@ -383,7 +383,7 @@ basis "ao basis" spherical
  * library {aobasis}
 end
 
-basis "cd basis" spherical
+basis "cd basis" spherical bse
  * library {cdbasis}
 end
 
