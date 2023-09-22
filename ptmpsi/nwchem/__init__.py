@@ -196,18 +196,16 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
                     ncons   += 1
                     consnw  += f" constrain  {ACE[atom]: 10.6f}  {iatom:5d}\n"
                     conspy  += f"[{iatom}, {ACE[atom]}],\n"
-                    printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
                 elif _residue.name in ["NME"]:
                     ncons += 1
                     consnw += f" constrain  {NME[atom]: 10.6f}  {iatom:5d}\n"
                     conspy += f"[{iatom}, {NME[atom]}],\n"
-                    printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
                 else:
                     if ff == "AMBER99" and atom in amide:
                         ncons += 1
                         consnw += f" constrain  {amide[atom]: 10.6f}  {iatom:5d}\n"
                         conspy += f"[{iatom}, {amide[atom]}],\n"
-                        printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
+                printpy += f"""print(f"{iatom: 3d} {atom:4s}: {{q[{iatom-1}]: 10.5f}}")\n"""
 
     else:
         iatom = 0

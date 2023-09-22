@@ -155,7 +155,7 @@ for icons in range(hncons):
     A[natoms+ncons+icons+1,hcons[icons][1]] = -1.0
 
 # Start from solution without restraints
-qold = np.linalg.solve(A,B)
+qold, _, _, _ = np.linalg.lstsq(A,B)
 
 # Hyperbolic restraints are non-linear. Do 50 iterations at most
 for iter in range(50):
@@ -177,7 +177,7 @@ for iter in range(50):
         Acur[i,i] += 0.005 / np.sqrt(qold[i]**2 + 0.01)
 
     # Solve linear equation system
-    q = np.linalg.solve(Acur,B)
+    q, _, _, _ = np.linalg.lstsq(Acur,B)
 
     # Check convergence
     delta = np.amax(np.abs(q-qold))
