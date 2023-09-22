@@ -78,6 +78,10 @@ task esp
 fit = """#!/usr/bin/env python3
 import numpy as np
 import copy
+import math
+
+def norm2(vec):
+    return math.sqrt( vec[0]**2 + vec[1]**2 + vec[2]**2 )
 
 # Parameters
 natoms = {natoms}
@@ -206,6 +210,7 @@ cp *.xyz $SLURM_SUBMIT_DIR || :
 cp *.log $SLURM_SUBMIT_DIR || :
 cp *.txt $SLURM_SUBMIT_DIR || :
 cp *.json $SLURM_SUBMIT_DIR || :
+cp *.grid $SLURM_SUBMIT_DIR || :
 }}
 
 trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT

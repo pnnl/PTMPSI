@@ -77,7 +77,7 @@ def read_xyz(filename):
 def main():
 
     elements = {elements}
-    for i in range(elements):
+    for i in range(len(elements)):
         elements[i] = elements[i].capitalize()
 
     names    = {names}
