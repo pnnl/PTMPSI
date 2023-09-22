@@ -311,6 +311,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
         hcons = []
         for i,iname in enumerate(names):
             if iname[0:2] not in ["HA","HB","HG","HD","HE","HH","H1","H2","H3"]: continue
+            if metal and iname[0:2] in ["HH"]: continue
 
             bonded = None
             for j in range(natoms):
