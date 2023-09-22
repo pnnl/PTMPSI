@@ -253,7 +253,7 @@ def bond_angle_list(elements,geometry):
     for iatom in range(_natoms):
         for jatom in range(iatom+1,_natoms):
             dist = np.linalg.norm(geometry[iatom]-geometry[jatom])
-            if dist < 1.2*(_covrad[iatom] + _covrad[jatom]):
+            if dist < 1.3*(_covrad[iatom] + _covrad[jatom]):
                 bonds.append([iatom,jatom])
     bonds = sorted(bonds, key=lambda x:(int(x[0]),int(x[1])))
     bonds = np.array(bonds,dtype=int)
