@@ -15,7 +15,7 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
         raise MyDockingError("Cannot find prepare_receptor")
     elif mgltools is not None:
         prepare_receptor = f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py"
-        if not os.path.isFile(prepare_receptor):
+        if not os.path.isfile(prepare_receptor):
             raise MyDockingError("Cannot find prepare_receptor4.py")
     else:
         prepare_receptor = "prepare_receptor"
