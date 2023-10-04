@@ -1,4 +1,4 @@
-import subprocess
+import subprocess, os
 import numpy as np
 from shutil import which, copyfileobj
 from ptmpsi.exceptions import MyDockingError
@@ -8,11 +8,18 @@ from xyz2mol import xyz2mol, read_xyz_file
 from rdkit import Chem
 from meeko import MoleculePreparation, PDBQTMolecule
 
-def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0):
+def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0,mgltools=None):
 
     # Check if prepare_receptor and vina are in the path
-    if which("prepare_receptor") is None:
+    if which("prepare_receptor") is None and mgltools is None:
         raise MyDockingError("Cannot find prepare_receptor")
+    elif mgltools is not None:
+        prepare_receptor = f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py"
+        if not os.path.isFile(prepare_receptor):
+            raise MyDockingError("Cannot find prepare_receptor4.py")
+    else:
+        prepare_receptor = "prepare_receptor"
+        if mgltools is None: prepare_receptor = "prepare_receptor"
 
     if which("vina") is None:
         raise MyDockingError("Cannot find vina")
@@ -30,7 +37,7 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
 
     # Prepare receptor
     receptorpdbqt = receptor[:-4]+".pdbqt"
-    subprocess.run(["prepare_receptor","-r",receptor,"-o",receptor[:-4]+".pdbqt"])
+    subprocess.run([prepare_receptor,"-r",receptor,"-o",receptor[:-4]+".pdbqt"])
 
     if flexible is not None:
         receptorrigid = receptor[:-4]+"_rigid.pdbqt"
