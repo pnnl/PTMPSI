@@ -6,20 +6,25 @@ from ptmpsi.constants import nwchem_input
 from ptmpsi.protein.tools import get_residue
 from xyz2mol import xyz2mol, read_xyz_file
 from rdkit import Chem
-from meeko import MoleculePreparation, PDBQTMolecule
+from meeko import MoleculePreparation, PDBQTMolecule, PDBQTWriterLegacy
 
 def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0,mgltools=None):
+    receptorpdbqt = receptor[:-4]+".pdbqt"
 
     # Check if prepare_receptor and vina are in the path
     if which("prepare_receptor") is None and mgltools is None:
         raise MyDockingError("Cannot find prepare_receptor")
     elif mgltools is not None:
-        prepare_receptor = f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py"
-        if not os.path.isFile(prepare_receptor):
+        if not os.path.isFile(f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py"):
             raise MyDockingError("Cannot find prepare_receptor4.py")
+        prepare_receptor = [f"{mgltools}/bin/pythonsh",
+                            f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py",
+                            "-r", receptor, "-o", f"{receptor[:-4]}.pdbqt"]
+        prepare_flexreceptor = [f"{mgltools}/bin/pythonsh",
+                            f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_flexreceptor4.py",
+                            "-r", receptorpdbqt, "-s", flexible]
     else:
-        prepare_receptor = "prepare_receptor"
-        if mgltools is None: prepare_receptor = "prepare_receptor"
+        prepare_receptor = ["prepare_receptor", "-r", receptor, "-o", f"{receptor[:-4]}.pdbqt"]
 
     if which("vina") is None:
         raise MyDockingError("Cannot find vina")
@@ -31,18 +36,19 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
             use_graph=True, allow_charged_fragments=True,
             embed_chiral=True, use_huckel=True)
     Chem.rdPartialCharges.ComputeGasteigerCharges(mol[0])
-    preparator = MoleculePreparation(hydrate=False,remove_smiles=True)
-    preparator.prepare(mol[0])
-    preparator.write_pdbqt_file(ligandpdbqt)
+    preparator = MoleculePreparation(hydrate=False)
+    mol_setups = preparator.prepare(mol[0])
+    for setup in mol_setups:
+        pdbqt_string = PDBQTWriterLegacy.write_string(setup)
+        with open(ligandpdbqt,"w") as fh: fh.write(pdbqt_string)
 
     # Prepare receptor
-    receptorpdbqt = receptor[:-4]+".pdbqt"
-    subprocess.run([prepare_receptor,"-r",receptor,"-o",receptor[:-4]+".pdbqt"])
+    subprocess.run(prepare_receptor)
 
     if flexible is not None:
         receptorrigid = receptor[:-4]+"_rigid.pdbqt"
         receptorflex = receptor[:-4]+"_flex.pdbqt"
-        subprocess.run(["pythonsh","prepare_flexreceptor4.py","-r",receptorpdbqt,"-s",flexible])
+        subprocess.run(prepare_flexreceptor)
 
     # Vina configuration file
     if boxcenter is None:
