@@ -249,8 +249,8 @@ class Protein:
         return
 
 
-    def dock(self,ligand,receptor,boxcenter=None,boxsize=10,output=None,flexible=None):
-        dock_ligand(self,ligand,receptor,boxcenter,boxsize,output,flexible)
+    def dock(self,ligand,receptor,boxcenter=None,boxsize=10,output=None,flexible=None,mgltools=None):
+        dock_ligand(self,ligand,receptor,boxcenter,boxsize,output,flexible,mgltools)
         return
 
     def protonate(self,pdbin=None,pdb=None,pqr=None,ph=7):
