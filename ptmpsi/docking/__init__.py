@@ -6,7 +6,7 @@ from ptmpsi.constants import nwchem_input
 from ptmpsi.protein.tools import get_residue
 from xyz2mol import xyz2mol, read_xyz_file
 from rdkit import Chem
-from meeko import MoleculePreparation, PDBQTMolecule, PDBQTWriterLegacy
+from meeko import MoleculePreparation, PDBQTMolecule, PDBQTWriterLegacy, RDKitMolCreate
 
 def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0,mgltools=None):
     receptorpdbqt = receptor[:-4]+".pdbqt"
@@ -112,5 +112,11 @@ center_z = {}
         "--num_modes=9",
         "--out",output])
 
+    # Extract results
+    with open(output,"r") as fh: results_pdbqt = fh.read()
+    pdbqt_mol = PDBQTMolecule(results_pdbqt)
+    docked_mols = RDKitMolCreate.from_pdbqt_mol(pdbqt_mol)
+    Chem.MolToXYZFile(docked_mols[0], 
+                      filename=f"{receptor[:-4]}_{ligand[:-4}_vina.xyz")
 
     return
