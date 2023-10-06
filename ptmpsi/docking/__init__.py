@@ -39,8 +39,11 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
     preparator = MoleculePreparation(hydrate=False)
     mol_setups = preparator.prepare(mol[0])
     for setup in mol_setups:
-        pdbqt_string = PDBQTWriterLegacy.write_string(setup)
-        with open(ligandpdbqt,"w") as fh: fh.write(pdbqt_string)
+        pdbqt_string, is_ok, error_msg = PDBQTWriterLegacy.write_string(setup)
+        if is_ok:
+            with open(ligandpdbqt,"w") as fh: fh.write(pdbqt_string)
+        else:
+            raise MyDockingError(error_msg)
 
     # Prepare receptor
     subprocess.run(prepare_receptor)
