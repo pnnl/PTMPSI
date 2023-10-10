@@ -1,6 +1,17 @@
 import numpy as np
 from ptmpsi.constants import covrad, ztosym, symtoz
 
+class UnitCell:
+    def __init__(self, a, b, c, alpha, beta, gamma, coords, ref=None):
+        self.a = a
+        self.b = b
+        self.c = c
+        self.alpha = np.radians(alpha)
+        self.beta = np.radians(beta)
+        self.gamma = np.radians(gamma)
+        self.coords = coords
+        self.ref = ref
+
 def distance(a,b):
     return np.linalg.norm([float(x)-float(y) for x,y in zip(a,b)])
 
