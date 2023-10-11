@@ -7,8 +7,9 @@ from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, Residue
 from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
+from ptmpsi.protein.tools import get_residue
 from ptmpsi.io import digestpdb, writepdb, writexyz
-from ptmpsi.docking import dock_ligand
+from ptmpsi.docking import Dock, dock_ligand
 
 
 class Chain:
@@ -34,6 +35,7 @@ class Protein:
         self.nssbonds = 0
         self.ssbonds = None
         self.charge = None
+        self.docking = Dock()
         
         # Download file from the PDB
         if self.pdbid is not None:
@@ -249,8 +251,54 @@ class Protein:
         return
 
 
-    def dock(self,ligand,receptor,boxcenter=None,boxsize=10,output=None,flexible=None,mgltools=None):
-        dock_ligand(self,ligand,receptor,boxcenter,boxsize,output,flexible,mgltools=mgltools)
+    def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
+        if ligand is None:
+            raise MyDockingError("No ligand was specified")
+        if receptor is None:
+            raise MyDockingError("No receptor was specified")
+
+        if engine is not None:
+            if engine not in ["vina", "adgpu"]:
+                raise MyDockingError("Only vina or AutoDockGPU can be used as Docking engines")
+            self.docking.engine = engine
+
+        if isinstance(exhaustiveness,int):
+            self.docking.exhaustiveness = exhaustiveness
+        else:
+            raise MyDockingError("Exhaustiveness should be an integer value")
+
+        if output is None:
+            if self.docking.engine == 'vina':
+                output = f"{receptor[:-4]}_{ligand[:-4]}_{engine}.pdbqt"
+            elif self.docking.engine == 'adgpu':
+                output = f"{receptor[:-4]}_{ligand[:-4]}_{engine}.dlg"
+
+
+        if boxcenter is None:
+            xcenter = 0; ycenter = 0; zcenter = 0
+            for chain in self.chains:
+                for residue in chain.residues:
+                    for xyz in residue.coordinates:
+                        xcenter += xyz[0]
+                        ycenter += xyz[1]
+                        zcenter += xyz[2]
+            xcenter /= self.natoms
+            ycenter /= self.natoms
+            zcenter /= self.natoms
+        elif isinstance(boxcenter,str):
+            residue = get_residue(self, boxcenter)
+            xcenter, ycenter, zcenter = np.mean(residue.coordinates,axis=0)
+        else:
+            [xcenter,ycenter,zcenter] = boxcenter
+
+        self.docking.ligand = ligand
+        self.docking.receptor = receptor
+        self.docking.flexible = flexible
+        self.docking.output = output
+        self.docking.boxsize = boxsize
+        self.docking.boxcenter = [xcenter, ycenter, zcenter]
+
+        dock_ligand(self.docking)
         return
 
     def protonate(self,pdbin=None,pdb=None,pqr=None,ph=7):

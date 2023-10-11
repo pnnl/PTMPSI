@@ -1,3 +1,4 @@
+import copy
 from ptmpsi.protein import Residue
 from ptmpsi.residues import resdict
 from ptmpsi.residues.template import Template

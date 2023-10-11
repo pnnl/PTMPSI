@@ -3,11 +3,13 @@ from ptmpsi.residues import Residue
 from ptmpsi.nwchem.templates import * 
 from ptmpsi.nwchem.bonded import bondedks
 from ptmpsi.nwchem.reader import readoptim
+from ptmpsi.nwchem.qmmm import *
 from ptmpsi.math import get_torsion, norm
 from ptmpsi.constants import ang2bohr
 import copy
 import numpy as np
 import os
+import subprocess
 
 ACE = {"CH3" : -0.366200,
           "C":  0.597200,
@@ -57,6 +59,8 @@ class NWChem:
         self.disp    = kwargs.get("disp","disp vdw 4")
         self.delta   = kwargs.get("delta",0.0189)
         self.lshift  = kwargs.get("lshift",0.1)
+        self.bqzone  = kwargs.get("bqzone",20.0)
+        self.boxsize = kwargs.get("boxsize",10.0)
         return
 
 class TorsionDrive:
@@ -601,4 +605,68 @@ def bonds_and_angles(protein,ligand=False):
     print("")
     return
 
+def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=False, totcharge=0, **kwargs):
+    
+    # Process all keyword arguments
+    slurm  = Slurm(**kwargs)
+    nwchem = NWChem(**kwargs)
 
+    # Remove extension
+    name = filename[:-4]
+
+    # Clean PDB file
+    _pdb = f"{name}_clean.pdb"
+    _pqr = f"{name}_clean.pqr"
+    fh = open("pdb2pqr_clean.log","w")
+    subprocess.run(["pdb2pqr30",
+            "--ff","AMBER",
+            "--ffout","AMBER",
+            "--pdb-output",_pdb,
+            filename, _pqr], stdout=fh, stderr=subprocess.STDOUT)
+    fh.close()
+
+    # Convert AMBER to NWChem format
+    with open("amber2nwchem.sh","w") as fh:
+        fh.write(amber2nwchem)
+
+    subprocess.run(["bash","amber2nwchem.sh",_pdb])
+
+    modify = ""
+    for res in qmres:
+        modify += f" modify segment {res} quantum\n"
+
+    counter_string = ""
+    if counter:
+        if totcharge > 0:
+            counter_string = f"counter {int(round(totcharge))} Cl\n"
+        elif totcharge < 0:
+            counter_string = f"counter {int(round(totcharge))} Na\n"
+
+    center_string = "center\n" if center else ""
+    orient_string = "orient\n" if orient else ""
+
+    # Write NWChem input file for geometry minimization
+    with open("prepare.nw","w") as fh:
+        fh.write(prepare.format(name=name, complex=_pdb, charge=nwchem.charge,
+            aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis, nscf=nwchem.nscf,
+            nopt=nwchem.nopt, bqzone=nwchem.bqzone, size=nwchem.boxsize,
+            xcfun=nwchem.xcfun, grid=nwchem.grid, lshift=nwchem.lshift,
+            modify=modify, counter=counter_string, memory=nwchem.memory,
+            disp=nwchem.disp, center=center_string, orient=orient_string))
+
+
+    # If needed, write fragment files
+    with open(filename,"r") as fh:
+        line = fh.readline()
+        while line:
+            if line[17:20] == "EAC":
+                with open("EAC.frg","w") as frg:
+                    frg.write(EAC_frg)
+                break
+            line = fh.readline()
+
+
+
+
+
+    return

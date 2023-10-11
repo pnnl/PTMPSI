@@ -1,37 +1,36 @@
 import subprocess, os
+import re
 import numpy as np
 from shutil import which, copyfileobj
 from ptmpsi.exceptions import MyDockingError
 from ptmpsi.constants import nwchem_input
 from ptmpsi.protein.tools import get_residue
+from ptmpsi.math import norm
 from xyz2mol import xyz2mol, read_xyz_file
 from rdkit import Chem
 from meeko import MoleculePreparation, PDBQTMolecule, PDBQTWriterLegacy, RDKitMolCreate
 
-def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,charge=0,mgltools=None):
-    receptorpdbqt = receptor[:-4]+".pdbqt"
+class Dock:
+    def __init__(self):
+        self.docked = False
+        self.ligand = None
+        self.receptor = None
+        self.flexible = None
+        self.output = None
+        self.engine = "vina"
+        self.boxcenter = None
+        self.boxsize = None
+        self.exhaustiveness = 32
 
-    # Check if prepare_receptor and vina are in the path
-    if which("prepare_receptor") is None and mgltools is None:
-        raise MyDockingError("Cannot find prepare_receptor")
-    elif mgltools is not None:
-        if not os.path.isfile(f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py"):
-            raise MyDockingError("Cannot find prepare_receptor4.py")
-        prepare_receptor = [f"{mgltools}/bin/pythonsh",
-                            f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_receptor4.py",
-                            "-r", receptor, "-o", f"{receptor[:-4]}.pdbqt"]
-        prepare_flexreceptor = [f"{mgltools}/bin/pythonsh",
-                            f"{mgltools}/MGLToolsPckgs/AutoDockTools/Utilities24/prepare_flexreceptor4.py",
-                            "-r", receptorpdbqt, "-s", flexible]
-    else:
-        prepare_receptor = ["prepare_receptor", "-r", receptor, "-o", f"{receptor[:-4]}.pdbqt"]
+def dock_ligand(cls):
+    receptorpdbqt = cls.receptor[:-4]+".pdbqt"
 
-    if which("vina") is None:
-        raise MyDockingError("Cannot find vina")
+    if which(cls.engine) is None:
+        raise MyDockingError(f"Cannot find {cls.engine}")
 
     # Prepare ligand
-    ligandpdbqt = ligand[:-4]+".pdbqt"
-    atoms, charge, xyz_coords = read_xyz_file(ligand)
+    ligandpdbqt = cls.ligand[:-4]+".pdbqt"
+    atoms, charge, xyz_coords = read_xyz_file(cls.ligand)
     mol = xyz2mol(atoms, xyz_coords, charge=charge,
             use_graph=True, allow_charged_fragments=True,
             embed_chiral=True, use_huckel=True)
@@ -47,78 +46,144 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
             raise MyDockingError(error_msg)
 
     # Prepare receptor
-    subprocess.run(prepare_receptor)
-
-    if flexible is not None:
-        receptorrigid = receptor[:-4]+"_rigid.pdbqt"
-        receptorflex = receptor[:-4]+"_flex.pdbqt"
-        subprocess.run(prepare_flexreceptor)
+    command = ["mk_prepare_receptor.py","--pdb",cls.receptor,"-o",f"{cls.receptor[:-4]}","--skip_gpf"]
+    receptorrigid = cls.receptor[:-4]+"_rigid.pdbqt"
+    receptorflex = cls.receptor[:-4]+"_flex.pdbqt"
+    if cls.flexible is not None:
+        for flexres in cls.flexible:
+            command.extend(["-f",flexres])
+    subprocess.run(command)
 
     # Vina configuration file
-    if boxcenter is None:
-        xcenter = 0; ycenter = 0; zcenter = 0
-        for chain in protein.chains:
-            for residue in chain.residues:
-                for xyz in residue.coordinates:
-                    xcenter += xyz[0]
-                    ycenter += xyz[1]
-                    zcenter += xyz[2]
-        xcenter /= protein.natoms
-        ycenter /= protein.natoms
-        zcenter /= protein.natoms
-    elif isinstance(boxcenter,str):
-        residue = get_residue(protein,boxcenter)
-        xcenter, ycenter, zcenter = np.mean(residue.coordinates,axis=0)
-    else:
-        [xcenter,ycenter,zcenter] = boxcenter
+    [xcenter,ycenter,zcenter] = cls.boxcenter
 
-
-    if isinstance(boxsize,float) or isinstance(boxsize,int):
-        xsize = ysize = zsize = float(boxsize)
-    elif len(boxsize) == 3:
-        [xsize,ysize,zsize] = boxsize
+    if isinstance(cls.boxsize,float) or isinstance(cls.boxsize,int):
+        xsize = ysize = zsize = float(cls.boxsize)
+    elif len(cls.boxsize) == 3:
+        [xsize,ysize,zsize] = cls.boxsize
     else:
         raise MyDockingError("Boxsize must be a 3-vector")
 
     with open("config.txt","w") as fh:
-        fh.write("""
-size_x = {}
-size_y = {}
-size_z = {}
-center_x = {}
-center_y = {}
-center_z = {}
-""".format(xsize,ysize,zsize,xcenter,ycenter,zcenter))
+        fh.write(f"""
+size_x = {xsize}
+size_y = {ysize}
+size_z = {zsize}
+center_x = {xcenter}
+center_y = {ycenter}
+center_z = {zcenter}""")
 
 
     # Dock structure 
-    output = "_".join([receptor[:-4],ligand[:-4],"vina.pdbqt"])
-    if flexible is None:
+    if cls.flexible is None:
         subprocess.run(["vina",
         "--receptor",receptorpdbqt,
         "--ligand",ligandpdbqt,
         "--config","config.txt",
-        "--exhaustiveness=32",
+        f"--exhaustiveness={cls.exhaustiveness}",
         "--cpu=8",
         "--num_modes=9",
-        "--out",output])
+        "--out",cls.output])
     else:
         subprocess.run(["vina",
         "--receptor",receptorrigid,
         "--flex",receptorflex,
         "--ligand",ligandpdbqt,
         "--config","config.txt",
-        "--exhaustiveness=32",
+        f"--exhaustiveness={cls.exhaustiveness}",
         "--cpu=8",
         "--num_modes=9",
-        "--out",output])
+        "--out",cls.output])
 
-    # Extract results
-    with open(output,"r") as fh: results_pdbqt = fh.read()
-    pdbqt_mol = PDBQTMolecule.from_file(output, skip_typing=True)
+    # We got a docked structure
+    cls.docked = True
+
+    # Extract ligand results into XYZ file
+    with open(cls.output,"r") as fh: results_pdbqt = fh.read()
+    pdbqt_mol = PDBQTMolecule.from_file(cls.output, skip_typing=True)
     docked_mols = RDKitMolCreate.from_pdbqt_mol(pdbqt_mol)
     for i in range(docked_mols[0].GetNumConformers()):
         Chem.MolToXYZFile(docked_mols[0], 
-                filename=f"{receptor[:-4]}_{ligand[:-4]}_pose{i+1:02d}_vina.xyz", confId=i)
+                filename=f"{cls.receptor[:-4]}_{cls.ligand[:-4]}_pose{i+1:02d}_vina.xyz", confId=i)
 
     return
+
+def write_pdb(cls, filename=None, pose=0, template=None):
+    if filename is None:
+        filename = f"{cls.receptor[:-4]}_{cls.ligand[:-4]}_complex.pdb"
+
+    with open(filename,"w") as outf:
+        if not cls.flexible:
+            with open(cls.receptor,"r") as recf: reclines = recf.readlines()
+            natom = 0
+            ires  = 0
+            for line in reclines:
+                if line[:4] == "ATOM":
+                    natom += 1
+                    newline = line[:56] + "0.00  0.00"
+                    ires = int(line[23:26])
+                    if line[76:78] == "  ":
+                        if re.search(r"C[A,B,G,D,E,Z,H]| C$",line[12:16]):
+                            newline += "           C\n"
+                        elif re.search(r"O[G,D,E,H,X]| O$",line[12:16]):
+                            newline += "           O\n"
+                        elif re.search(r"N[H,Z,E,D]| N$",line[12:16]):
+                            newline += "           N\n"
+                        elif re.search(r"S[G,D,H]| S$",line[12:16]):
+                            newline += "           S\n"
+                        elif re.search(r"H[H,A,B,G,Z,E,D,O]| H$",line[12:16]):
+                            newline += "           H\n"
+                    else:
+                        newline += line[66:]
+                    outf.write(newline)
+            with open(f"{cls.receptor[:-4]}_{cls.ligand[:-4]}_pose{pose+1:02d}_vina.xyz","r") as ligf:
+                liglines = ligf.readlines()
+            iatom = 0
+            if template is None:
+                ires += 1
+                for line in liglines[2:]:
+                    natom += 1
+                    iatom += 1
+                    element = line.split()[0] + str(iatom)
+                    coords = [float(x) for x in line.split()[1:]]
+                    newline = f"ATOM  {natom:5d} {element:>4s} LIG   {ires:3d}    {coords[0]:8.3f}{coords[1]:8.3f}{coords[2]:8.3f}  0.00  0.00          {line.split()[0]:>2s}\n"
+                    outf.write(newline)
+            else:
+                iline = 2
+                for chain in template.chains:
+                    for residue in chain.residues:
+                        ires += 1
+                        for element,name,coord in zip(residue.elements,residue.names,residue.coordinates):
+                            if element == "H":
+                                if liglines[iline].split()[0] == "H": iline += 1
+                                continue
+                            else:
+                                natom += 1
+                                coords = np.array([float(x) for x in liglines[iline].split()[1:]])
+                                outf.write(f"ATOM  {natom:5d} {name:>4s} {residue.name:3s}   {ires:3d}    {coords[0]:8.3f}{coords[1]:8.3f}{coords[2]:8.3f}  0.00  0.00          {element:>2s}\n")
+                                iline += 1
+                                if name in ["C","O"]: continue
+                                ih = 0
+                                for jline in range(2,len(liglines)):
+                                    if liglines[jline].split()[0] == "H":
+                                        jcoord = np.array([float(x) for x in liglines[jline].split()[1:]])
+                                        if norm(coords-jcoord) < 1.2:
+                                            natom += 1
+                                            ih += 1
+                                            if name in ["NH3","CH3"]:
+                                                hname = "HH3" + str(ih)
+                                            elif name in ["N"]:
+                                                hname = "H"
+                                            else:
+                                                hname = "H" + name[1] + str(ih+1)
+                                            outf.write(f"ATOM  {natom:5d} {hname:>4s} {residue.name}   {ires:3d}    {jcoord[0]:8.3f}{jcoord[1]:8.3f}{jcoord[2]:8.3f}  0.00  0.00           H\n")
+                                            if hname == "H" and ih == 1: break
+                                            elif "HH3" in hname and ih == 3: break
+                                            elif "HH3" not in hname and ih == 2: break
+
+
+
+
+            
+
+
