@@ -58,7 +58,7 @@ def get_template(residue):
         _residue = residue
     elif isinstance(residue,str):
         try:
-            _residue = resdict[residue.upper()]
+            _residue = copy.deepcopy(resdict[residue.upper()])
         except:
             raise MyDockingError("There is no template for '{}'".format(residue))
     else:

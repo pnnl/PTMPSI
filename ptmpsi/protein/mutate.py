@@ -140,7 +140,7 @@ def post_translational_modification(protein,original,ptm):
 
     # Scan chi1 and chi2 dihedrals for a better rotamer
     if nclashes > 0:
-        _template = resdict[_original.name]
+        _template = copy.deepcopy(resdict[_original.name])
         if _template.chi1 is None:
             chi1 = None
         else:

@@ -35,11 +35,12 @@ def dock_ligand(protein,ligand,receptor,boxcenter,boxsize,output,flexible=None,c
     mol = xyz2mol(atoms, xyz_coords, charge=charge,
             use_graph=True, allow_charged_fragments=True,
             embed_chiral=True, use_huckel=True)
-    Chem.rdPartialCharges.ComputeGasteigerCharges(mol[0])
+    mol = mol[0]
+    Chem.rdPartialCharges.ComputeGasteigerCharges(mol)
     preparator = MoleculePreparation(hydrate=False)
-    mol_setups = preparator.prepare(mol[0])
+    mol_setups = preparator.prepare(mol)
     for setup in mol_setups:
-        pdbqt_string, is_ok, error_msg = PDBQTWriterLegacy.write_string(setup)
+        pdbqt_string, is_ok, error_msg = PDBQTWriterLegacy.write_string(setup, add_index_map=True)
         if is_ok:
             with open(ligandpdbqt,"w") as fh: fh.write(pdbqt_string)
         else:
@@ -114,9 +115,10 @@ center_z = {}
 
     # Extract results
     with open(output,"r") as fh: results_pdbqt = fh.read()
-    pdbqt_mol = PDBQTMolecule(results_pdbqt)
+    pdbqt_mol = PDBQTMolecule.from_file(output, skip_typing=True)
     docked_mols = RDKitMolCreate.from_pdbqt_mol(pdbqt_mol)
-    Chem.MolToXYZFile(docked_mols[0], 
-                      filename=f"{receptor[:-4]}_{ligand[:-4}_vina.xyz")
+    for i in range(docked_mols[0].GetNumConformers()):
+        Chem.MolToXYZFile(docked_mols[0], 
+                filename=f"{receptor[:-4]}_{ligand[:-4]}_pose{i+1:02d}_vina.xyz", confId=i)
 
     return

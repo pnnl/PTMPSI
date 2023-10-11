@@ -91,7 +91,8 @@ def appendc(chain,residue,psi=None):
     """
 
     if len(chain.residues) == 0:
-        return residue.coordinates
+        coords = residue.coordinates
+        return coords
 
     # Find C-terminus
     cterminus = chain.residues[-1]
@@ -105,7 +106,7 @@ def appendc(chain,residue,psi=None):
     c  = cterminus.find_coord("C")
     o  = cterminus.find_coord("O")
 
-    if cterminus.name in ["ABA","EAC"]:
+    if cterminus.name in ["ABA", "EAC"]:
         n = cterminus.find_coord("CB")
     else:
         n = cterminus.find_coord("N")
@@ -122,6 +123,14 @@ def appendc(chain,residue,psi=None):
         cterminus.elements = cterminus.elements[mask]
         cterminus.natoms = len(cterminus.names)
 
+        ca = cterminus.find_coord("CA")
+        c  = cterminus.find_coord("C")
+        o  = cterminus.find_coord("O")
+        if cterminus.name in ["ABA", "EAC"]:
+            n = cterminus.find_coord("CB")
+        else:
+            n = cterminus.find_coord("N")
+
     # Otherwise, bisect the angle CA-C-O to determine position
     else:
         _c  = c - c
@@ -135,7 +144,7 @@ def appendc(chain,residue,psi=None):
     vector2 = residue.nattach - residue.find_coord("N")
 
     # Obtain rotation matrix and ensure antiparallel arrangement
-    R = -rotmatvec(vector1,vector2)
+    R = rotmatvec(vector1,-vector2)
 
     # Rotate coordinates and translate to original frame
     newcoords = np.dot(residue.coordinates-residue.find_coord("N"),R.T) + c + vector1
@@ -145,24 +154,22 @@ def appendc(chain,residue,psi=None):
     if residue.name not in ["PRO"]:
         dihedral = get_torsion(newcoords[residue.find("H")],
                 newcoords[residue.find("N")],c,o)
-
         if abs(dihedral) < 175.0:
             shift = copy(newcoords[residue.find("N")])
             k = -(c - shift)/norm(c-shift)
-            dihedral = np.radians(180-dihedral)
+            dihedral = np.radians(180.0-dihedral)
             for i,coord in enumerate(newcoords):
+                if i == residue.find("N"): continue
                 coord = np.cos(dihedral)*(coord - shift) + (1-np.cos(dihedral))*k*np.dot(coord-shift,k) + np.cross(k,coord-shift)*np.sin(dihedral) + shift
                 newcoords[i] = coord
 
     if psi is not None:
 
         # Check Psi angle
-        dihedral = get_torsion(cterminus.find_coord("N"),
-            cterminus.find_coord("CA"),
-            cterminus.find_coord("C"),
+        dihedral = get_torsion(n, ca, c,
             newcoords[residue.find("N")]) - psi
 
-    # Rotate, if necessary
+        # Rotate, if necessary
         if np.abs(dihedral) > 0.0:
             dihedral = -np.radians(dihedral)
             R = rotmataxis(cterminus.find_coord("C")-cterminus.find_coord("CA"),dihedral)
@@ -235,7 +242,7 @@ def prependn(chain,residue,phi=None):
     vector2 = residue.cattach - residue.find_coord("C")
 
     # Obtain rotation matrix and ensure antiparallel arrangement
-    R = -rotmatvec(vector1,vector2)
+    R = rotmatvec(vector1,-vector2)
 
     # Rotate coordinates and translate to original frame
     newcoords = np.dot(residue.coordinates-residue.find_coord("C"),R.T) + n + vector1
@@ -261,12 +268,10 @@ def prependn(chain,residue,phi=None):
     if phi is not None:
         # Check Phi angle
         dihedral = get_torsion(newcoords[residue.find("C")],
-            nterminus.find_coord("N"),
-            nterminus.find_coord("CA"),
-            nterminus.find_coord("C")) - phi
+            n, ca, c) - phi
 
         # Rotate, if necessary
-        if np.abs(dihedral) > 0.0:
+        if np.abs(dihedral) > 0.5:
             dihedral = -np.radians(dihedral)
             R = rotmataxis(nterminus.find_coord("N")-nterminus.find_coord("CA"),dihedral)
             newcoords = np.dot(newcoords-nterminus.find_coord("CA"),R.T) + nterminus.find_coord("CA")

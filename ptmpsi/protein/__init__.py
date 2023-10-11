@@ -153,7 +153,7 @@ class Protein:
 
     def append(self,chain,residue,psi=None):
         try:
-            _residue = resdict[residue]
+            _residue = copy.deepcopy(resdict[residue])
         except:
             raise MyDockingError("There is no residue with name '{}'".format(residue))
 
@@ -189,7 +189,7 @@ class Protein:
 
     def prepend(self,chain,residue,phi=None):
         try:
-            _residue = resdict[residue]
+            _residue = copy.deepcopy(resdict[residue])
         except:
             raise MyDockingError("There is no residue with  name '{}'".format(residue))
 
