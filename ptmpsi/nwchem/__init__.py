@@ -622,6 +622,7 @@ def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=Fals
             "--ff","AMBER",
             "--ffout","AMBER",
             "--pdb-output",_pdb,
+            "--clean",
             filename, _pqr], stdout=fh, stderr=subprocess.STDOUT)
     fh.close()
 
