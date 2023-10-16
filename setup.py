@@ -15,7 +15,7 @@ setup(
             'pandas',
             'scipy', 
             'rdkit', 
-            'meeko', 
+            'meeko @ git+https://github.com/dmejiar/Meeko.git@develop ', 
             'xyz2mol @ git+https://github.com/jensengroup/xyz2mol.git ',
             'pdb2pqr',
             'future',
