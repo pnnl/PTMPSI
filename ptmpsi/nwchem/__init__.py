@@ -352,16 +352,16 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
 
 def get_bond_graph(coords, elems, factor=1.3):
     natoms = len(coords)
-    bonds = set()
+    bonds = list()
     for iatom in range(natoms):
         for jatom in range(iatom+1,natoms):
             rcovsum = covrad[elems[iatom]] + covrad[elems[jatom]]
-            if norm(coords[iatom]-coords[jatom]) <= 1.3*rcovsum:
-                bonds.add((iatom,jatom))
+            if norm(coords[iatom]-coords[jatom]) <= factor*rcovsum:
+                bonds.append((iatom,jatom))
     return bonds
 
-def get_angle_grapg(bonds):
-    angles = set()
+def get_angle_graph(bonds):
+    angles = list()
     _bonds = copy.copy(bonds)
     if len(_bonds) < 3: return angles
 
@@ -371,12 +371,12 @@ def get_angle_grapg(bonds):
         for jbond in _bonds:
             if jatom not in jbond: continue
             katom = jbond[0] if jatom == jbond[1] else jbond[1]
-            angles.add((iatom,jatom,katom))
+            angles.append((iatom,jatom,katom))
     return angles
 
 
 def get_torsion_graph(bonds):
-    torsions = set()
+    torsions = list()
     _bonds = copy.copy(bonds)
     if len(_bonds) < 4: return torsions
 
@@ -390,7 +390,7 @@ def get_torsion_graph(bonds):
                 if kbond == jbond: continue
                 if katom not in kbond: continue
                 latom = kbond[0] if katom == kbond[1] else kbond[1]
-                torsions.add((iatom,jatom,katom,latom))
+                torsions.append((iatom,jatom,katom,latom))
     return torsions
 
 
