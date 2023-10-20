@@ -5,7 +5,7 @@ from ptmpsi.nwchem.bonded import bondedks
 from ptmpsi.nwchem.reader import readoptim
 from ptmpsi.nwchem.qmmm import *
 from ptmpsi.math import get_torsion, norm
-from ptmpsi.constants import ang2bohr
+from ptmpsi.constants import ang2bohr, covrad
 import copy
 import numpy as np
 import os
@@ -349,6 +349,50 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
         seminario.write(modseminario.format(
             elements=elems, names=names, nconf=len(coords)))
     return
+
+def get_bond_graph(coords, elems, factor=1.3):
+    natoms = len(coords)
+    bonds = set()
+    for iatom in range(natoms):
+        for jatom in range(iatom+1,natoms):
+            rcovsum = covrad[elems[iatom]] + covrad[elems[jatom]]
+            if norm(coords[iatom]-coords[jatom]) <= 1.3*rcovsum:
+                bonds.add((iatom,jatom))
+    return bonds
+
+def get_angle_grapg(bonds):
+    angles = set()
+    _bonds = copy.copy(bonds)
+    if len(_bonds) < 4: return angles
+
+    for i,ibond in enumerate(bonds):
+        len(_bonds) < 4: break
+        iatom,jatom = _bonds.pop(i)
+        for jbond in _bonds:
+            if jatom not in jbond: continue
+            katom = jbond[0] if jatom == jbond[1] else jbond[1]
+            angles.add((iatom,jatom,katom))
+    return angles
+
+
+def get_torsion_graph(bonds):
+    torsions = set()
+    _bonds = copy.copy(bonds)
+    if len(_bonds) < 4: return torsions
+
+    for i,ibond in enumerate(bonds):
+        len(_bonds) < 4: break
+        iatom,jatom = _bonds.pop(i)
+        for jbond in _bonds:
+            if jatom not in jbond: continue
+            katom = jbond[0] if jatom == jbond[1] else jbond[1]
+            for kbond in _bonds:
+                if kbond == jbond: continue
+                if katom not in kbond: continue
+                latom = kbond[0] if katom == kbond[1] else kbond[1]
+                torsions.add((iatom,jatom,katom,latom))
+    return torsions
+
 
 def forcebalance(residue,**kwargs):
     import os
