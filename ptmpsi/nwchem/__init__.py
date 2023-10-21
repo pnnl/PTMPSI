@@ -367,7 +367,7 @@ def get_angle_graph(bonds):
 
     for i,ibond in enumerate(bonds):
         if len(_bonds) < 3: break
-        iatom,jatom = _bonds.pop(i)
+        iatom,jatom = _bonds.pop(0)
         for jbond in _bonds:
             if jatom not in jbond: continue
             katom = jbond[0] if jatom == jbond[1] else jbond[1]
@@ -380,9 +380,10 @@ def get_torsion_graph(bonds):
     _bonds = copy.copy(bonds)
     if len(_bonds) < 4: return torsions
 
+    
     for i,ibond in enumerate(bonds):
         if len(_bonds) < 4: break
-        iatom,jatom = _bonds.pop(i)
+        iatom,jatom = _bonds.pop(0)
         for jbond in _bonds:
             if jatom not in jbond: continue
             katom = jbond[0] if jatom == jbond[1] else jbond[1]
