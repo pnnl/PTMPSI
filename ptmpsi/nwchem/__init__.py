@@ -348,6 +348,13 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
     with open("modseminario.py","w") as seminario:
         seminario.write(modseminario.format(
             elements=elems, names=names, nconf=len(coords)))
+
+    _bonds_graph = get_bond_graph(coords[0],elems)
+    _torsions_graph = get_torsion_graph(_bonds_graph)
+    with open("torsions.dat","w") as fh:
+        for _torsion in _torsions_graph:
+            i,j,k,l = _torsion
+            fh.write(f"{i+1:4d} {names[i]:<5s}  {j+1:4d} {names[j]:<5s} {k+1:4d} {names[k]:<5s} {l+1:4d} {names[l]:<5s}\n")
     return
 
 def get_bond_graph(coords, elems, factor=1.3):
