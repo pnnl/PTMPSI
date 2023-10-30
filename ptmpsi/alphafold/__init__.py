@@ -132,7 +132,7 @@ def gen_command(fasta,**kwargs):
             --data_dir=$DOWNLOAD_DIR \\
             --model_preset={} \\
             --max_template_date={} \\
-            --fasta_paths={},
+            --fasta_paths={} \\
             --db_preset={}""".format(model,_date,",".join(fasta),dbs)
     return string
 
