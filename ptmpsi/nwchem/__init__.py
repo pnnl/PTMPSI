@@ -6,6 +6,7 @@ from ptmpsi.nwchem.reader import readoptim
 from ptmpsi.nwchem.qmmm import *
 from ptmpsi.math import get_torsion, norm
 from ptmpsi.constants import ang2bohr, covrad
+from ptmpsi.slurm import Slurm
 import copy
 import numpy as np
 import os
@@ -27,21 +28,6 @@ amide = {"N": -0.415700,
          "H":  0.271900,
          "C":  0.597200,
          "O": -0.567900}
-
-class Slurm:
-    def __init__(self,**kwargs):
-        self.time      = kwargs.get("time","12:00:00")
-        self.partition = kwargs.get("partition","normal")
-        self.account   = kwargs.get("account","emsls60202")
-        self.nnodes    = kwargs.get("nnodes",1)
-        self.ntasks    = kwargs.get("ntasks",36)
-        self.scratch   = kwargs.get("scratch","/big_scratch")
-        self.jobname   = kwargs.get("jobname","ptmpsi")
-        self.header    = slurm_header.format(
-            account=self.account, time=self.time, nodes=self.nnodes,
-            ntasks=self.ntasks, jname=self.jobname, partition=self.partition,
-            np=self.nnodes*self.ntasks, scratch=self.scratch)
-        return
 
 class NWChem:
     def __init__(self,**kwargs):
@@ -108,7 +94,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
     """
 
     # Process all keyword arguments
-    slurm  = Slurm(**kwargs)
+    slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
     tdrive = TorsionDrive(**kwargs)
 

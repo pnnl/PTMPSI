@@ -101,7 +101,7 @@ flags.DEFINE_boolean(
     'WARNING: This will not check if the sequence, database or configuration '
     'have changed.')
 flags.DEFINE_string(
-    'docker_user', f'{os.geteuid()}:{os.getegid()}',
+    'docker_user', f'{{os.geteuid()}}:{{os.getegid()}}',
     'UID:GID with which to run the Docker container. The output directories '
     'will be owned by this user:group. By default, this is the current user. '
     'Valid options are: uid or uid:gid, non-numeric values are not recognised '
@@ -123,9 +123,9 @@ def _create_bind(bind_name: str, path: str) -> Tuple[str, str]:
   if bind_name == 'data_dir':
     data_path = target_path
   else:
-    data_path = f'{os.path.join(target_path, os.path.basename(path))}'
+    data_path = f'{{os.path.join(target_path, os.path.basename(path))}}'
 
-  return (f'{source_path}:{target_path}', f'{data_path}')
+  return (f'{{source_path}}:{{target_path}}', f'{{data_path}}')
 
 
 def main(argv):
@@ -177,7 +177,7 @@ def main(argv):
   data_dir_path = pathlib.Path(FLAGS.data_dir)
   if alphafold_path == data_dir_path or alphafold_path in data_dir_path.parents:
     raise app.UsageError(
-        f'The download directory {FLAGS.data_dir} should not be a subdirectory '
+        f'The download directory {{FLAGS.data_dir}} should not be a subdirectory '
         f'in the AlphaFold repository directory. If it is, the Docker build is '
         f'slow since the large databases are copied during the image creation.')
 
@@ -187,10 +187,10 @@ def main(argv):
   # Mount each fasta path as a unique target directory.
   target_fasta_paths = []
   for i, fasta_path in enumerate(FLAGS.fasta_paths):
-    bind, target_path = _create_bind(f'fasta_path_{i}', fasta_path)
+    bind, target_path = _create_bind(f'fasta_path_{{i}}', fasta_path)
     binds.append(bind)
     target_fasta_paths.append(target_path)
-  command_args.append(f'--fasta_paths={",".join(target_fasta_paths)}')
+  command_args.append(f'--fasta_paths={{",".join(target_fasta_paths)}}')
 
   database_paths = [
       ('uniref90_database_path', uniref90_database_path),
@@ -218,30 +218,30 @@ def main(argv):
     if path:
       bind, target_path = _create_bind(name, path)
       binds.append(bind)
-      command_args.append(f'--{name}={target_path}')
+      command_args.append(f'--{{name}}={{target_path}}')
 
   output_target_path = os.path.join(_ROOT_MOUNT_DIRECTORY, 'output')
-  binds.append(f'{output_dir}:{output_target_path}')
+  binds.append(f'{{output_dir}}:{{output_target_path}}')
 
   use_gpu_relax = FLAGS.enable_gpu_relax and FLAGS.use_gpu
 
   command_args.extend([
-      f'--output_dir={output_target_path}',
-      f'--max_template_date={FLAGS.max_template_date}',
-      f'--db_preset={FLAGS.db_preset}',
-      f'--model_preset={FLAGS.model_preset}',
-      f'--benchmark={FLAGS.benchmark}',
-      f'--use_precomputed_msas={FLAGS.use_precomputed_msas}',
-      f'--num_multimer_predictions_per_model={FLAGS.num_multimer_predictions_per_model}',
-      f'--run_relax={FLAGS.run_relax}',
-      f'--use_gpu_relax={use_gpu_relax}',
+      f'--output_dir={{output_target_path}}',
+      f'--max_template_date={{FLAGS.max_template_date}}',
+      f'--db_preset={{FLAGS.db_preset}}',
+      f'--model_preset={{FLAGS.model_preset}}',
+      f'--benchmark={{FLAGS.benchmark}}',
+      f'--use_precomputed_msas={{FLAGS.use_precomputed_msas}}',
+      f'--num_multimer_predictions_per_model={{FLAGS.num_multimer_predictions_per_model}}',
+      f'--run_relax={{FLAGS.run_relax}}',
+      f'--use_gpu_relax={{use_gpu_relax}}',
       '--logtostderr',
   ])
 
   options = [
-    '--bind', f'{",".join(binds)}',
-    '--env', 'TF_FORCE_UNIFIED_MEMORY=1',
-    '--env', 'XLA_PYTHON_CLIENT_MEM_FRACTION=4.0',
+    '--bind', f'{{",".join(binds)}}',
+    '--env', 'TF_FORCE_UNIFIED_MEMORY={}',
+    '--env', 'XLA_PYTHON_CLIENT_MEM_FRACTION={}',
     '--env', 'OPENMM_CPU_THREADS=12'
   ]
 
