@@ -1,4 +1,4 @@
-EAC_frg = """$EAC                                                                            
+EAC_frg = """$EAC 
    19    1    1    0
 EAC   
     1 N    N         1    1    0    1    1   -0.542610    0.000000
@@ -44,7 +44,7 @@ prepare = """start {name}
 memory total {memory} mb
 
 prepare
-  system {name}
+  system {name}_mm
   source ./{complex}
   new_top new_seq
   new_rst
@@ -52,20 +52,52 @@ prepare
   {orient}
   solvate box {size} {size} {size}
   {counter}
-  {modify}
   update lists
   ignore
-  write {name}.rst
-  write {name}_initial.pdb
+  write {name}_mm.rst
+  write {name}_mm_initial.pdb
 end
 
 task prepare
 
 md
-  system {name}
+  system {name}_mm
+  noshake solute
+  cutoff 1.2
+  pme grid 32 alpha 1e-6 order 6 fft 2
+  sd 1000 min 0.0001
+  record rest 10
+end
+
+task md optimize
+
+prepare
+  read {name}_mm.qrs
+  write {name}_mm_optimized.pdb
+end
+
+task prepare
+  
+prepare
+  system {name}_qmmm
+  source ./{name}_mm_optimized.pdb
+  new_top new_seq
+  new_rst
+  {modify}
+  update lists
+  ignore
+  write {name}_qmmm.rst
+  write {name}_qmmm_initial.pdb
+end
+
+task prepare
+
+md
+  system {name}_qmmm
   noshake solute
   cutoff 1.2 qmmm 1.2
   pme grid 32 alpha 1e-6 order 6 fft 2
+  record rest 1
 end
 
 
@@ -90,25 +122,28 @@ dft
 end
 
 qmmm
-  region qmlink mm
-  maxiter 10 3000
+  region qmlink solute solvent
+  maxiter 10 500 500
   ncycles {nopt}
   bqzone {bqzone}
   density espfit
-  xyz activesite
+  xyz qmregion
 end
 
 task qmmm dft optimize
 
-md 
- system {name}
+prepare
+  read {name}_qmmm.qrs
+  write {name}_qmmm_optimized.pdb
 end
 
+task prepare
+
 analysis
-  system {name}
-  reference {name}.rst
-  file {name}.trj
-  copy {name}-1.xyz
+  system {name}_qmmm
+  reference {name}_qmmm.rst
+  file {name}_qmmm.trj
+  copy {name}_qmmm.xyz
 end
 task analysis
 """
