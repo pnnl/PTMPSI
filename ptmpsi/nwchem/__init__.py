@@ -594,7 +594,7 @@ def bonds_and_angles(protein,ligand=False):
 def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=False, totcharge=0, **kwargs):
     
     # Process all keyword arguments
-    slurm  = Slurm(**kwargs)
+    slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
 
     # Remove extension

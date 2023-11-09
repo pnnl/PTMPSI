@@ -1,6 +1,7 @@
 import subprocess, os
 import re
 import numpy as np
+from copy import copy
 from shutil import which, copyfileobj
 from ptmpsi.exceptions import MyDockingError
 from ptmpsi.constants import nwchem_input
@@ -102,7 +103,7 @@ center_z = {zcenter}""")
     with open(cls.output,"r") as fh: results_pdbqt = fh.read()
     pdbqt_mol = PDBQTMolecule.from_file(cls.output, skip_typing=True)
     docked_mols = RDKitMolCreate.from_pdbqt_mol(pdbqt_mol)
-    for i in range(docked_mols[0].GetNumConformers()):
+    for i in range(docked_mols[0].GetNumConformers()):    
         Chem.MolToXYZFile(docked_mols[0], 
                 filename=f"{cls.receptor[:-4]}_{cls.ligand[:-4]}_pose{i+1:02d}_vina.xyz", confId=i)
 
@@ -138,10 +139,11 @@ def write_pdb(cls, filename=None, pose=0, template=None):
                     outf.write(newline)
             with open(f"{cls.receptor[:-4]}_{cls.ligand[:-4]}_pose{pose+1:02d}_vina.xyz","r") as ligf:
                 liglines = ligf.readlines()
+            liglines = liglines[2:]
             iatom = 0
             if template is None:
                 ires += 1
-                for line in liglines[2:]:
+                for line in liglines:
                     natom += 1
                     iatom += 1
                     element = line.split()[0] + str(iatom)
@@ -149,37 +151,68 @@ def write_pdb(cls, filename=None, pose=0, template=None):
                     newline = f"ATOM  {natom:5d} {element:>4s} LIG   {ires:3d}    {coords[0]:8.3f}{coords[1]:8.3f}{coords[2]:8.3f}  0.00  0.00          {line.split()[0]:>2s}\n"
                     outf.write(newline)
             else:
-                iline = 2
+                heavy = [line for line in liglines if line.split()[0] != "H"]
+                hydro = [line for line in liglines if line.split()[0] == "H"]
+                iline = 0
+
+                _elements = [element for chain in template.chains for residue in chain.residues for element in residue.elements if element != "H"]
+                forward_mode = False
+                backward_mode =  False
+                if _elements[0] == heavy[0].split()[0]:
+                    if _elements[1] == heavy[1].split()[0]:
+                        forward_mode = True
+
+                if not forward_mode:
+                    heavy.reverse()
+                    
+                # Permute oxygens to align geometries
+                _heavy = []
+                i = 0
+                while i < len(heavy):
+                    element = heavy[i].split()[0]
+                    if element == "O":
+                        for j in range(i+1,len(heavy)):
+                            if heavy[j].split()[0] == "N":
+                                _heavy.append(copy(heavy[i]))
+                                _heavy.append(copy(heavy[j]))
+                                i = j + 1
+                                break
+                            else:
+                                _heavy.append(copy(heavy[j]))
+                    else:
+                        _heavy.append(copy(heavy[i]))
+                        i += 1
+                heavy = _heavy
+                           
+                iline = 0 
                 for chain in template.chains:
                     for residue in chain.residues:
                         ires += 1
-                        for element,name,coord in zip(residue.elements,residue.names,residue.coordinates):
-                            if element == "H":
-                                if liglines[iline].split()[0] == "H": iline += 1
-                                continue
-                            else:
-                                natom += 1
-                                coords = np.array([float(x) for x in liglines[iline].split()[1:]])
-                                outf.write(f"ATOM  {natom:5d} {name:>4s} {residue.name:3s}   {ires:3d}    {coords[0]:8.3f}{coords[1]:8.3f}{coords[2]:8.3f}  0.00  0.00          {element:>2s}\n")
-                                iline += 1
-                                if name in ["C","O"]: continue
-                                ih = 0
-                                for jline in range(2,len(liglines)):
-                                    if liglines[jline].split()[0] == "H":
-                                        jcoord = np.array([float(x) for x in liglines[jline].split()[1:]])
-                                        if norm(coords-jcoord) < 1.2:
-                                            natom += 1
-                                            ih += 1
-                                            if name in ["NH3","CH3"]:
-                                                hname = "HH3" + str(ih)
-                                            elif name in ["N"]:
-                                                hname = "H"
-                                            else:
-                                                hname = "H" + name[1] + str(ih+1)
-                                            outf.write(f"ATOM  {natom:5d} {hname:>4s} {residue.name}   {ires:3d}    {jcoord[0]:8.3f}{jcoord[1]:8.3f}{jcoord[2]:8.3f}  0.00  0.00           H\n")
-                                            if hname == "H" and ih == 1: break
-                                            elif "HH3" in hname and ih == 3: break
-                                            elif "HH3" not in hname and ih == 2: break
+                        for element,name in zip(residue.elements,residue.names):
+                            if element == "H": continue
+
+                            natom += 1
+                            coords = np.array([float(x) for x in heavy[iline].split()[1:]])
+                            outf.write(f"ATOM  {natom:5d} {name:>4s} {residue.name:3s}   {ires:3d}    {coords[0]:8.3f}{coords[1]:8.3f}{coords[2]:8.3f}  0.00  0.00          {element:>2s}\n")
+
+                            iline += 1
+                            if name in ["C", "O"]: continue
+
+                            ih = 0
+                            for jline in range(len(hydro)):
+                                if hydro[jline].split()[0] == "H":
+                                    jcoord = np.array([float(x) for x in hydro[jline].split()[1:]])
+                                    _norm = norm(coords-jcoord)
+                                    if norm(coords-jcoord) < 1.2:
+                                        natom += 1
+                                        ih += 1
+                                        if name in ["NH3","CH3"]:
+                                            hname = "HH3" + str(ih)
+                                        elif name in ["N"]:
+                                            hname = "H"
+                                        else:
+                                            hname = "H" + name[1] + str(ih+1)
+                                        outf.write(f"ATOM  {natom:5d} {hname:>4s} {residue.name}   {ires:3d}    {jcoord[0]:8.3f}{jcoord[1]:8.3f}{jcoord[2]:8.3f}  0.00  0.00           H\n")
 
 
 

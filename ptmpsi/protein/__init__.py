@@ -257,7 +257,9 @@ class Protein:
         if receptor is None:
             raise MyDockingError("No receptor was specified")
 
-        if engine is not None:
+        if engine is None:
+            self.docking.engine = "vina"
+        else:
             if engine not in ["vina", "adgpu"]:
                 raise MyDockingError("Only vina or AutoDockGPU can be used as Docking engines")
             self.docking.engine = engine
@@ -269,9 +271,9 @@ class Protein:
 
         if output is None:
             if self.docking.engine == 'vina':
-                output = f"{receptor[:-4]}_{ligand[:-4]}_{engine}.pdbqt"
+                output = f"{receptor[:-4]}_{ligand[:-4]}_{self.docking.engine}.pdbqt"
             elif self.docking.engine == 'adgpu':
-                output = f"{receptor[:-4]}_{ligand[:-4]}_{engine}.dlg"
+                output = f"{receptor[:-4]}_{ligand[:-4]}_{self.docking.engine}.dlg"
 
 
         if boxcenter is None:
