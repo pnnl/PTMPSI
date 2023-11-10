@@ -211,6 +211,12 @@ cp *.log $SLURM_SUBMIT_DIR || :
 cp *.txt $SLURM_SUBMIT_DIR || :
 cp *.json $SLURM_SUBMIT_DIR || :
 cp *.grid $SLURM_SUBMIT_DIR || :
+cp *.qrs $SLURM_SUBMIT_DIR || :
+cp *.pdb $SLURM_SUBMIT_DIR || :
+cp *.rst $SLURM_SUBMIT_DIR || :
+cp *.top $SLURM_SUBMIT_DIR || :
+cp *.trj $SLURM_SUBMIT_DIR || :
+cp *.out $SLURM_SUBMIT_DIR || :
 }}
 
 trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
@@ -220,6 +226,7 @@ module load python
 module load gcc/9.3.0
 module load openmpi
 
+export NWCHEM_BASIS_LIBRARY=/cluster/apps/nwchem/nwchem/src/basis/libraries/
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NWC_RANKS_PER_DEVICE=0
@@ -230,7 +237,7 @@ export http_proxy="http://proxy.emsl.pnl.gov:3128"
 export NWBIN=/big_scratch/nwchems_`id -u`.img
 export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
 
-srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN oras://$NWCHEM_IMAGE
+srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
 export APPTAINERENV_SCRATCH_DIR={scratch}
 export APPTAINERENV_OMP_NUM_THREADS=1
 export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY

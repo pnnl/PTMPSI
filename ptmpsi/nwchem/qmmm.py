@@ -40,6 +40,24 @@ EAC
    19   18
 """
 
+qmmm_slurm = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /cluster/apps/nwchem/nwchem/src/data/amber_s/
+amber_2 /cluster/apps/nwchem/nwchem/src/data/amber_x/
+amber_3 /cluster/apps/nwchem/nwchem/src/data/amber_q/
+spce /cluster/apps/nwchem/nwchem/src/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/{complex} /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw /big_scratch
+
+srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch,$NWCHEM_BASIS_LIBRARY,/cluster/apps/nwchem/nwchem/src/data/ $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
 prepare = """start {name}
 memory total {memory} mb
 
@@ -79,21 +97,21 @@ end
 task prepare
   
 prepare
-  system {name}_qmmm
+  system {name}2_qmmm
   source ./{name}_mm_optimized.pdb
   new_top new_seq
   new_rst
   {modify}
   update lists
   ignore
-  write {name}_qmmm.rst
-  write {name}_qmmm_initial.pdb
+  write {name}2_qmmm.rst
+  write {name}2_qmmm_initial.pdb
 end
 
 task prepare
 
 md
-  system {name}_qmmm
+  system {name}2_qmmm
   noshake solute
   cutoff 1.2 qmmm 1.2
   pme grid 32 alpha 1e-6 order 6 fft 2
@@ -133,17 +151,17 @@ end
 task qmmm dft optimize
 
 prepare
-  read {name}_qmmm.qrs
-  write {name}_qmmm_optimized.pdb
+  read {name}2_qmmm.qrs
+  write {name}2_qmmm_optimized.pdb
 end
 
 task prepare
 
 analysis
-  system {name}_qmmm
-  reference {name}_qmmm.rst
-  file {name}_qmmm.trj
-  copy {name}_qmmm.xyz
+  system {name}2_qmmm
+  reference {name}2_qmmm.rst
+  file {name}2_qmmm.trj
+  copy {name}2_qmmm.xyz
 end
 task analysis
 """
