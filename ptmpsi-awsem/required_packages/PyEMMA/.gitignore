@@ -1,0 +1,40 @@
+*.orig
+*.bak
+build*
+*.log
+*.egg
+.eggs
+/.settings
+/.tox
+*.pyc
+*.pyd
+*.egg-info
+*.so
+/temp
+/tmp
+/target
+__pycache__
+/pylint/pylint_*.txt
+/dist
+.externalToolBuilders
+
+# ignore untitled ipython notebooks
+Untitled*.ipynb
+
+# generated from MANIFEST.in
+MANIFEST
+doc/source/api/generated/
+.ipynb_checkpoints
+
+# project files
+.idea
+
+# generated from setup.py
+pyemma/_extensions.json
+pyemma/setup.cfg
+
+# generated c-files:
+pyemma/_ext/variational/estimators/covar_c/covartools.c
+
+# pytest
+.pytest_cache
