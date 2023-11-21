@@ -1,0 +1,17 @@
+pip
+setuptools
+sphinx
+sphinx_rtd_theme
+matplotlib
+jupyter
+jinja2
+runipy
+openmm
+pytables
+scikit-learn
+pytest
+setuptools
+pandas
+numpydoc
+wheel
+python==3.7

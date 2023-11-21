@@ -1,0 +1,35 @@
+# PyEMMA's default logging settings
+# If you want to enable file logging, uncomment the file related handlers and handlers
+# 
+
+# do not disable other loggers by default.
+disable_existing_loggers: False
+
+# please do not change version, it is an internal variable used by Python.
+version: 1
+
+formatters:
+    simpleFormater:
+        format: '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+        datefmt: '%d-%m-%y %H:%M:%S'
+
+handlers:
+    # log to stdout
+    console:
+        class: logging.StreamHandler
+        formatter: simpleFormater
+        stream: ext://sys.stdout
+    # example for rotating log files, disabled by default
+    #rotating_files:
+    #    class: logging.handlers.RotatingFileHandler
+    #    formatter: simpleFormater
+    #    filename: pyemma.log
+    #    maxBytes: 1048576 # 1 MB
+    #    backupCount: 3
+
+loggers:
+    pyemma:
+        level: INFO
+        # by default no file logging!
+        handlers: [console] #, rotating_files]
+

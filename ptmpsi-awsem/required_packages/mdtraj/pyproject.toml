@@ -1,0 +1,8 @@
+[build-system]
+requires = [
+    "setuptools",
+    "wheel",
+    # provides the oldest numpy version with wheels on PyPI
+    "oldest-supported-numpy",
+    "Cython~=0.29.36",
+]
