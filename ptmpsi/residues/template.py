@@ -7,6 +7,7 @@ class Template:
         self.coordinates = None
         self.elements = None
         self.fullname = None
+        self.charges = None
         self.backbone = np.zeros(3)
         self.nattach = np.zeros(3)
         self.cattach = np.zeros(3)
