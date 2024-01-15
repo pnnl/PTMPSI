@@ -101,8 +101,8 @@ class Protein:
 
 
     def delwaters(self):
-        waters = []
         for chain in self.chains:
+            waters = []
             for ires,residue in enumerate(chain.residues):
                 if residue.name in ['HOH','WAT']:
                     waters.append(ires)

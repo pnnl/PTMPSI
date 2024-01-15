@@ -140,13 +140,15 @@ dft
 end
 
 qmmm
-  region qmlink solute solvent
+  region qmlink mm_solute solvent
   maxiter 10 500 500
   ncycles {nopt}
   bqzone {bqzone}
   density espfit
   xyz qmregion
 end
+
+set driver:linopt 0
 
 task qmmm dft optimize
 

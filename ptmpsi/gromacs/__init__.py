@@ -1,4 +1,5 @@
 from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,SLURM_header,SLURM_tail
+from ptmpsi.gromacs.utils import amber_to_gromacs_names
 import numpy as np
 
 _navogadro = 6.0221408E23
