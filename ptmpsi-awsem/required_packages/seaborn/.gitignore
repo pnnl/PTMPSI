@@ -1,0 +1,16 @@
+*.pyc
+*.sw*
+build/
+.ipynb_checkpoints/
+dist/
+seaborn.egg-info/
+.cache/
+.coverage
+cover/
+htmlcov/
+.idea/
+.vscode/
+.pytest_cache/
+.DS_Store
+notes/
+notebooks/

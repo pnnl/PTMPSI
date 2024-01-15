@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [master, v0.*]
+  pull_request:
+    branches: master
+  schedule:
+    - cron:  '0 6 * * 1,4' # Each Monday and Thursday at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NB_KERNEL: python
+  MPLBACKEND: Agg
+  SEABORN_DATA: ${{ github.workspace }}/seaborn-data
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4.7.0
+        with:
+          python-version: "3.11"
+
+      - name: Install seaborn
+        run: |
+          pip install --upgrade pip
+          pip install .[stats,docs]
+
+      - name: Install pandoc
+        run: |
+          sudo apt-get install pandoc
+
+      - name: Cache datasets
+        run: |
+          git clone https://github.com/mwaskom/seaborn-data.git
+          ls $SEABORN_DATA
+
+      - name: Build docs
+        env:
+          SPHINXOPTS: -j `nproc`
+        run: |
+          cd doc
+          make -j `nproc` notebooks
+          make html
+
+
+  run-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        install: [full]
+        deps: [latest]
+
+        include:
+          - python: "3.8"
+            install: full
+            deps: pinned
+          - python: "3.11"
+            install: light
+            deps: latest
+
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4.7.0
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+
+      - name: Install seaborn
+        run: |
+          pip install --upgrade pip wheel
+          if [[ ${{matrix.install}} == 'full' ]]; then EXTRAS=',stats'; fi
+          if [[ ${{matrix.deps }} == 'pinned' ]]; then DEPS='-r ci/deps_pinned.txt'; fi
+          pip install .[dev$EXTRAS] $DEPS
+
+      - name: Run tests
+        run: make test
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # v3.1.4
+        if: ${{ success() }}
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - name: Setup Python
+        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4.7.0
+
+      - name: Install tools
+        run: pip install mypy flake8
+
+      - name: Flake8
+        run: make lint
+
+      - name: Type checking
+        run: make typecheck

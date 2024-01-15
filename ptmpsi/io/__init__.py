@@ -99,7 +99,7 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
                     
 
             # Check if we have a new residue
-            resnum  = int(line[23:26])
+            resnum  = int(line[22:26])
             if resnum != resid + nmissing:
                 # Check if there are any missing internal residues
                 tmpid = nmissing + resid + 1

@@ -1,0 +1,36 @@
+
+package:
+  name: pyemma-doc
+  # version number: [base tag]+[commits-upstream]_[git_hash]
+  # eg. v2.0+0_g8824162
+  version: "0"
+
+source:
+  - path: ../../doc/
+  # TODO: does not cure that this file can not be included in docs. (relative path issue)
+  - path: ../../pyemma/pyemma.cfg
+    folder: pyemma
+
+requirements:
+  build:
+    - pyemma-dev
+    - make
+    - mdshare
+    - nglview
+    - nbsphinx
+    - sphinx
+    - ipython
+    - ipywidgets
+    - sphinx_rtd_theme
+    - pip
+    - matplotlib
+
+build:
+  #noarch: generic
+  script_env:
+  # options for sphinx builder
+    - SPHINXOPTS
+  # options for notebook conversion (jupyter nbconvert)
+    - nbflags
+  # cfg dir
+    - PYEMMA_CFG_DIR
