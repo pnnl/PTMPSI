@@ -23,6 +23,10 @@ setup(
             'matplotlib',
             'lxml',
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
-            'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow '
+            'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow ',
+            'mdtraj',
+            'seaborn',
+            'pyemma',
+            'biopython',
         ],
     )
