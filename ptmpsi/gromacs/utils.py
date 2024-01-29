@@ -35,3 +35,4 @@ def amber_to_gromacs_names(protein):
                 names.append(residue.names[index])
             import numpy as np
             residue.names = np.array(names)
+
