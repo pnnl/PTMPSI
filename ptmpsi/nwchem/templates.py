@@ -1,3 +1,19 @@
+hfresp = """
+unset "dft:cd*"
+unset "basis:cd*"
+
+basis "ao basis" spherical
+ * library 6-31g*
+end
+
+dft
+ xc hfexch 1.0
+ vectors input atomic
+end
+
+task dft
+"""
+
 respnw = """start
 title "RESP {name}"
 set driver:linopt 0
@@ -52,19 +68,7 @@ end
 
 task dft optimize ignore
 
-unset "dft:cd*"
-unset "basis:cd*"
-
-basis "ao basis" spherical
- * library 6-31g*
-end
-
-dft
- xc hfexch 1.0
- vectors input atomic
-end
-
-task dft
+{dohfresp}
 
 esp
  {constraint}

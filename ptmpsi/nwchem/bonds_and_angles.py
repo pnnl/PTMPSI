@@ -81,43 +81,57 @@ def main():
         elements[i] = elements[i].capitalize()
 
     names    = {names}
-    kabs,kthetas,alists,blists = [],[],[],[]
+    reqs,kabs,thetas,kthetas,alists,blists = [],[],[],[],[],[]
 
     for idx in range({nconf}):
         tail     = f"conf{{str(idx)}}"
         filename = f"{{tail}}.xyz"
         geometry = read_xyz(filename)
-        kab,ktheta,blist,alist = bondedks(tail,elements,geometry)
-        kabs.append(kab)
-        kthetas.append(ktheta)
-        alists.append(alist)
-        blists.append(blist)
+        req,kab,theta,ktheta,blist,alist = bondedks(tail,elements,geometry)
+        reqs.append(copy.copy(req))
+        kabs.append(copy.copy(kab))
+        thetas.append(copy.copy(theta))
+        kthetas.append(copy.copy(ktheta))
+        alists.append(copy.copy(alist))
+        blists.append(copy.copy(blist))
 
     kab = np.zeros(kabs[0].shape)
     for _kab in kabs:
         kab += _kab/len(kabs)
+    
+    req = np.zeros(reqs[0].shape)
+    for _req in reqs:
+        req += _req/len(reqs)
+
+    theta = np.zeros(thetas[0].shape)
+    for _theta in thetas:
+        theta += _theta/len(thetas)
 
     ktheta = np.zeros(kthetas[0].shape)
     for _ktheta in kthetas:
         ktheta += _ktheta/len(kthetas)
 
-    print(" Bond force constants [kJ/mol/nm^2]")
-    print(" Atom1     Atom2       kAB")
-    print(" ------------------------------")
+    print("                      Bond force constants")
+    print("            GROMACS [kJ/mol/nm^2], AMBER [kcal/mol/A^2]")
+    print("   Atom1       Atom2         Req[nm]      kAB GROMACS     kAB AMBER")
+    print(" --------------------------------------------------------------------")
     for i in range(len(blists[0])):
-        print("{{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{:10.1f}}".format(
-            blists[0][i,0],names[blists[0][i,0]],
-            blists[0][i,1],names[blists[0][i,1]],kab[i]))
+        print("{{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{:10.5f}}     {{:10.1f}}    {{:10.2f}}".format(
+            blists[0][i,0]+1,names[blists[0][i,0]],
+            blists[0][i,1]+1,names[blists[0][i,1]],req[i],kab[i],
+            kab[i]*0.5/100.0/4.184))
 
     print("")
-    print(" Angle force constants [kJ/mol/rad^2]")
-    print(" Atom1     Atom2     Atom3      kAB")
-    print(" --------------------------------------")
+    print("                           Angle force constants")
+    print("                GROMACS [kJ/mol/rad^2], AMBER [kcal/mol/rad^2]")
+    print("   Atom1        Atom2         Atom3      THETAeq     kAB GROMACS   kAB AMBER")
+    print(" ------------------------------------------------------------------------------")
     for i in range(len(alists[0])):
-        print(" {{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{:8.3f}}".format(
-            alists[0][i,0],names[alists[0][i,0]],
-            alists[0][i,1],names[alists[0][i,1]],
-            alists[0][i,2],names[alists[0][i,2]],ktheta[i]))
+        print(" {{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{: 3d}} {{:5s}}    {{:8.3f}}     {{:8.3f}}   {{:10.2f}}".format(
+            alists[0][i,0]+1,names[alists[0][i,0]],
+            alists[0][i,1]+1,names[alists[0][i,1]],
+            alists[0][i,2]+1,names[alists[0][i,2]],np.degrees(theta[i]),ktheta[i],
+            ktheta[i]*0.5/4.184))
     print("")
     return
 
@@ -152,9 +166,11 @@ def bondedks(filename,elements,geometry):
 
     # Get bond force constants
     bond_kAB = []
+    bond_req = []
     for bond in bond_list:
         iatom=bond[0]; jatom=bond[1]
         AB = geometry[bond[1]] - geometry[bond[0]]
+        bond_req.append(np.linalg.norm(AB))
         AB /= np.linalg.norm(AB)
         k_AB = 0.0
         for i in range(3):
@@ -165,6 +181,7 @@ def bondedks(filename,elements,geometry):
 
     # Get angle force constants
     angle_kAB = []
+    angle_eq = []
     for i,triad1 in enumerate(angle_list):
         alist = []
         clist = []
@@ -178,6 +195,8 @@ def bondedks(filename,elements,geometry):
 
         AB = geometry[triad1[1]] - geometry[triad1[0]]
         CB = geometry[triad1[1]] - geometry[triad1[2]]
+        theta = np.dot(AB,CB)/(np.linalg.norm(AB)*np.linalg.norm(CB))
+        angle_eq.append(np.arccos(theta))
         AB /= np.linalg.norm(AB)
         CB /= np.linalg.norm(CB)
         u_N = np.cross(CB, AB)
@@ -242,7 +261,7 @@ def bondedks(filename,elements,geometry):
 
         angle_kAB.append(1.0/k_AB)
 
-    return np.array(bond_kAB)*100.0, np.array(angle_kAB), bond_list, angle_list
+    return np.array(bond_req)/10.0,np.array(bond_kAB)*100.0, np.array(angle_eq), np.array(angle_kAB), bond_list, angle_list
 
 def bond_angle_list(elements,geometry):
     _natoms = len(elements)

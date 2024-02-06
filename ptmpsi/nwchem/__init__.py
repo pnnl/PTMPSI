@@ -5,7 +5,7 @@ from ptmpsi.nwchem.bonded import bondedks
 from ptmpsi.nwchem.reader import readoptim
 from ptmpsi.nwchem.qmmm import *
 from ptmpsi.math import get_torsion, norm
-from ptmpsi.constants import ang2bohr
+from ptmpsi.constants import ang2bohr, covrad
 from ptmpsi.slurm import Slurm
 import copy
 import numpy as np
@@ -88,7 +88,7 @@ def get_qdata(files):
             qdata.write(f"FORCES {forces} \n\n")
 
 
-def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
+def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kwargs):
     """ Get all QM data needed to parameterize a non-standard
     amino acid or a new ligand.
     """
@@ -97,6 +97,8 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
     slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
     tdrive = TorsionDrive(**kwargs)
+    _dohfresp = hfresp if dohfresp else ""
+
 
     if ligand and metal:
         raise KeyError("ligand and metal cannot be both True")
@@ -115,6 +117,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
             raise KeyError("residue must be a Protein, Chain, or Residue instance")
         if len(conformers) > 1:
             raise KeyError("Ligand parameterization only accepts one residue")
+        alpha = [copy.deepcopy(alpha)]
     elif metal:
         _alpha = []
         if isinstance(alpha, Protein):
@@ -164,7 +167,9 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
 
     # Update torsion list
     _list = [phi, psi]
-    for torsion in tdrive.torsions: _list.append(torsion)
+    for torsion in tdrive.torsions: 
+        _torsion = [x+offset1+1 for x in torsion] if single else [x+1 for x in torsion]
+        _list.append(_torsion)
     tdrive.torsions = _list
 
     # Get coordinates and number of atoms
@@ -222,7 +227,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
             zcoord  += "  torsion {} {} {} {} {:8.3f} constant\n".format(*_phi,phi_val)
             zcoord  += "  torsion {} {} {} {} {:8.3f} constant\n".format(*_psi,psi_val)
             if alpha[1].chi2 is not None:
-                zcoord  += "  torsion {} {} {} {}\n end".format(*tdrive.torsions[-1]+1,120.0)
+                zcoord  += "  torsion {} {} {} {}\n end".format(*tdrive.torsions[-1])
             else:
                 zcoord  += " end"
         elif metal:
@@ -242,7 +247,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
                 constraint=consnw,geometry=geometry,lshift=nwchem.lshift,
-                noautoz=noautoz))
+                noautoz=noautoz, dohfresp=_dohfresp))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
         with open(filename,"w") as infile:
@@ -262,7 +267,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
                     nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
                     geometry="@geometry@"))
             with open(f"dihedrals{str(idx)}.txt","w") as infile:
-                infile.write("{} {} {} {}".format(*tdrive.torsions[-1]+1))
+                infile.write("{} {} {} {}".format(*tdrive.torsions[-1]))
             with open(f"extras{str(idx)}.txt","w") as infile:
                 infile.write("$set\n dihedral  {}  {}  {}  {}  {}\n".format(*_phi,round(phi_val)))
                 infile.write(" dihedral  {}  {}  {}  {}  {}".format(*_psi,round(psi_val)))
@@ -334,7 +339,59 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",**kwargs):
     with open("modseminario.py","w") as seminario:
         seminario.write(modseminario.format(
             elements=elems, names=names, nconf=len(coords)))
+
+    _bonds_graph = get_bond_graph(coords[0],elems)
+    _torsions_graph = get_torsion_graph(_bonds_graph)
+    with open("torsions.dat","w") as fh:
+        for _torsion in _torsions_graph:
+            i,j,k,l = _torsion
+            fh.write(f"{i+1:4d} {names[i]:<5s}  {j+1:4d} {names[j]:<5s} {k+1:4d} {names[k]:<5s} {l+1:4d} {names[l]:<5s}\n")
     return
+
+def get_bond_graph(coords, elems, factor=1.3):
+    natoms = len(coords)
+    bonds = list()
+    for iatom in range(natoms):
+        for jatom in range(iatom+1,natoms):
+            rcovsum = covrad[elems[iatom]] + covrad[elems[jatom]]
+            if norm(coords[iatom]-coords[jatom]) <= factor*rcovsum:
+                bonds.append((iatom,jatom))
+    return bonds
+
+def get_angle_graph(bonds):
+    angles = list()
+    _bonds = copy.copy(bonds)
+    if len(_bonds) < 3: return angles
+
+    for i,ibond in enumerate(bonds):
+        if len(_bonds) < 3: break
+        iatom,jatom = _bonds.pop(0)
+        for jbond in _bonds:
+            if jatom not in jbond: continue
+            katom = jbond[0] if jatom == jbond[1] else jbond[1]
+            angles.append((iatom,jatom,katom))
+    return angles
+
+
+def get_torsion_graph(bonds):
+    torsions = list()
+    _bonds = copy.copy(bonds)
+    if len(_bonds) < 4: return torsions
+
+    
+    for i,ibond in enumerate(bonds):
+        if len(_bonds) < 4: break
+        iatom,jatom = _bonds.pop(0)
+        for jbond in _bonds:
+            if jatom not in jbond: continue
+            katom = jbond[0] if jatom == jbond[1] else jbond[1]
+            for kbond in _bonds:
+                if kbond == jbond: continue
+                if katom not in kbond: continue
+                latom = kbond[0] if katom == kbond[1] else kbond[1]
+                torsions.append((iatom,jatom,katom,latom))
+    return torsions
+
 
 def forcebalance(residue,**kwargs):
     import os
