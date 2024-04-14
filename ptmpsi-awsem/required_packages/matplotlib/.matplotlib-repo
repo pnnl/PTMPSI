@@ -1,3 +1,0 @@
-The existence of this file signals that the code is a matplotlib source repo
-and not an installed version. We use this in __init__.py for gating version
-detection.

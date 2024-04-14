@@ -47,6 +47,6 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = ["ptmpsi", "ptmpsi-awsem"]
+packages = ["ptmpsi"]
 
 
