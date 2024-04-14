@@ -41,8 +41,8 @@ description = "PTM-Psi is a Python Package to Facilitate the Computational Inves
 license = {file="LICENSE"}
 readme = "README.md"
 classifiers = [
-  "Development Status :: 3 - Alpha"
-  "Programming Language :: Python"
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python",
   "License :: OSI Approved"
 ]
 
