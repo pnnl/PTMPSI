@@ -4,7 +4,7 @@ setup(
         name='ptmpsi',
         description='A Python Package to Facilitate the Computational Investigation of Post-Translational Modification on Protein Structures and Their Impacts on Dynamics and Functions',
         version='0.1',
-        packages=['ptmpsi', 'ptmpsi-awsem'],
+        packages=['ptmpsi'],
         author='Daniel Mejia-Rodriguez',
         author_email='daniel.mejia@pnnl.gov',
         install_requires=[
