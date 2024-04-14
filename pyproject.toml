@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PTM-Psi"
+version = "0.2"
+dependencies = [
+            'requests<=2.29.0',
+            'pytest',
+            'numpy',
+            'networkx',
+            'pandas',
+            'scipy',
+            'rdkit',
+            'meeko @ git+https://github.com/dmejiar/Meeko.git@develop ',
+            'xyz2mol @ git+https://github.com/jensengroup/xyz2mol.git ',
+            'pdb2pqr',
+            'future',
+            'pymbar',
+            'matplotlib',
+            'lxml',
+            'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
+            'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow ',
+            'mdtraj',
+            'seaborn',
+            'pyemma',
+            'biopython',
+]
+requires-python = ">=3.6,<3.12"
+authors = [
+ {name = "Daniel Mejia-Rodriguez", email="daniel.mejia@pnnl.gov"},
+ {name = "Hoshin Kim", email="hoshin.kim@pnnl.gov"},
+ {name = "Marat Valiev", email="marat.valiev@pnnl.gov"},
+ {name = "Margaret S. Cheung-Wyker", email="margaret.cheung-wyker@pnnl.gov"}
+]
+maintainers = [
+ {name = "Daniel Mejia-Rodriguez", email="daniel.mejia@pnnl.gov"}
+]
+description = "PTM-Psi is a Python Package to Facilitate the Computational Investigation of Post-Translational Modification on Protein Structures and Their Impacts on Dynamics and Functions."
+license = {file="LICENSE"}
+readme = "README.md"
+classifiers = [
+  "Development Status :: 3 - Alpha"
+  "Programming Language :: Python"
+  "License :: OSI Approved"
+]
+
+[tool.setuptools]
+packages = ["ptmpsi", "ptmpsi-awsem"]
+
+
