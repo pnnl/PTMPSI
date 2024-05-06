@@ -40,4 +40,4 @@ pip install -e .
 
 ## Acknowledgments
 
-The development of *PTM-Psi* acknowledges funding from the Laboratory Directed Research and Development Program under the Predictive Phenomics Initiative at the Pacific Northwest National Laboratory (PNNL). PNNL is a multi-program national laboratory operated by Battelle Memorial Institute for the U.S. Department of Energy under contract DE-AC05-76RL01830.
+The development of *PTM-Psi* is part of the Predictive Phenomics Initiative at the Pacific Northwest National Laboratory (PNNL). Also, a portion of the research was performed using the Molecular Sciences Computing Facility at the Environmental Molecular Sciences Laboratory (EMSL) and using resources available through Research Computing at PNNL. It was conducted under the Laboratory Directed Research and Development Program at PNNL. PNNL is a multi-program national laboratory operated by Battelle Memorial Institute for the U.S. Department of Energy under contract DE-AC05-76RL01830.
