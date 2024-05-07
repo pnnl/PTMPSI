@@ -168,7 +168,6 @@ gen-vel               = no
 DispCorr              = EnerPres
 
 ; Distance Restraint
-nstdisreout           = 0
 disre                 = simple
 disre-weighting       = conservative
 disre-fc              = 1000
