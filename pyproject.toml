@@ -22,10 +22,6 @@ dependencies = [
             'lxml',
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
             'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow ',
-            'mdtraj',
-            'seaborn',
-            'pyemma',
-            'biopython',
 ]
 requires-python = ">=3.6,<3.12"
 authors = [
