@@ -7,9 +7,11 @@ from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, Residue
 from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
-from ptmpsi.protein.tools import get_residue
+from ptmpsi.protein.tools import get_residue, ptm_combination
 from ptmpsi.io import digestpdb, writepdb, writexyz
 from ptmpsi.docking import Dock, dock_ligand
+from ptmpsi.gromacs.utils import amber_to_gromacs_names
+from ptmpsi.gromacs import generate as generate_gromacs
 
 
 class Chain:
@@ -250,6 +252,65 @@ class Protein:
         post_translational_modification(self,original,modification)
         return
 
+    def get_ptm_combinations(self, ptms, exclude=None, ntuple=-1):
+        return ptm_combination(self, ptms, ntuple, exclude)
+
+    def gen_ptm_files(self, combinations, path=None, prefix=None, ff='amber99sb', **kwargs):
+        import os
+        import uuid
+        import time
+        import shutil
+        cwd = os.getcwd()
+        uid = str(uuid.uuid4())
+
+        ff = ff.lower()
+        if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
+            KeyError(f"Forcefield '{ff}' not available")
+
+        parent_dir = path if path is not None else cwd
+        path = os.path.join(parent_dir, uid)
+        os.mkdir(path)
+
+        ff_prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../gromacs/forcefield")
+        shutil.copytree(f"{ff_prefix}/{ff}.ff", f"{path}/{ff}.ff")
+        shutil.copy(f"{ff_prefix}/residuetypes.dat", path)
+        shutil.copy(f"{ff_prefix}/specbond.dat", path)
+
+        prefix = "" if prefix is None else f"{prefix}_"
+
+        self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+
+
+        submit = open(f"{path}/submit.sh", "w")
+        submit.write("#!/bin/bash\n")
+        with open(f"{path}/README", "w") as fh:
+            today = time.ctime()
+            fh.write(f"""Files generated on {today}\n""")
+            for i in range(len(combinations)):
+                ipath = os.path.join(path, f"{i+1}tuples")
+                os.mkdir(ipath)
+                for j,combi in enumerate(combinations[i]):
+                    jpath = os.path.join(ipath,f"{j:06d}")
+                    os.mkdir(jpath)
+                    _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
+                    string = ""
+                    for _ptm in combi:
+                        _protein.modify(_ptm[0], _ptm[1])
+                        string += f" {_ptm[0]} -> {_ptm[1]}"
+                    os.chdir(jpath)
+                    os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                    os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                    os.symlink(os.path.relpath(f"{path}/specbond.dat", "./"), f"specbond.dat")
+                    amber_to_gromacs_names(_protein)
+                    generate_gromacs(_protein, filename=f"{prefix}{j:06d}.pdb", **kwargs)
+                    fh.write(f"{i+1}tuples/{j:06d}/{prefix}{j:06d}.pdb: {string}\n")
+                    submit.write(f"cd {os.path.relpath(jpath, path)} \n")
+                    submit.write(f"sbatch {prefix}{j:06d}_slurm.sbatch \n")
+                    submit.write(f"cd {os.path.relpath(path, jpath)} \n")
+                    submit.write(f"wait 1s \n")
+        submit.close()
+
+        return
 
     def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
         if ligand is None:
@@ -311,14 +372,14 @@ class Protein:
             pdbin = ".tmp.pdb"
             self.write_pdb(pdbin)
         if self.pdbid is not None:
-            if pdb is None: _pdb = self.pdbid + "_H.pdb"
-            if pqr is None: _pqr = self.pdbid + "_H.pqr"
+            _pdb = f"{self.pdbid}_H.pdb" if pdb is None else pdb
+            _pqr = f"{self.pdbid}_H.pqr" if pqr is None else pqr
         elif self.uniprotid is not None:
-            if pdb is None: _pdb = self.uniprotid + "_H.pdb"
-            if pqr is None: _pqr = self.uniprotid + "_H.pqr"
+            _pdb = f"{self.uniprotid}_H.pdb" if pdb is None else pdb
+            _pqr = f"{self.uniprotid}_H.pqr" if pqr is None else pqr
         elif self.filename is not None:
-            if pdb is None: _pdb = self.filename[:-4] + "_H.pdb"
-            if pqr is None: _pqr = self.filename[:-4] + "_H.pqr"
+            _pdb = f"{self.filename[:-4]}_H.pdb" if pdb is None else pdb
+            _pqr = f"{self.filename[:-4]}_H.pqr" if pqr is None else pqr
         else:
             if (pdb is None) or (pqr is None):
                 raise MyDockingError("Provide a PDB and PQR filename for protonoation output")

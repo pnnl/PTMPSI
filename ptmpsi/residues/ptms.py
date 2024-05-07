@@ -215,6 +215,7 @@ def check_ptm(residue,ptm):
         if residue not in ["ARG"]:
             raise MyDockingError("Don't know how to asymmetric dimethylate {} residue".format(residue))
         return amidebond, 120, 180
+    raise RuntimeError("Something went wrong")
     return
 
 
