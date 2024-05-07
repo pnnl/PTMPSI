@@ -347,7 +347,7 @@ export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
-myimage=/anfhome/daniel.mejia/sources/apptainer/gromacs_cufftmp_clean.simg
+myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
 cat > rankfile1  <<EOF
 rank 0=+n0 slot=0:0-4
