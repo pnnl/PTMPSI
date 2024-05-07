@@ -310,7 +310,7 @@ class Protein:
                     submit.write(f"wait 1s \n")
         submit.close()
 
-        return
+        return uid
 
     def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
         if ligand is None:
