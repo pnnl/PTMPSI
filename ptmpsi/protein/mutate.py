@@ -94,7 +94,7 @@ def post_translational_modification(protein,original,ptm):
         raise MyDockingError("Post-translational modification '{}' is not coded".format(_ptm))
 
     # Special case for Cystein PTMs
-    if _original.name in ["CYS", "CYS", "CYM"]:
+    if _original.name in ["CYS", "CYX", "CYM"]:
         new = ptm2nonstandard.get(_ptm,None)
         print(ptm,new)
         if new is not None:

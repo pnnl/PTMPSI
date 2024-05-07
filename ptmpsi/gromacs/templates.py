@@ -29,11 +29,13 @@ nsteps          = 50000
 nstlist         = 10
 cutoff-scheme   = Verlet
 ns_type         = grid
-rlist           = 1.0
+rlist           = 1.2
 coulombtype     = PME
-rcoulomb        = 1.0
+rcoulomb        = 1.2
 vdwtype         = cutoff
-rvdw            = 1.0
+rvdw            = 1.2
+rvdw-switch     = 1.0
+vdw-modifier    = force-switch
 pbc             = xyz
 DispCorr        = no
 """
@@ -43,8 +45,8 @@ title           = Heating
 define          = -DPOSRES
 
 integrator      = md
-dt              = 0.002
-nsteps          = 50000
+dt              = {timestep}
+nsteps          = {nsteps}
 
 ; Bond parameters
 continuation          = no
@@ -63,16 +65,17 @@ nstdisreout           = 0
 cutoff-scheme         = Verlet
 nstlist               = 10
 ns_type               = grid
-rlist                 = 1.0
+rlist                 = 1.2
 vdwtype               = cutoff
-vdw-modifier          = potential-shift
-rcoulomb              = 1.0
-rvdw                  = 1.0
+vdw-modifier          = force-switch
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
 
 ; Electrostatics
 coulombtype           = PME
 pme_order             = 4
-fourierspacing        = 0.12
+fourierspacing        = 0.16
 
 ; Temperature coupling
 Tcoupl                = V-rescale
@@ -93,6 +96,15 @@ gen-seed              = -1
 
 ; Dispersion Correction
 DispCorr              = EnerPres
+
+disre                 = simple
+disre-weighting       = conservative
+disre-fc              = 1000
+disre-mixed           = yes
+
+nstcomm               = 1
+comm-mode             = Linear
+comm-grps             = Protein Water_and_ions
 """
 
 npt = """; npt.mdp - used as input to grompp to generate npt.tpr
@@ -100,7 +112,7 @@ title           = NPT equilibration
 {restraint}
 
 integrator      = md
-dt              = 0.002
+dt              = {timestep}
 nsteps          = {nsteps}
 
 ; Bond parameters
@@ -120,16 +132,17 @@ nstdisreout           = 0
 cutoff-scheme         = Verlet
 nstlist               = 20
 ns-type               = grid
-rlist                 = 1.0
-vdw-modifier          = potential-shift
+rlist                 = 1.2
+vdw-modifier          = force-switch
 vdwtype               = cutoff
-rcoulomb              = 1.0
-rvdw                  = 1.0
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
 
 ; Electrostatics
 coulombtype           = PME
 pme-order             = 4
-fourierspacing        = 0.12
+fourierspacing        = 0.16
 
 ; Temperature coupling
 Tcoupl                = V-rescale
@@ -155,6 +168,7 @@ gen-vel               = no
 DispCorr              = EnerPres
 
 ; Distance Restraint
+nstdisreout           = 0
 disre                 = simple
 disre-weighting       = conservative
 disre-fc              = 1000
@@ -164,7 +178,7 @@ md = """
 title           = MD simulation
 
 integrator      = md
-dt              = 0.002
+dt              = {timestep}
 nsteps          = {nsteps}
 
 ; Bond parameters
@@ -187,15 +201,17 @@ cutoff-scheme         = Verlet
 nstlist               = 100
 ns-type               = grid
 rlist                 = 1.0
-vdw-modifier          = potential-shift
+vdw-modifier          = force-switch
 vdwtype               = cutoff
-rcoulomb              = 1.0
-rvdw                  = 1.0
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
+verlet-buffer-tolerance = 2.0e-3
 
 ; Electrostatics
 coulombtype           = PME
 pme-order             = 4
-fourierspacing        = 0.12
+fourierspacing        = 0.16
 
 ; Temperature coupling
 Tcoupl                = V-rescale
@@ -226,7 +242,12 @@ disre-weighting       = conservative
 disre-fc              = 1000
 """
 
-SLURM_header = """#!/bin/bash
+
+SLURM_tail = """cleanup\n"""
+
+slurm_header = {}
+
+slurm_header['Tahoma'] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
 #SBATCH --nodes={nodes}
@@ -263,14 +284,6 @@ cp ${{SLURM_SUBMIT_DIR}}/{infile} .
 cp ${{SLURM_SUBMIT_DIR}}/*.mdp .
 cp -r ${{SLURM_SUBMIT_DIR}}/{ff} .
 
-{omp}
-
-echo -e "1\\n1" | gmx_mpi pdb2gmx -f {infile} -o step1.gro -merge all
-gmx editconf -f step1.gro -o step2.gro -bt {bt} -d 1.0 -c
-gmx solvate -cp step2.gro -cs spc216.gro -p topol.top -o step3.gro
-gmx grompp -f ions.mdp -c step3.gro -p topol.top -o ions.tpr
-echo SOL | gmx genion -s ions.tpr -o step4.gro -p topol.top -pname NA -nname CL {addion}
-echo q | gmx make_ndx -f step4.gro -o index.ndx
 """
 
 cleanup = """
@@ -285,4 +298,71 @@ cleanup = """
   cp {{scratch}}/*.top ${{SLURM_SUBMIT_DIR}}/{{results}} || :
 """
 
-SLURM_tail = """cleanup\n"""
+slurm_header['AQE-LDRD'] = """#!/bin/bash
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --gpus-per-node={ngpus}
+#SBATCH --cpus-per-task={nthreads}
+#SBATCH --job-name={jname}
+#SBATCH --get-user-env
+#SBATCH --exclusive
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# NVIDIA LIBRARIES
+source /anfhome/.profile
+export NVHPC_ROOT=/anfhome/spack/opt/spack/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placehold/linux-almalinux8-x86_64_v3/gcc-8.5.0/nvhpc-23.7-7xowtxnqw4gn4fg2cqwvqynpy5qx32lj/Linux_x86_64/23.7
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/math_libs/12.2/lib64:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/cuda/12.2/lib64:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nvshmem_cufftmp_compat/lib:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nccl/lib:${{LD_LIBRARY_PATH}}
+
+NTASKS=$SLURM_NTASKS
+CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+NGPUS=$((SLURM_GPUS_PER_NODE * SLURM_NNODES))
+
+NTASKS=$SLURM_NTASKS
+CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+NGPUS=$((SLURM_GPUS_PER_NODE * SLURM_NNODES))
+
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+export TMPDIR={scratch}
+export APPTAINER_CACHEDIR=$TMPDIR
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_CUDA_GRAPH=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export HWLOC_HIDE_ERRORS=1
+export APPTAINERENV_HWLOC_HIDE_ERRORS=1
+export APPTAINERENV_UCX_LOG_LEVEL=ERROR
+export APPTAINERENV_UCX_TLS=^cma
+export APPTAINERENV_UCX_POSIX_USE_PROC_LINK=n
+export APPTAINERENV_GMX_ENABLE_DIRECT_GPU_COMM=${{GMX_ENABLE_DIRECT_GPU_COMM}}
+export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
+export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
+export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
+export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+myimage=/anfhome/daniel.mejia/sources/apptainer/gromacs_cufftmp_clean.simg
+
+cat > rankfile1  <<EOF
+rank 0=+n0 slot=0:0-4
+rank 1=+n0 slot=0:5-9
+rank 2=+n0 slot=0:10-14
+rank 3=+n0 slot=0:15-19
+EOF
+
+
+cat > rankfile2  <<EOF
+rank 0=+n0 slot=1:0-4
+rank 1=+n0 slot=1:5-9
+rank 2=+n0 slot=1:10-14
+rank 3=+n0 slot=1:15-19
+EOF
+
+"""
