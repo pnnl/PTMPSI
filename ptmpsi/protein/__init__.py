@@ -309,6 +309,7 @@ class Protein:
                     submit.write(f"cd {os.path.relpath(path, jpath)} \n")
                     submit.write(f"wait 1s \n")
         submit.close()
+        os.chdir(cwd)
 
         return uid
 
