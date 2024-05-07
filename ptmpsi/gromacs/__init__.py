@@ -90,6 +90,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
     gpu_id    = kwargs.pop("gpu_id", "")
     gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
     mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
+    nstlist   = kwargs.pop("nstlist", "")
+    nstlist   = f"-nstlist {nstlist}" if len(nstlist) > 0 else ""
 
     if conc is None and (npos is None or nneg is None):
         raise KeyError("Specify total ion concentration or a number of positive and negative ions to add")
@@ -137,9 +139,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
         # HEATING
         fh.write(f"mpirun -np 1 {container} {gmx} grompp -f heating.mdp -c minim{int(posres[-1])}.gro -r minim{int(posres[-1])}.gro -p topol.top -n index.ndx -o heating.tpr\n")
         if slurm.ngpus > 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm heating \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm heating \n")
         elif slurm.ngpus == 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -bonded gpu -deffnm heating \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm heating \n")
         else:
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm heating \n")
 
@@ -147,9 +149,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
         # NPT
         fh.write(f"mpirun -np 1 {container} {gmx} grompp -f npt.mdp -c heating.gro -r heating.gro -p topol.top -n index.ndx -o npt.tpr\n")
         if slurm.ngpus > 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm npt \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm npt \n")
         elif slurm.ngpus == 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -bonded gpu -deffnm npt \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm npt \n")
         else:
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm npt \n")
 
@@ -157,9 +159,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
         # PRODUCTION
         fh.write(f"mpirun -np 1 {container} {gmx} grompp -f md.mdp -c npt.gro -p topol.top -n index.ndx -o md.tpr\n")
         if slurm.ngpus > 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n")
         elif slurm.ngpus == 1:
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -bonded gpu -deffnm md \n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm md \n")
         else:
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm md \n")
 
