@@ -63,7 +63,8 @@ aqe_ldrd = Machine(
                       "gmx": "gmx_mpi",
                       "gpu_id": "0123",
                       "ntasks": 8,
-                      "nthreads": 5
+                      "nthreads": 5,
+                      "nstlist": 200
                       }
                     }
                   ),

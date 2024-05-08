@@ -12,6 +12,7 @@ from ptmpsi.io import digestpdb, writepdb, writexyz
 from ptmpsi.docking import Dock, dock_ligand
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
+from ptmpsi.gromacs.templates import qlambdas, vdwlambdas
 
 
 class Chain:
@@ -301,13 +302,51 @@ class Protein:
                     os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
                     os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
                     os.symlink(os.path.relpath(f"{path}/specbond.dat", "./"), f"specbond.dat")
+
+                    # Thermodynamic integration, symlinks will be broken until file generation
+                    os.mkdir("./dualti")
+                    kpath = os.path.join(jpath, "dualti")
+                    os.chdir(kpath)
+                    os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                    os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                    os.symlink(os.path.relpath(f"./index.ndx", "./"), f"index.ndx")
+                    os.symlink(os.path.relpath(f"./md.gro", "./"), f"md.gro")
+                    for k in range(13):
+                        os.mkdir(f"{kpath}/lam-{k:02d}")
+                        qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
+                        os.mkdir(qpath)
+                        os.chdir(qpath)
+                        os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                        with open("grompp.mdp", "w") as grompp:
+                            grompp.write(qlambdas.format(lambda_state=k))
+                        os.chdir(jpath)
+                        qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
+                        os.mkdir(qpath)
+                        os.chdir(qpath)
+                        os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                        with open("grompp.mdp", "w") as grompp:
+                            grompp.write(vdwlambdas.format(lambda_state=k))
+                        os.chdir(kpath)
+                    os.chdir(jpath)
+
+                    # Generate SLURM script
                     amber_to_gromacs_names(_protein)
                     generate_gromacs(_protein, filename=f"{prefix}{j:06d}.pdb", **kwargs)
                     fh.write(f"{i+1}tuples/{j:06d}/{prefix}{j:06d}.pdb: {string}\n")
+
+                    # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    submit.write(f"sbatch {prefix}{j:06d}_slurm.sbatch \n")
+                    submit.write(f"jobid=$(sbatch {prefix}{j:06d}_slurm.sbatch) \n")
+                    submit.write(f"cd dualti\n")
+                    for k in range(13):
+                        submit.write(f"cd lam{k:02d}\n")
+                        submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:06d}_lam{k:02d}_slurm.sbatch\n")
+                        submit.write(f"cd ../ \n")
+                        submit.write(f"sleep 1s \n")
+                    submit.write(f"cd ../ \n")
                     submit.write(f"cd {os.path.relpath(path, jpath)} \n")
-                    submit.write(f"wait 1s \n")
+                    submit.write(f"sleep 1s \n")
+                    submit.write(f"\n\n")
         submit.close()
         os.chdir(cwd)
 
