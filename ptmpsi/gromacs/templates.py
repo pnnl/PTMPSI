@@ -582,10 +582,6 @@ DU       0.0000       1.008
 
 update_topology = f"""#!/usr/bin/env python3
 import os
-import shutil
-
-shutil.copy("../topol.top", "./topol.top")
-shutil.copy("../index.ndx", "./index.ndx")
 
 with open("topol.top", "r") as topo:
   oldtopo = topo.readlines()
