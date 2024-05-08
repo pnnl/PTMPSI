@@ -621,7 +621,7 @@ CGL_list = [
 ]
 
 substitutions = []
-with open("newtop.top", "w") as topo:
+with open("TItop.top", "w") as topo:
   dihedrals = False
   iline = 0
   while iline < len(oldtopo):
