@@ -631,21 +631,21 @@ with open("newtop.top", "w") as topo:
   while iline < len(oldtopo):
     fields = oldtopo[iline].split()
 
-    if oldtopo[iline] == "": 
-      topo.write("\\n")
+    if len(fields) < 1: 
+      topo.write(oldtopo[iline])
       iline += 1
       continue
 
     if not dihedrals and "[ dihedrals ]" in oldtopo[iline]:
       dihedrals = True
-      iline += 1
       topo.write(oldtopo[iline])
+      iline += 1
       continue
 
     if dihedrals:
       if fields[0] == ";" or len(substitutions) < 1:
-        topo.write(oldtopo[ilines])
-        ilines += 1
+        topo.write(oldtopo[iline])
+        iline += 1
         continue
       
       found = False
@@ -678,9 +678,10 @@ with open("newtop.top", "w") as topo:
       substitutions.append(tuple( ([_first+int(x) for x in item[0]], item[1]) ))
 
     for jline in range(len(ptm)):
-      _oldtopo = oldtopo[iline].strip()
+      _oldtopo = oldtopo[iline].strip("\\n")
       _comment = _oldtopo.find(";")
-      _oldtopo = _oldtopo[:_comment] if _comment > -1 else _oldtopo
-      topo.write(f"{{_oldtopo}}     {{ptm[jline].strip()}} \\n")
+      _oldtopo = _oldtopo[:_comment-3] if _comment > -1 else _oldtopo
+      _ptmline = ptm[jline].strip("\\n")
+      topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
 """
