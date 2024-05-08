@@ -339,7 +339,7 @@ class Protein:
                     submit.write(f"jobid=$(sbatch {prefix}{j:06d}_slurm.sbatch) \n")
                     submit.write(f"cd dualti\n")
                     for k in range(13):
-                        submit.write(f"cd lam{k:02d}\n")
+                        submit.write(f"cd lam-{k:02d}\n")
                         submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:06d}_lam{k:02d}_slurm.sbatch\n")
                         submit.write(f"cd ../ \n")
                         submit.write(f"sleep 1s \n")
