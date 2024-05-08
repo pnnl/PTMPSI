@@ -311,6 +311,7 @@ class Protein:
                     os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
                     os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
                     os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                    os.symlink(os.path.relpath(f"{jpath}/topol.top", "./"), f"topol.top")
                     for k in range(13):
                         os.mkdir(f"{kpath}/lam-{k:02d}")
                         qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
@@ -336,7 +337,7 @@ class Protein:
 
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    submit.write(f"jobid=$(sbatch {prefix}{j:06d}_slurm.sbatch) \n")
+                    submit.write(f"jobid=$(sbatch {prefix}{j:06d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
                     submit.write(f"cd dualti\n")
                     for k in range(13):
                         submit.write(f"cd lam-{k:02d}\n")
