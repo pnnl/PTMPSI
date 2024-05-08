@@ -241,6 +241,148 @@ disre-weighting       = conservative
 disre-fc              = 1000
 """
 
+qlambdas = """
+integrator = sd
+dt         = 0.002
+nsteps     = 1000000;
+nstlog     = 1000 ; update log file every 10.0 ps
+nstxout    = 0
+nstvout    = 0
+nstenergy  = 1000 ; save energy every 10.0 ps
+nstxout-compressed = 1000 ; save corrdinates every 10.0 ps
+
+; Bond parameters
+continuation            = yes       ; continuing from NPT
+constraint_algorithm    = lincs     ; holonomic constraints
+constraints             = all-bonds   ; bonds to All are constrained
+lincs_iter              = 1         ; accuracy of LINCS
+lincs_order             = 4         ; also related to accuracy
+comm-mode = linear
+
+; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
+nstlist         = 20            ; Frequency to update the neighbor list
+ns_type         = grid          ; Method to determine neighbor list (simple, grid)
+coulombtype     = PME           ; Treatment of long range electrostatic interactions
+fourierspacing  = 0.16          ; Grid spacing for FFT
+cutoff-scheme   = Verlet
+rlist           = 1.2           ; Cut-off for making neighbor list (short range forces)
+verlet-buffer-tolerance   = 2e-03
+rcoulomb        = 1.2
+rvdw            = 1.2           ; long range Van der Waals cut-off
+pbc             = xyz           ; Periodic Boundary Conditions (yes/no)
+
+; Temp and Pressure Controls
+tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperature coupling
+ref_t               = 300 300
+tc-grps             = Protein Water_and_ions
+tau_t               = 0.1 0.1
+pcoupl              = no; Parrinello-Rahman
+compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
+pcoupl_type         = isotropic
+tau_p               = 2.0
+ref_p               = 1.0
+gen_vel             = no                      ; generate initial velocities
+gen_temp            = 300                      ; initial temperature
+
+; Alchemistry
+free_energy              = yes
+delta_lambda             = 0
+;
+;couple-moltype          = ATC-A
+couple-intramol         = no
+couple-lambda0          = vdw-q
+couple-lambda1          = vdw
+init_lambda_state       = {lambda_state}
+calc_lambda_neighbors   = 1
+;                            0    1    2    3    4    5    6    7    8    9   10   11   12
+vdw_lambdas             = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+coul_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+; We are not transforming any bonded or restrained interactions
+bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
+mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+; Not doing simulated temperting here
+temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+; Options for the decoupling
+sc-alpha                 = 0.5
+sc-coul                  = yes       ; yes for vdw??? linear interpolation of Coulomb (none in this case)
+sc-power                 = 1
+sc-sigma                 = 0.3
+nstdhdl                  = 10
+"""
+
+
+vdwlambdas = """
+integrator = sd
+dt         = 0.002
+nsteps     = 1000000;
+nstlog     = 1000 ; update log file every 10.0 ps
+nstxout    = 0
+nstvout    = 0
+nstenergy  = 1000 ; save energy every 10.0 ps
+nstxout-compressed = 1000 ; save corrdinates every 10.0 ps
+
+; Bond parameters
+continuation            = yes       ; continuing from NPT
+constraint_algorithm    = lincs     ; holonomic constraints
+constraints             = all-bonds   ; bonds to All are constrained
+lincs_iter              = 1         ; accuracy of LINCS
+lincs_order             = 4         ; also related to accuracy
+comm-mode = linear
+
+; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
+nstlist         = 20            ; Frequency to update the neighbor list
+ns_type         = grid          ; Method to determine neighbor list (simple, grid)
+coulombtype     = PME           ; Treatment of long range electrostatic interactions
+fourierspacing  = 0.16          ; Grid spacing for FFT
+cutoff-scheme   = Verlet
+rlist           = 1.2           ; Cut-off for making neighbor list (short range forces)
+verlet-buffer-tolerance   = 2e-03
+rcoulomb        = 1.2
+rvdw            = 1.2           ; long range Van der Waals cut-off
+pbc             = xyz           ; Periodic Boundary Conditions (yes/no)
+
+; Temp and Pressure Controls
+tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperature coupling
+ref_t               = 300 300
+tc-grps             = Protein Water_and_ions
+tau_t               = 0.1 0.1
+pcoupl              = no; Parrinello-Rahman
+compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
+pcoupl_type         = isotropic
+tau_p               = 2.0
+ref_p               = 1.0
+gen_vel             = no                      ; generate initial velocities
+gen_temp            = 300                      ; initial temperature
+
+; Alchemistry
+free_energy              = yes
+delta_lambda             = 0
+;
+;couple-moltype          = ATC-A
+couple-intramol         = no
+couple-lambda0          = vdw
+couple-lambda1          = none
+init_lambda_state       = {lambda_state}
+calc_lambda_neighbors   = 1
+;                            0    1    2    3    4    5    6    7    8    9   10   11   12
+vdw_lambdas             = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+; We are not transforming any bonded or restrained interactions
+bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
+mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+; Not doing simulated temperting here
+temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+; Options for the decoupling
+sc-alpha                 = 0.5
+sc-coul                  = yes       ; yes for vdw??? linear interpolation of Coulomb (none in this case)
+sc-power                 = 1
+sc-sigma                 = 0.3
+nstdhdl                  = 10
+"""
 
 SLURM_tail = """cleanup\n"""
 
@@ -364,4 +506,181 @@ rank 2=+n0 slot=1:10-14
 rank 3=+n0 slot=1:15-19
 EOF
 
+"""
+
+SNC = """ N      -0.4157      14.01
+ H       0.2719      1.008
+CT       0.0213      12.01
+H1       0.1124      1.008
+CT      -0.1231      12.01
+H1       0.1112      1.008
+H1       0.1112      1.008
+SH      -0.3119      32.06
+HS       0.1933      1.008
+DU       0.0000      1.008
+ C       0.5973      12.01
+ O      -0.5679         16"""
+
+CSO = """ N      -0.4157       14.01
+ H       0.2719       1.008
+CT       0.0213       12.01
+H1       0.1124       1.008
+CT      -0.1231       12.01
+H1       0.1112       1.008
+H1       0.1112       1.008
+SH      -0.3119       32.06
+HS       0.1933       1.008
+DU       0.0000       1.008
+ C       0.5973       12.01
+ O      -0.5679          16"""
+
+CGL = """ N      -0.4157       14.01
+ H       0.2719       1.008
+CT       0.0213       12.01
+H1       0.1124       1.008
+CT      -0.1231       12.01
+H1       0.1112       1.008
+H1       0.1112       1.008
+SH      -0.3119       32.06
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+HS       0.1933       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+DU       0.0000       1.008
+ C       0.5973       12.01
+ O      -0.5679          16"""
+
+update_topology = f"""#!/usr/bin/env python3
+import os
+import shutil
+
+shutil.copy("../topol.top", "./topol.top")
+shutil.copy("../index.ndx", "./index.ndx")
+
+with open("topol.top", "r") as topo:
+  oldtopo = topo.readlines()
+
+SNC = '''{SNC}'''
+CSO = '''{CSO}'''
+CGL = '''{CGL}'''
+
+CSO_list = [
+  [[2, 4, 7, 8], 
+    ["180.0   8.02970   1   180.0   0.00000   1", 
+     "  0.0   0.52192   2     0.0   0.00000   2", 
+     "  0.0   4.95200   3     0.0   1.04600   3"]], 
+  [[4, 7, 8, 9], 
+    ["  0.0   2.34510   1     0.0   2.34510   1", 
+     "  0.0   9.36040   2     0.0   9.36040   2"]]
+]
+
+SNC_list = [
+  [[2, 4, 7, 8],
+    ["180.0   0.23990   1   180.0   0.00000   1",
+     "  0.0   1.47420   2     0.0   0.00000   2",  
+     "  0.0   0.00000   3     0.0   1.04600   3"]],
+  [[4, 7, 8, 9],
+    ["  0.0   1.07690   2     0.0   1.07690   2",
+     "180.0  27.29300   2   180.0  27.29300   2",
+     "180.0   2.72140   3   180.0   2.72140   3",
+     "180.0   0.50325   4   180.0   0.50325   4"]]
+]
+
+CGL_list = [
+ [[2, 4, 7, 32],
+   ["   0.0   1.39467   3     0.0   1.04600   3"]],
+ [[4, 7, 32, 29],
+   ["   0.0  14.64400   2     0.0  14.64400   2",
+    "   0.0   2.51040   3     0.0   2.51040   3"]]
+]
+
+substitutions = []
+with open("newtop.top", "w") as topo:
+  dihedrals = False
+  iline = 0
+  while iline < len(oldtopo):
+    fields = oldtopo[iline].split()
+
+    if oldtopo[iline] == "": 
+      topo.write("\\n")
+      iline += 1
+      continue
+
+    if not dihedrals and "[ dihedrals ]" in oldtopo[iline]:
+      dihedrals = True
+      iline += 1
+      topo.write(oldtopo[iline])
+      continue
+
+    if dihedrals:
+      if fields[0] == ";" or len(substitutions) < 1:
+        topo.write(oldtopo[ilines])
+        ilines += 1
+        continue
+      
+      found = False
+      for isub in range(len(substitutions)):
+        if [int(x) for x in fields[:4]] == substitutions[isub][0]:
+          _oldtopo = oldtopo[iline].strip("\\n")
+          for value in substitutions[isub][1]:
+            topo.write(f"{{_oldtopo}}  {{value}}\\n")
+          substitutions.pop(isub)
+          break
+      if not found: topo.write(oldtopo[iline])
+      iline += 1
+      continue
+    elif len(fields) < 4:
+      topo.write(oldtopo[iline])
+      iline += 1
+      continue
+    elif fields[3] not in ["SNC", "CSO", "CGL"]: 
+      topo.write(oldtopo[iline])
+      iline += 1
+      continue
+    else:
+      topo.write(oldtopo[iline])
+      iline += 1
+
+    ptm = eval(f"fields[3]").splitlines()
+    _list = eval(f"{{fields[3]}}_list")
+    _first = int(oldtopo[iline].split()[0])
+    for item in _list:
+      substitutions.append(tuple( ([_first+int(x) for x in item[0]], item[1]) ))
+
+    for jline in range(len(ptm)):
+      _oldtopo = oldtopo[iline].strip()
+      _comment = _oldtopo.find(";")
+      _oldtopo = _oldtopo[:_comment] if _comment > -1 else _oldtopo
+      topo.write(f"{{_oldtopo}}     {{ptm[jline].strip()}} \\n")
+      iline += 1
 """
