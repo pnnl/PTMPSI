@@ -667,7 +667,7 @@ with open("newtop.top", "w") as topo:
       topo.write(oldtopo[iline])
       iline += 1
 
-    ptm = eval(f"fields[3]").splitlines()
+    ptm = eval(f"{{fields[3]}}").splitlines()
     _list = eval(f"{{fields[3]}}_list")
     _first = int(oldtopo[iline].split()[0])
     for item in _list:
