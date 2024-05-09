@@ -647,6 +647,7 @@ with open("TItop.top", "w") as topo:
       found = False
       for isub in range(len(substitutions)):
         if [int(x) for x in fields[:4]] == substitutions[isub][0]:
+          found = True
           _oldtopo = oldtopo[iline].strip("\\n")
           for value in substitutions[isub][1]:
             topo.write(f"{{_oldtopo}}  {{value}}\\n")
