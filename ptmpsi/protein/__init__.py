@@ -296,7 +296,7 @@ class Protein:
                 ipath = os.path.join(path, f"{i+1}tuples")
                 os.mkdir(ipath)
                 for j,combi in enumerate(combinations[i]):
-                    jpath = os.path.join(ipath,f"{j:06d}")
+                    jpath = os.path.join(ipath,f"{j:04d}")
                     os.mkdir(jpath)
                     _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
                     string = ""
@@ -342,16 +342,16 @@ class Protein:
 
                     # Generate SLURM script
                     amber_to_gromacs_names(_protein)
-                    generate_gromacs(_protein, filename=f"{prefix}{j:06d}.pdb", **kwargs)
-                    fh.write(f"{i+1}tuples/{j:06d}/{prefix}{j:06d}.pdb: {string}\n")
+                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", **kwargs)
+                    fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    submit.write(f"jobid=$(sbatch {prefix}{j:06d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
+                    submit.write(f"jobid=$(sbatch {prefix}{j:04d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
                     submit.write(f"cd dualti\n")
                     for k in range(13):
                         submit.write(f"cd lam-{k:02d}\n")
-                        submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:06d}_lam{k:02d}_slurm.sbatch\n")
+                        submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
                         submit.write(f"cd ../ \n")
                         submit.write(f"sleep 1s \n")
                     submit.write(f"cd ../ \n")
