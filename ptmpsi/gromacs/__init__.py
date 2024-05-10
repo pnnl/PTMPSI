@@ -55,12 +55,12 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs
             if force == posres[0]:
                 fh.write(minim.format(restraint=restraint))
             else:
-                fh.write(minimcg.format(restraint=restraint))
+                fh.write(minim.format(restraint=restraint))
 
     # Generate MDP file for free minimization
     name = "minim.mdp"
     with open(name, "w") as fh:
-        fh.write(minimcg.format(restraint=""))
+        fh.write(minim.format(restraint=""))
 
     # Generate MDP file restrained NVT equilibration 
     with open("heating.mdp","w") as fh:
