@@ -280,7 +280,7 @@ nstxout-compressed = 1000 ; save corrdinates every 10.0 ps
 ; Bond parameters
 continuation            = yes       ; continuing from NPT
 constraint_algorithm    = lincs     ; holonomic constraints
-constraints             = all-bonds   ; bonds to All are constrained
+constraints             = h-bonds   ; bonds to All are constrained
 lincs_iter              = 1         ; accuracy of LINCS
 lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
@@ -352,7 +352,7 @@ nstxout-compressed = 1000 ; save corrdinates every 10.0 ps
 ; Bond parameters
 continuation            = yes       ; continuing from NPT
 constraint_algorithm    = lincs     ; holonomic constraints
-constraints             = all-bonds   ; bonds to All are constrained
+constraints             = h-bonds   ; bonds to All are constrained
 lincs_iter              = 1         ; accuracy of LINCS
 lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
