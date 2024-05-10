@@ -266,7 +266,7 @@ class Protein:
 
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
-        nsteps    = lenlambda*1000000/timestep
+        nsteps    = int(lenlambda*1000000/timestep)
         temp      = kwargs.get("temp", 300.0)
 
         ff = ff.lower()
