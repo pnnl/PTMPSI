@@ -40,9 +40,35 @@ pbc             = xyz
 DispCorr        = no
 """
 
+
+minimcg = """; minim.mdp - used as input into grompp to generate minim.tpr
+title           = Minimization
+{restraint}
+
+; Parameters describing what to do, when to stop and what to save
+integrator      = cg
+emtol           = 10.0
+emstep          = 0.01
+nsteps          = 50000
+
+; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
+nstlist         = 10
+cutoff-scheme   = Verlet
+ns_type         = grid
+rlist           = 1.2
+coulombtype     = PME
+rcoulomb        = 1.2
+vdwtype         = cutoff
+rvdw            = 1.2
+rvdw-switch     = 1.0
+vdw-modifier    = force-switch
+pbc             = xyz
+DispCorr        = no
+"""
+
 heating = """; heating.mdp - used as input to grompp to generate heating.tpr
 title           = Heating
-define          = -DPOSRES
+{restraint}
 
 integrator      = md
 dt              = {timestep}
@@ -242,9 +268,9 @@ disre-fc              = 1000
 """
 
 qlambdas = """
-integrator = sd
+integrator = md
 dt         = 0.002
-nsteps     = 1000000;
+nsteps     = {nsteps};
 nstlog     = 1000 ; update log file every 10.0 ps
 nstxout    = 0
 nstvout    = 0
@@ -314,9 +340,9 @@ nstdhdl                  = 10
 
 
 vdwlambdas = """
-integrator = sd
+integrator = md
 dt         = 0.002
-nsteps     = 1000000;
+nsteps     = {nsteps};
 nstlog     = 1000 ; update log file every 10.0 ps
 nstxout    = 0
 nstvout    = 0
@@ -399,31 +425,8 @@ slurm_header['Tahoma'] = """#!/bin/bash
 #SBATCH --partition={partition}
 {gpu}
 
-trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
-
-cleanup()
-{{
-  cp /fast_scratch/*.gro ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.xtc ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.ndx ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.cpt ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.log ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.tpr ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.edr ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.ndx ${{SLURM_SUBMIT_DIR}}/{results} || :
-  cp /fast_scratch/*.top ${{SLURM_SUBMIT_DIR}}/{results} || :
-}}
-
-source /etc/profile.d/modules.sh
-module use /tahoma/emsle60550/modulefiles
-module load gromacs/2023
-
-mkdir -p ${{SLURM_SUBMIT_DIR}}/{results}
-
-cd /fast_scratch
-cp ${{SLURM_SUBMIT_DIR}}/{infile} .
-cp ${{SLURM_SUBMIT_DIR}}/*.mdp .
-cp -r ${{SLURM_SUBMIT_DIR}}/{ff} .
+# From the user
+{user}
 
 """
 
@@ -451,6 +454,9 @@ slurm_header['AQE-LDRD'] = """#!/bin/bash
 #SBATCH --exclusive
 #SBATCH --error={jname}-%j.err
 #SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
 
 # NVIDIA LIBRARIES
 source /anfhome/.profile

@@ -177,6 +177,8 @@ class Slurm:
 
         self.jobname = kwargs.pop("jobname", f"ptmpsi_{caller}")
 
+        self.user    = kwargs.pop("slurm_header", "")
+
         self._header_template = slurm_header[self.machine.name]
 
         self.options_dictionary = {
@@ -187,7 +189,8 @@ class Slurm:
                 "ntasks"   : self.ncpus,
                 "nthreads" : self.nthreads,
                 "jname"    : self.jobname,
-                "scratch"  : self.scratch
+                "scratch"  : self.scratch,
+                "user"     : self.user
                 }
         if self.ngpus > 0: self.options_dictionary["ngpus"] = self.ngpus
 

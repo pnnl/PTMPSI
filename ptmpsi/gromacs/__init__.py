@@ -1,4 +1,4 @@
-from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology
+from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.slurm import Slurm
 import numpy as np
@@ -35,7 +35,7 @@ _volumes = {
 "TYR": 198.1
 }
 
-def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],**kwargs):
+def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs):
 
     lennvt = kwargs.pop("lennvt", 500.0)
     lennpt = kwargs.pop("lennpt", 500.0)
@@ -47,22 +47,37 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],**kw
     with open("ions.mdp","w") as fh:
         fh.write(ions)
 
-    # Generate MDP files for minimization
+    # Generate MDP files for restrained minimization
     for force in posres:
         name = "minim{}.mdp".format(int(force))
-        if force > 0.0:
-            restraint = "define          = -DP{}".format(int(force))
-        else:
-            restraint = ""
+        restraint = "define          = -DP{}".format(int(force))
         with open(name,"w") as fh:
-            fh.write(minim.format(restraint=restraint))
+            if force == posres[0]:
+                fh.write(minim.format(restraint=restraint))
+            else:
+                fh.write(minimcg.format(restraint=restraint))
 
-    # Generate MDP file NVT equilibration
+    # Generate MDP file for free minimization
+    name = "minim.mdp"
+    with open(name, "w") as fh:
+        fh.write(minimcg.format(restraint=""))
+
+    # Generate MDP file restrained NVT equilibration 
     with open("heating.mdp","w") as fh:
-        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000)))
+        restraint = "define          = -DP1"
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=restraint))
+
+    # Generate MDP file free NVT equilibration 
+    with open("fheating.mdp","w") as fh:
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=""))
 
     # Generate MDP files for NPT equilibration
     with open("npt.mdp", "w") as fh:
+        restraint = "define          = -DP1"
+        fh.write(npt.format(temp=temp, restraint=restraint, timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
+
+    # Generate MDP files for free NPT equilibration
+    with open("fnpt.mdp", "w") as fh:
         fh.write(npt.format(temp=temp, restraint="", timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
 
     # Generate MDP file for MD production
@@ -71,7 +86,7 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],**kw
 
     return
 
-def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
+def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                            results_dir="results",
                            bt="dodecahedron",
                            npos=None,
@@ -133,7 +148,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
             fh.write("""sed -i '/; Include water topology/i #ifdef P{force}\\n  #include "{force}p.itp"\\n#endif' topol.top\n""".format(force=int(force)))
 
 
-        # RUN ALL MINIMIZATIONS
+        # RUN ALL RESTRAINED MINIMIZATIONS
         oldforce = -1
         for force in posres:
             if force == posres[0]:
@@ -146,7 +161,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
                 fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm minim{int(force)} -v \n")
             oldforce += 1
 
-        # HEATING
+        # RUN RESTRAINED HEATING
         fh.write(f"mpirun -np 1 {container} {gmx} grompp -f heating.mdp -c minim{int(posres[-1])}.gro -r minim{int(posres[-1])}.gro -p topol.top -n index.ndx -o heating.tpr\n")
         if slurm.ngpus > 1:
             fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm heating \n")
@@ -155,9 +170,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
         else:
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm heating \n")
 
-
-        # NPT
-        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f npt.mdp -c heating.gro -r heating.gro -p topol.top -n index.ndx -o npt.tpr\n")
+        # RUN RESTRAINED NPT
+        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f npt.mdp -c heating.gro -t heating.cpt -r heating.gro -p topol.top -n index.ndx -o npt.tpr\n")
         if slurm.ngpus > 1:
             fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm npt \n")
         elif slurm.ngpus == 1:
@@ -165,9 +179,36 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
         else:
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm npt \n")
 
+        # RUN FREE MINIMIZATION
+        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f minim.mdp -c npt.gro -p topol.top -n index.ndx -o minim.tpr\n")
+            if slurm.ngpus >= 1:
+                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -deffnm minim -v \n")
+            else:
+                fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm minim -v \n")
+        
+
+        # RUN FREE HEATING
+        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f fheating.mdp -c minim.gro  -p topol.top -n index.ndx -o fheating.tpr\n")
+        if slurm.ngpus > 1:
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm fheating \n")
+        elif slurm.ngpus == 1:
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm fheating \n")
+        else:
+            fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm fheating \n")
+
+
+        # RUN FREE NPT
+        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f fnpt.mdp -c fheating.gro -t fheating.cpt -p topol.top -n index.ndx -o fnpt.tpr\n")
+        if slurm.ngpus > 1:
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm fnpt \n")
+        elif slurm.ngpus == 1:
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm fnpt \n")
+        else:
+            fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm fnpt \n")
+
 
         # PRODUCTION
-        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f md.mdp -c npt.gro -p topol.top -n index.ndx -o md.tpr\n")
+        fh.write(f"mpirun -np 1 {container} {gmx} grompp -f md.mdp -c fnpt.gro -t fnpt.cpt -p topol.top -n index.ndx -o md.tpr\n")
         if slurm.ngpus > 1:
             fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n")
         elif slurm.ngpus == 1:
@@ -187,12 +228,12 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0,0.0],
             fh.write(slurm.header)
             fh.write(f"cd 01-q\n")
             fh.write(f"ln -s ../rankfile1 rankfile1 \n")
-            fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -deffnm lam-{i:02}\n")
+            fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -t md.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm lam-{i:02}\n")
             fh.write(f"cd ../02-vdw\n")
             fh.write(f"ln -s ../rankfile1 rankfile1 \n")
             fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c ../01-q/lam-{i:02d}.gro -r ../01-q/lam-{i:02d}.gro -t ../01-q/lam-{i:02d}.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -deffnm lam-{i:02}\n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm lam-{i:02}\n")
         os.chdir(cwd)
 
     return
