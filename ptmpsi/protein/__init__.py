@@ -264,6 +264,11 @@ class Protein:
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
 
+        lenlambda = kwargs.pop("lenlambda", 2.0)
+        timestep  = kwargs.get("timestep",  2.0)
+        nsteps    = lenlambda*1000000/timestep
+        temp      = kwargs.get("temp", 300.0)
+
         ff = ff.lower()
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
@@ -317,9 +322,10 @@ class Protein:
                         os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
                         os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
                         os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                        os.symlink(os.path.relpath(f"{jpath}/md.cpt", "./"), f"md.cpt")
                         os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
                         with open("grompp.mdp", "w") as grompp:
-                            grompp.write(qlambdas.format(lambda_state=k))
+                            grompp.write(qlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
                         os.chdir(jpath)
                         qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
                         os.mkdir(qpath)
@@ -330,7 +336,7 @@ class Protein:
                         os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
                         os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
                         with open("grompp.mdp", "w") as grompp:
-                            grompp.write(vdwlambdas.format(lambda_state=k))
+                            grompp.write(vdwlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
                         os.chdir(kpath)
                     os.chdir(jpath)
 
