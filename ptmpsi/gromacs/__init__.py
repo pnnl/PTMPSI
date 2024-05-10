@@ -181,10 +181,10 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
         # RUN FREE MINIMIZATION
         fh.write(f"mpirun -np 1 {container} {gmx} grompp -f minim.mdp -c npt.gro -p topol.top -n index.ndx -o minim.tpr\n")
-            if slurm.ngpus >= 1:
-                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -deffnm minim -v \n")
-            else:
-                fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm minim -v \n")
+        if slurm.ngpus >= 1:
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} -nb gpu -deffnm minim -v \n")
+        else:
+            fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm minim -v \n")
         
 
         # RUN FREE HEATING
