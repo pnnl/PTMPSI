@@ -286,12 +286,12 @@ lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
-nstlist         = 20            ; Frequency to update the neighbor list
+nstlist         = 200            ; Frequency to update the neighbor list
 ns_type         = grid          ; Method to determine neighbor list (simple, grid)
 coulombtype     = PME           ; Treatment of long range electrostatic interactions
 fourierspacing  = 0.16          ; Grid spacing for FFT
 cutoff-scheme   = Verlet
-rlist           = 1.2           ; Cut-off for making neighbor list (short range forces)
+rlist           = 1.0           ; Cut-off for making neighbor list (short range forces)
 verlet-buffer-tolerance   = 2e-03
 rcoulomb        = 1.2
 rvdw            = 1.2           ; long range Van der Waals cut-off
@@ -302,7 +302,7 @@ tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperat
 ref_t               = 300 300
 tc-grps             = Protein Water_and_ions
 tau_t               = 0.1 0.1
-pcoupl              = no; Parrinello-Rahman
+pcoupl              = Parrinello-Rahman
 compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
 pcoupl_type         = isotropic
 tau_p               = 2.0
@@ -358,12 +358,12 @@ lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
-nstlist         = 20            ; Frequency to update the neighbor list
+nstlist         = 200            ; Frequency to update the neighbor list
 ns_type         = grid          ; Method to determine neighbor list (simple, grid)
 coulombtype     = PME           ; Treatment of long range electrostatic interactions
 fourierspacing  = 0.16          ; Grid spacing for FFT
 cutoff-scheme   = Verlet
-rlist           = 1.2           ; Cut-off for making neighbor list (short range forces)
+rlist           = 1.0           ; Cut-off for making neighbor list (short range forces)
 verlet-buffer-tolerance   = 2e-03
 rcoulomb        = 1.2
 rvdw            = 1.2           ; long range Van der Waals cut-off
@@ -374,7 +374,7 @@ tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperat
 ref_t               = 300 300
 tc-grps             = Protein Water_and_ions
 tau_t               = 0.1 0.1
-pcoupl              = no; Parrinello-Rahman
+pcoupl              = Parrinello-Rahman
 compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
 pcoupl_type         = isotropic
 tau_p               = 2.0
