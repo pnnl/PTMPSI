@@ -229,11 +229,11 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
             fh.write(f"cd 01-q\n")
             fh.write(f"ln -s ../rankfile1 rankfile1 \n")
             fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -t md.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -deffnm lam-{i:02}\n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
             fh.write(f"cd ../02-vdw\n")
             fh.write(f"ln -s ../rankfile1 rankfile1 \n")
             fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c ../01-q/lam-{i:02d}.gro -r ../01-q/lam-{i:02d}.gro -t ../01-q/lam-{i:02d}.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -deffnm lam-{i:02}\n")
+            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
         os.chdir(cwd)
 
     return
