@@ -68,6 +68,25 @@ aqe_ldrd = Machine(
                       }
                     }
                   ),
+    "prm96c4g":  Partition(
+                  name="prm96c4g", 
+                  memory=672, 
+                  ncpus=96, 
+                  ngpus=4, 
+                  maxtime=0, 
+                  maxnode=3,
+                  options = {
+                    "gromacs": {
+                      "mpirun": "mpirun -np 4 --rankfile rankfileA100 --bind-to core",
+                      "container": "apptainer exec --nv --bind /anfhome,/mnt,/etc,/sched,/run,/opt/hpcx $myimage",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "0123",
+                      "ntasks": 4,
+                      "nthreads": 24,
+                      "nstlist": 200
+                      }
+                    }
+                  ),
     },
     scratchdir="/mnt/scratch"
   )
@@ -86,7 +105,18 @@ aqe_h100 = Machine(name="AQE-H100",
       ncpus=96,
       ngpus=8, 
       maxtime=0, 
-      maxnode=28
+      maxnode=28,
+                  options = {
+                    "gromacs": {
+                      "mpirun": "mpirun -np 4 --rankfile rankfileH100 --bind-to core",
+                      "container": "apptainer exec --nv --bind /anfhome,/mnt,/etc,/sched,/run,/opt/hpcx $myimage",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "0123",
+                      "ntasks": 4,
+                      "nthreads": 24,
+                      "nstlist": 200
+                      }
+                    }
       )
             
     },

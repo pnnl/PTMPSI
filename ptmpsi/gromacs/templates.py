@@ -268,7 +268,7 @@ disre-fc              = 1000
 """
 
 qlambdas = """
-integrator = md
+integrator = sd
 dt         = 0.002
 nsteps     = {nsteps};
 nstlog     = 1000 ; update log file every 10.0 ps
@@ -340,7 +340,7 @@ nstdhdl                  = 10
 
 
 vdwlambdas = """
-integrator = md
+integrator = sd
 dt         = 0.002
 nsteps     = {nsteps};
 nstlog     = 1000 ; update log file every 10.0 ps
@@ -484,11 +484,15 @@ export GMX_MAXBACKUP=-1
 export UCX_POSIX_USE_PROC_LINK=n
 export UCX_TLS=^cma
 export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
 export HWLOC_HIDE_ERRORS=1
 export APPTAINERENV_HWLOC_HIDE_ERRORS=1
-export APPTAINERENV_UCX_LOG_LEVEL=ERROR
-export APPTAINERENV_UCX_TLS=^cma
-export APPTAINERENV_UCX_POSIX_USE_PROC_LINK=n
+export APPTAINERENV_UCX_LOG_LEVEL=${{UCX_LOG_LEVEL}}
+export APPTAINERENV_UCX_LOG_LEVEL_TRIGGER=${{UCX_LOG_LEVEL_TRIGGER}}
+export APPTAINERENV_UCX_TLS=${{UCX_TLS}}
+export APPTAINERENV_UCX_POSIX_USE_PROC_LINK=${{UCX_POSIX_USE_PROC_LINK}}
+export APPTAINERENV_UCX_RNDV_THRESH=${{UCX_RNDV_THRESH}}
 export APPTAINERENV_GMX_ENABLE_DIRECT_GPU_COMM=${{GMX_ENABLE_DIRECT_GPU_COMM}}
 export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
 export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
@@ -512,6 +516,19 @@ rank 2=+n0 slot=1:10-14
 rank 3=+n0 slot=1:15-19
 EOF
 
+cat > rankfileA100 <<EOF
+rank 0=+n0 slot=0:0-23
+rank 1=+n0 slot=0:24-47
+rank 2=+n0 slot=1:0-23
+rank 3=+n0 slot=1:24-47
+EOF
+
+cat > rankfileH100 <<EOF
+rank 0=+n0 slot=0:0-23
+rank 1=+n0 slot=0:24-47
+rank 2=+n0 slot=1:0-23
+rank 3=+n0 slot=1:24-47
+EOF
 """
 
 SNC = """ N      -0.4157      14.01
@@ -523,7 +540,7 @@ H1       0.1112      1.008
 H1       0.1112      1.008
 SH      -0.3119      32.06
 HS       0.1933      1.008
-DU       0.0000      1.008
+DU       0.0000         16
  C       0.5973      12.01
  O      -0.5679         16"""
 
@@ -548,43 +565,68 @@ CT      -0.1231       12.01
 H1       0.1112       1.008
 H1       0.1112       1.008
 SH      -0.3119       32.06
+DU       0.0000       14.01
 DU       0.0000       1.008
 DU       0.0000       1.008
 DU       0.0000       1.008
+DU       0.0000       12.01
+DU       0.0000       1.008
+DU       0.0000       12.01
 DU       0.0000       1.008
 DU       0.0000       1.008
+DU       0.0000       12.01
 DU       0.0000       1.008
 DU       0.0000       1.008
+DU       0.0000       12.01
+DU       0.0000          16
+DU       0.0000          16
+DU       0.0000       12.01
+DU       0.0000          16
+DU       0.0000       14.01
 DU       0.0000       1.008
+DU       0.0000       12.01
 DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
+DU       0.0000       12.01
 DU       0.0000       1.008
 DU       0.0000       1.008
 HS       0.1933       1.008
+DU       0.0000       12.01
+DU       0.0000          16
+DU       0.0000       14.01
+DU       0.0000       1.008
+DU       0.0000       12.01
 DU       0.0000       1.008
 DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
-DU       0.0000       1.008
+DU       0.0000       12.01
+DU       0.0000          16
+DU       0.0000          16
  C       0.5973       12.01
  O      -0.5679          16"""
+
+IYY = """ N      -0.4157       14.01
+ H       0.27190     1.008
+CT       0.02130     12.01
+H1       0.11240     1.008
+CT      -0.12310     12.01
+H1       0.11120     1.008
+H1       0.11120     1.008
+SH      -0.31190     32.06
+HS       0.19330     1.008
+DU       0.00000     12.01
+DU       0.00000     1.008
+DU       0.00000     1.008
+DU       0.00000     12.01
+DU       0.00000     1.008
+DU       0.00000     12.01
+DU       0.00000        16
+DU       0.00000        16
+DU       0.00000     14.01
+DU       0.00000     1.008
+DU       0.00000     1.008
+DU       0.00000     1.008
+ C       0.59730     12.01
+ O      -0.56790        16"""
+
 
 update_topology = f"""#!/usr/bin/env python3
 import os
@@ -595,6 +637,15 @@ with open("topol.top", "r") as topo:
 SNC = '''{SNC}'''
 CSO = '''{CSO}'''
 CGL = '''{CGL}'''
+IYY = '''{IYY}'''
+
+IYY_list = [
+ [[2, 4, 7, 8],
+   ["   0.0   1.39467   3     0.0   1.04600   3"]],
+ [[4, 7, 8, 9],
+   ["   0.0  14.64400   2     0.0  14.64400   2",
+    "   0.0   2.51040   3     0.0   2.51040   3"]]
+]
 
 CSO_list = [
   [[2, 4, 7, 8], 
@@ -666,7 +717,7 @@ with open("TItop.top", "w") as topo:
       topo.write(oldtopo[iline])
       iline += 1
       continue
-    elif fields[3] not in ["SNC", "CSO", "CGL"]: 
+    elif fields[3] not in ["SNC", "CSO", "CGL", "IYY"]: 
       topo.write(oldtopo[iline])
       iline += 1
       continue
