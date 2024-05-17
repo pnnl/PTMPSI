@@ -89,7 +89,6 @@ nstdisreout           = 0
 
 ; Neighbor searching
 cutoff-scheme         = Verlet
-nstlist               = 10
 ns_type               = grid
 rlist                 = 1.2
 vdwtype               = cutoff
@@ -106,8 +105,8 @@ fourierspacing        = 0.16
 ; Temperature coupling
 Tcoupl                = V-rescale
 tc_grps               = Protein Non-Protein
-tau_t                 = 0.1 0.1
-ref_t                 = {temp} {temp}
+tau-t                 = 1.0 1.0
+ref-t                 = {temp} {temp}
 
 ; Pressure coupling
 Pcoupl                = no
@@ -128,7 +127,7 @@ disre-weighting       = conservative
 disre-fc              = 1000
 disre-mixed           = yes
 
-nstcomm               = 1
+nstcomm               = 100
 comm-mode             = Linear
 comm-grps             = Protein Water_and_ions
 """
@@ -156,7 +155,6 @@ nstdisreout           = 0
 
 ; Neighbor searching
 cutoff-scheme         = Verlet
-nstlist               = 20
 ns-type               = grid
 rlist                 = 1.2
 vdw-modifier          = force-switch
@@ -173,13 +171,13 @@ fourierspacing        = 0.16
 ; Temperature coupling
 Tcoupl                = V-rescale
 tc-grps               = Protein Non-Protein
-tau-t                 = 0.1 0.1
+tau-t                 = 1.0 1.0
 ref-t                 = {temp} {temp}
 
 ; Pressure coupling
 Pcoupl                = C-rescale
 pcoupltype            = isotropic
-tau-p                 = 1.0
+tau-p                 = 5.0
 ref-p                 = 1.0
 compressibility       = 4.5e-5
 refcoord-scaling      = com
@@ -223,7 +221,6 @@ nstvout               = 0
 
 ; Neighbor searching
 cutoff-scheme         = Verlet
-nstlist               = 100
 ns-type               = grid
 rlist                 = 1.0
 vdw-modifier          = force-switch
@@ -241,13 +238,13 @@ fourierspacing        = 0.16
 ; Temperature coupling
 Tcoupl                = V-rescale
 tc-grps               = Protein Non-Protein
-tau-t                 = 0.1 0.1
+tau-t                 = 1.0 1.0
 ref-t                 = {temp} {temp}
 
 ; Pressure coupling
 Pcoupl                = Parrinello-Rahman
 pcoupltype            = isotropic
-tau-p                 = 2.0
+tau-p                 = 5.0
 ref-p                 = 1.0
 compressibility       = 4.5e-5
 
@@ -271,7 +268,7 @@ qlambdas = """
 integrator = sd
 dt         = 0.002
 nsteps     = {nsteps};
-nstlog     = 1000 ; update log file every 10.0 ps
+nstlog     = 5000 ; update log file every 10.0 ps
 nstxout    = 0
 nstvout    = 0
 nstenergy  = 1000 ; save energy every 10.0 ps
@@ -286,7 +283,6 @@ lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
-nstlist         = 200            ; Frequency to update the neighbor list
 ns_type         = grid          ; Method to determine neighbor list (simple, grid)
 coulombtype     = PME           ; Treatment of long range electrostatic interactions
 fourierspacing  = 0.16          ; Grid spacing for FFT
@@ -299,14 +295,14 @@ pbc             = xyz           ; Periodic Boundary Conditions (yes/no)
 
 ; Temp and Pressure Controls
 tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperature coupling
-ref_t               = 300 300
+ref-t               = 300 300
 tc-grps             = Protein Water_and_ions
-tau_t               = 0.1 0.1
+tau-t               = 1.0 1.0
 pcoupl              = Parrinello-Rahman
 compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
 pcoupl_type         = isotropic
-tau_p               = 2.0
-ref_p               = 1.0
+tau-p               = 5.0
+ref-p               = 1.0
 gen_vel             = no                      ; generate initial velocities
 gen_temp            = 300                      ; initial temperature
 
@@ -317,7 +313,7 @@ delta_lambda             = 0
 ;couple-moltype          = ATC-A
 couple-intramol         = no
 couple-lambda0          = vdw-q
-couple-lambda1          = vdw
+couple-lambda1          = vdw-q
 init_lambda_state       = {lambda_state}
 calc_lambda_neighbors   = 1
 ;                            0    1    2    3    4    5    6    7    8    9   10   11   12
@@ -358,7 +354,6 @@ lincs_order             = 4         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
-nstlist         = 200            ; Frequency to update the neighbor list
 ns_type         = grid          ; Method to determine neighbor list (simple, grid)
 coulombtype     = PME           ; Treatment of long range electrostatic interactions
 fourierspacing  = 0.16          ; Grid spacing for FFT
@@ -371,14 +366,14 @@ pbc             = xyz           ; Periodic Boundary Conditions (yes/no)
 
 ; Temp and Pressure Controls
 tcoupl              = v-rescale ;berendsen ; nose-hoover              ; temperature coupling
-ref_t               = 300 300
+ref-t               = 300 300
 tc-grps             = Protein Water_and_ions
-tau_t               = 0.1 0.1
+tau-t               = 1.0 1.0
 pcoupl              = Parrinello-Rahman
 compressibility     = 4.5e-5              ; Compressibility of water (Isothermal), bar^-1
 pcoupl_type         = isotropic
-tau_p               = 2.0
-ref_p               = 1.0
+tau-p               = 5.0
+ref-p               = 1.0
 gen_vel             = no                      ; generate initial velocities
 gen_temp            = 300                      ; initial temperature
 
@@ -387,8 +382,8 @@ free_energy              = yes
 delta_lambda             = 0
 ;
 ;couple-moltype          = ATC-A
-couple-intramol         = no
-couple-lambda0          = vdw
+couple-intramol         = vdw-q
+couple-lambda0          = vdw-q
 couple-lambda1          = none
 init_lambda_state       = {lambda_state}
 calc_lambda_neighbors   = 1
@@ -396,10 +391,10 @@ calc_lambda_neighbors   = 1
 vdw_lambdas             = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 ; We are not transforming any bonded or restrained interactions
-bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
-mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+mass_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 ; Not doing simulated temperting here
 temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Options for the decoupling
