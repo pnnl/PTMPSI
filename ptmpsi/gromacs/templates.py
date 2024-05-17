@@ -279,7 +279,7 @@ continuation            = yes       ; continuing from NPT
 constraint_algorithm    = lincs     ; holonomic constraints
 constraints             = h-bonds   ; bonds to All are constrained
 lincs_iter              = 1         ; accuracy of LINCS
-lincs_order             = 4         ; also related to accuracy
+lincs_order             = 8         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
@@ -350,7 +350,7 @@ continuation            = yes       ; continuing from NPT
 constraint_algorithm    = lincs     ; holonomic constraints
 constraints             = h-bonds   ; bonds to All are constrained
 lincs_iter              = 1         ; accuracy of LINCS
-lincs_order             = 4         ; also related to accuracy
+lincs_order             = 8         ; also related to accuracy
 comm-mode = linear
 
 ; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
@@ -474,7 +474,7 @@ export TMPDIR={scratch}
 export APPTAINER_CACHEDIR=$TMPDIR
 export GMX_ENABLE_DIRECT_GPU_COMM=1
 export GMX_GPU_PME_DECOMPOSITION=1
-export GMX_CUDA_GRAPH=1
+#export GMX_CUDA_GRAPH=1
 export GMX_MAXBACKUP=-1
 export UCX_POSIX_USE_PROC_LINK=n
 export UCX_TLS=^cma
@@ -490,7 +490,7 @@ export APPTAINERENV_UCX_POSIX_USE_PROC_LINK=${{UCX_POSIX_USE_PROC_LINK}}
 export APPTAINERENV_UCX_RNDV_THRESH=${{UCX_RNDV_THRESH}}
 export APPTAINERENV_GMX_ENABLE_DIRECT_GPU_COMM=${{GMX_ENABLE_DIRECT_GPU_COMM}}
 export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
-export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
+#export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
