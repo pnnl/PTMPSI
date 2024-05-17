@@ -45,6 +45,8 @@ pip install -e .
 
 Mejia-Rodriguez D, Kim H, Sadler N, Li X, Bohutskyi P, Valiev M, et al. PTM-Psi: A Python package to facilitate the computational investigation of post-translational modification on protein structures and their impacts on dynamics and functions. [*Protein Science* **32**, e4822 (2023)](https://doi.org/10.1002/pro.4822).
 
+Mejia-Rodriguez D, Siegel R, Buurma C, Lilly J, Frank A, Beasley E, Kucharzyk KH, Cheung MS, Valiev M. PTM-Psi 2.0: An Automated Workflow to Simulate Enzymatic Reactions Using QM/MM and Flexible Docking. 
+
 ## License
 
 *PTM-Psi* is made freely available under the terms of a modified 3-clause BSD license. See [LICENSE](./LICENSE) for details.
