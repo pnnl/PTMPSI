@@ -32,7 +32,18 @@ cd PTMPSI
 pip install -e .
 ```
 
+## Contributors
+
+- Daniel Mejia-Rodriguez (PNNL)
+- Hoshin Kim (PNNL)
+- Marat Valiev (PNNL)
+- Margaret Cheung (PNNL)
+- Chris Buurma (BMI)
+- Ross Siegel (BMI)
+
 ## Citation
+
+Mejia-Rodriguez D, Kim H, Sadler N, Li X, Bohutskyi P, Valiev M, et al. PTM-Psi: A Python package to facilitate the computational investigation of post-translational modification on protein structures and their impacts on dynamics and functions. [*Protein Science* **32**, e4822 (2023)](https://doi.org/10.1002/pro.4822).
 
 ## License
 
