@@ -96,9 +96,7 @@ ptmsite = {
         "TYR": ["CD1","CE1","OH"],
         }
 
-def doptm(residue,radical,bond,angle,dihedral,argdimeth=False):
-
-
+def doptm(residue, radical, bond, angle, dihedral, argdimeth=False):
     # Ask for attachment site
     if residue.name in ["HIS","HIP","HID","HIE"]:
         print("\n\t Which histidine position should react?")
