@@ -25,7 +25,7 @@ acetylation.coordinates = np.array([
  [4.390580, 1.877406, -6.602501E-06]
 ])
 acetylation.elements = np.array(["H", "C", "H", "H", "C", "O"])
-acetylation.names = np.array(["HH31", "CH3", "HH32", "HH33", "CP", "OP"])
+acetylation.names = np.array(["HH31", "CH3", "HH32", "HH33", "CH", "OH"])
 acetylation.natoms = len(acetylation.coordinates)
 acetylation.attach = nerf(acetylation.coordinates[0],
                      acetylation.coordinates[1],
@@ -219,7 +219,10 @@ def check_ptm(residue,ptm):
     return
 
 
-def get_ptm_name(original,ptm):
+def get_ptm_name(original, ptm):
+    if ptm == "acetylation":
+        if original in ["LYS", "LYN"]:
+            return "ALY"
     # TODO
     return "PTM"
 
