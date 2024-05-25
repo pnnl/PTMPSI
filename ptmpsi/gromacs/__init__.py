@@ -107,7 +107,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
     nstlist   = kwargs.pop("nstlist", 0)
     nstlist   = f"-nstlist {nstlist}" if nstlist > 0 else ""
-    do_ti     = kwargs.get("thermo" True)
+    do_ti     = kwargs.get("thermo", True)
 
     if conc is None and (npos is None or nneg is None):
         raise KeyError("Specify total ion concentration or a number of positive and negative ions to add")
