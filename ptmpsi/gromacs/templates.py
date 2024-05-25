@@ -545,6 +545,115 @@ rank 3=+n0 slot=1:36-47
 EOF
 """
 
+
+slurm_header['AQE-H100'] = """#!/bin/bash
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --cpus-per-task={nthreads}
+#SBATCH --job-name={jname}
+#SBATCH --get-user-env
+#SBATCH --exclusive
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
+
+# NVIDIA LIBRARIES
+source /anfhome/.profile
+export NVHPC_ROOT=/anfhome/spack/opt/spack/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placehold/linux-almalinux8-x86_64_v3/gcc-8.5.0/nvhpc-23.7-7xowtxnqw4gn4fg2cqwvqynpy5qx32lj/Linux_x86_64/23.7
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/math_libs/12.2/lib64:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/cuda/12.2/lib64:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nvshmem_cufftmp_compat/lib:${{LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nccl/lib:${{LD_LIBRARY_PATH}}
+
+NTASKS=$SLURM_NTASKS
+CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+NGPUS=$((SLURM_GPUS_PER_NODE * SLURM_NNODES))
+
+NTASKS=$SLURM_NTASKS
+CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+NGPUS=$((SLURM_GPUS_PER_NODE * SLURM_NNODES))
+
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+export TMPDIR={scratch}
+export APPTAINER_CACHEDIR=$TMPDIR
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+#export GMX_CUDA_GRAPH=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+export APPTAINERENV_HWLOC_HIDE_ERRORS=1
+export APPTAINERENV_UCX_LOG_LEVEL=${{UCX_LOG_LEVEL}}
+export APPTAINERENV_UCX_LOG_LEVEL_TRIGGER=${{UCX_LOG_LEVEL_TRIGGER}}
+export APPTAINERENV_UCX_TLS=${{UCX_TLS}}
+export APPTAINERENV_UCX_POSIX_USE_PROC_LINK=${{UCX_POSIX_USE_PROC_LINK}}
+export APPTAINERENV_UCX_RNDV_THRESH=${{UCX_RNDV_THRESH}}
+export APPTAINERENV_GMX_ENABLE_DIRECT_GPU_COMM=${{GMX_ENABLE_DIRECT_GPU_COMM}}
+export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
+#export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
+export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
+export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
+
+cat > rankfile1  <<EOF
+rank 0=+n0 slot=0:0-4
+rank 1=+n0 slot=0:5-9
+rank 2=+n0 slot=0:10-14
+rank 3=+n0 slot=0:15-19
+EOF
+
+
+cat > rankfile2  <<EOF
+rank 0=+n0 slot=1:0-4
+rank 1=+n0 slot=1:5-9
+rank 2=+n0 slot=1:10-14
+rank 3=+n0 slot=1:15-19
+EOF
+
+cat > rankfileA100 <<EOF
+rank 0=+n0 slot=0:0-23
+rank 1=+n0 slot=0:24-47
+rank 2=+n0 slot=1:0-23
+rank 3=+n0 slot=1:24-47
+EOF
+
+
+cat > rankfileH100 <<EOF
+rank 0=+n0 slot=0:0-11
+rank 1=+n0 slot=0:12-23
+rank 2=+n0 slot=0:24-35
+rank 3=+n0 slot=0:36-47
+rank 4=+n0 slot=1:0-11
+rank 5=+n0 slot=1:12-23
+rank 6=+n0 slot=1:24-35
+rank 7=+n0 slot=1:36-47
+EOF
+
+cat > rankfileH100_1 <<EOF
+rank 0=+n0 slot=0:0-11
+rank 1=+n0 slot=0:12-23
+rank 2=+n0 slot=0:24-35
+rank 3=+n0 slot=0:36-47
+EOF
+
+cat > rankfileH100_2 <<EOF
+rank 0=+n0 slot=1:0-11
+rank 1=+n0 slot=1:12-23
+rank 2=+n0 slot=1:24-35
+rank 3=+n0 slot=1:36-47
+EOF
+"""
+
+
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008
 CT       0.0213      12.01
