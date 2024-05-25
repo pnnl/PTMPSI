@@ -264,7 +264,7 @@ class Protein:
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
 
-        do_ti     = kwargs.get("thermo" True)
+        do_ti     = kwargs.get("thermo", True)
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
         nsteps    = int(lenlambda*1000000/timestep)
