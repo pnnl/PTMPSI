@@ -554,7 +554,6 @@ slurm_header['AQE-H100'] = """#!/bin/bash
 #SBATCH --cpus-per-task={nthreads}
 #SBATCH --job-name={jname}
 #SBATCH --get-user-env
-#SBATCH --exclusive
 #SBATCH --error={jname}-%j.err
 #SBATCH --output={jname}-%j.out
 
@@ -607,29 +606,6 @@ export APPTAINERENV_OMP_STACKSIZE=${{OMP_STACKSIZE}}
 export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
 myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
-cat > rankfile1  <<EOF
-rank 0=+n0 slot=0:0-4
-rank 1=+n0 slot=0:5-9
-rank 2=+n0 slot=0:10-14
-rank 3=+n0 slot=0:15-19
-EOF
-
-
-cat > rankfile2  <<EOF
-rank 0=+n0 slot=1:0-4
-rank 1=+n0 slot=1:5-9
-rank 2=+n0 slot=1:10-14
-rank 3=+n0 slot=1:15-19
-EOF
-
-cat > rankfileA100 <<EOF
-rank 0=+n0 slot=0:0-23
-rank 1=+n0 slot=0:24-47
-rank 2=+n0 slot=1:0-23
-rank 3=+n0 slot=1:24-47
-EOF
-
-
 cat > rankfileH100 <<EOF
 rank 0=+n0 slot=0:0-11
 rank 1=+n0 slot=0:12-23
@@ -654,6 +630,7 @@ rank 1=+n0 slot=1:12-23
 rank 2=+n0 slot=1:24-35
 rank 3=+n0 slot=1:36-47
 EOF
+
 """
 
 

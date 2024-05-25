@@ -269,6 +269,8 @@ class Protein:
         timestep  = kwargs.get("timestep",  2.0)
         nsteps    = int(lenlambda*1000000/timestep)
         temp      = kwargs.get("temp", 300.0)
+        nsplit    = kwargs.pop("nsplit", 1)
+        gpu_id    = kwargs.pop("gpu_id", "")
 
         ff = ff.lower()
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
@@ -343,7 +345,18 @@ class Protein:
 
                     # Generate SLURM script
                     amber_to_gromacs_names(_protein)
-                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", **kwargs)
+
+                    if nsplit > 1:
+                        mod = j%nsplit
+                        subindex = f"_{j%nsplit+1}"
+                        if mod == 0:
+                            gpu_id = "0123"
+                        else:
+                            gpu_id = "4567"
+                    else:
+                        subindex = ""
+                        
+                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpud_id=gpud_id, **kwargs)
                     fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
