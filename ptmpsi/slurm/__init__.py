@@ -77,7 +77,7 @@ aqe_ldrd = Machine(
                   maxnode=3,
                   options = {
                     "gromacs": {
-                      "mpirun": "mpirun -np 4 --rankfile rankfileA100 --bind-to core",
+                      "mpirun": "mpirun -np 4 --bind-to core --rankfile rankfileA100",
                       "container": "apptainer exec --nv --bind /anfhome,/mnt,/etc,/sched,/run,/opt/hpcx $myimage",
                       "gmx": "gmx_mpi",
                       "gpu_id": "0123",
@@ -108,7 +108,7 @@ aqe_h100 = Machine(name="AQE-H100",
       maxnode=28,
                   options = {
                     "gromacs": {
-                      "mpirun": "mpirun -np 4 --rankfile rankfileH100 --bind-to core",
+                      "mpirun": "mpirun -np 4 --bind-to core --rankfile rankfileH100",
                       "container": "apptainer exec --nv --bind /anfhome,/mnt,/etc,/sched,/run,/opt/hpcx $myimage",
                       "gmx": "gmx_mpi",
                       "gpu_id": "0123",
