@@ -266,7 +266,7 @@ disre-fc              = 1000
 
 qlambdas = """
 integrator = sd
-dt         = 0.002
+dt         = 0.001
 nsteps     = {nsteps};
 nstlog     = 5000 ; update log file every 10.0 ps
 nstxout    = 0
@@ -323,7 +323,7 @@ coul_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90
 bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
-mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
+mass_lambdas            = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Not doing simulated temperting here
 temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Options for the decoupling
@@ -337,7 +337,7 @@ nstdhdl                  = 10
 
 vdwlambdas = """
 integrator = sd
-dt         = 0.002
+dt         = 0.001
 nsteps     = {nsteps};
 nstlog     = 1000 ; update log file every 10.0 ps
 nstxout    = 0
@@ -394,7 +394,7 @@ coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
-mass_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 ; Not doing simulated temperting here
 temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Options for the decoupling
@@ -518,11 +518,30 @@ rank 2=+n0 slot=1:0-23
 rank 3=+n0 slot=1:24-47
 EOF
 
+
 cat > rankfileH100 <<EOF
-rank 0=+n0 slot=0:0-23
-rank 1=+n0 slot=0:24-47
-rank 2=+n0 slot=1:0-23
-rank 3=+n0 slot=1:24-47
+rank 0=+n0 slot=0:0-11
+rank 1=+n0 slot=0:12-23
+rank 2=+n0 slot=0:24-35
+rank 3=+n0 slot=0:36-47
+rank 4=+n0 slot=1:0-11
+rank 5=+n0 slot=1:12-23
+rank 6=+n0 slot=1:24-35
+rank 7=+n0 slot=1:36-47
+EOF
+
+cat > rankfileH100_1 <<EOF
+rank 0=+n0 slot=0:0-11
+rank 1=+n0 slot=0:12-23
+rank 2=+n0 slot=0:24-35
+rank 3=+n0 slot=0:36-47
+EOF
+
+cat > rankfileH100_2 <<EOF
+rank 0=+n0 slot=1:0-11
+rank 1=+n0 slot=1:12-23
+rank 2=+n0 slot=1:24-35
+rank 3=+n0 slot=1:36-47
 EOF
 """
 

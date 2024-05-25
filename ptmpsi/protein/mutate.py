@@ -76,7 +76,7 @@ def point_mutation(protein,original,new):
 
 def post_translational_modification(protein,original,ptm):
     _ptm = ptm.lower()
-    _original = get_residue(protein,original)
+    _original = get_residue(protein, original)
 
     # Check if residue is either C- or N-terminus
     for chain in protein.chains:

@@ -113,8 +113,8 @@ aqe_h100 = Machine(name="AQE-H100",
                       "gmx": "gmx_mpi",
                       "gpu_id": "0123",
                       "ntasks": 4,
-                      "nthreads": 24,
-                      "nstlist": 200
+                      "nthreads": 12,
+                      "nstlist": 300
                       }
                     }
       )

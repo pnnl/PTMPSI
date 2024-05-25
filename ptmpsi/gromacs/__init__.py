@@ -107,6 +107,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
     nstlist   = kwargs.pop("nstlist", 0)
     nstlist   = f"-nstlist {nstlist}" if nstlist > 0 else ""
+    do_ti     = kwargs.get("thermo" True)
 
     if conc is None and (npos is None or nneg is None):
         raise KeyError("Specify total ion concentration or a number of positive and negative ions to add")
@@ -119,8 +120,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     path = os.path.join(cwd,"dualti")
 
     # Write the script to update topology file for TI 
-    with open(f"{path}/update_topology.py", "w") as fh:
-        fh.write(update_topology)
+    if do_ti:
+        with open(f"{path}/update_topology.py", "w") as fh:
+            fh.write(update_topology)
 
     # Write the slurm submission script
     with open(f"{infile[:-4]}_slurm.sbatch","w") as fh:
@@ -217,24 +219,26 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
             fh.write(f"{mpirun} {container} {gmx} mdrun -deffnm md \n")
 
         # GENERATE TOPOLOGY FOR TI
-        fh.write("\n")
-        fh.write("cd dualti\n")
-        fh.write("python update_topology.py\n")
+        if do_ti:
+            fh.write("\n")
+            fh.write("cd dualti\n")
+            fh.write("python update_topology.py\n")
 
-    for i in range(13):
-        ipath = os.path.join(path, f"lam-{i:02d}")
-        os.chdir(ipath)
-        with open(f"{infile[:-4]}_lam{i:02d}_slurm.sbatch","w") as fh:
-            fh.write(slurm.header)
-            fh.write(f"cd 01-q\n")
-            fh.write(f"ln -s ../rankfile1 rankfile1 \n")
-            fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -t md.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
-            fh.write(f"cd ../02-vdw\n")
-            fh.write(f"ln -s ../rankfile1 rankfile1 \n")
-            fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c ../01-q/lam-{i:02d}.gro -r ../01-q/lam-{i:02d}.gro -t ../01-q/lam-{i:02d}.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-            fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
-        os.chdir(cwd)
+    if do_ti:
+        for i in range(13):
+            ipath = os.path.join(path, f"lam-{i:02d}")
+            os.chdir(ipath)
+            with open(f"{infile[:-4]}_lam{i:02d}_slurm.sbatch","w") as fh:
+                fh.write(slurm.header)
+                fh.write(f"cd 01-q\n")
+                fh.write(f"ln -s ../rankfile1 rankfile1 \n")
+                fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -t md.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
+                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
+                fh.write(f"cd ../02-vdw\n")
+                fh.write(f"ln -s ../rankfile1 rankfile1 \n")
+                fh.write(f"mpirun -np 1 {container} {gmx} grompp -f grompp.mdp -c ../01-q/lam-{i:02d}.gro -r ../01-q/lam-{i:02d}.gro -t ../01-q/lam-{i:02d}.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
+                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
+            os.chdir(cwd)
 
     return
 

@@ -985,6 +985,65 @@
     -C    CA     N     H
     CA    +N     C     O
 
+[ ALY ]
+ [ atoms ]
+     N    N           -0.41570     1
+     H    H            0.27190     2
+    CA    CT           0.00644     3
+    HA    H1           0.13096     4
+    CB    CT          -0.33618     5
+   HB1    HC           0.09579     6
+   HB2    HC           0.09579     7
+    CG    CT           0.18859     8
+   HG1    HC          -0.02808     9
+   HG2    HC          -0.02808    10
+    CD    CT           0.01709    11
+   HD1    HC           0.03560    12
+   HD2    HC           0.03560    13
+    CE    CT          -0.17510    14
+   HE1    H1           0.09971    15
+   HE2    H1           0.09971    16
+    NZ    N           -0.32141    17
+   HZ1    H            0.26985    18
+    CH    C            0.24334    19
+    OH    O           -0.47876    20
+   CH3    CT           0.32635    21
+  HH31    HC          -0.05391    22
+  HH32    HC          -0.05391    23
+  HH33    HC          -0.05391    24
+     C    C            0.59730    25
+     O    O           -0.56790    26
+ [ bonds ]
+     N     H
+     N    CA
+    CA    HA
+    CA    CB
+    CA     C
+    CB   HB1
+    CB   HB2
+    CB    CG
+    CG   HG1
+    CG   HG2
+    CG    CD
+    CD   HD1
+    CD   HD2
+    CD    CE
+    CE   HE1
+    CE   HE2
+    CE    NZ
+    NZ   HZ1
+    NZ    CH
+    CH    OH
+    CH   CH3
+   CH3  HH31
+   CH3  HH32
+   CH3  HH33
+     C     O
+    -C     N
+ [ impropers ]
+    -C    CA     N     H
+    CA    +N     C     O
+
 [ EAC ] ;
  [ atoms ]
      N    N           -0.54261     1

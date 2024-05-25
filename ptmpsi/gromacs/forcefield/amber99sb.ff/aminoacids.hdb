@@ -136,6 +136,15 @@ LYS	7
 2	6	HD	CD	CG	CE	
 2	6	HE	CE	CD	NZ	
 3	4	HZ	NZ	CE	CD	
+ALY	8
+1	1	H	N	-C	CA	
+1	5	HA	CA	N	CB	C	
+2	6	HB	CB	CA	CG	
+2	6	HG	CG	CB	CD	
+2	6	HD	CD	CG	CE	
+2	6	HE	CE	CD	NZ	
+1	1	HZ	NZ	CE	CD	
+3	4	HH3	CH3	CH	OH	
 EAC     6
 1       1       H       N       -C      CE
 2       6       HA      CA      C       CB
