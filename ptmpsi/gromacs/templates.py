@@ -568,6 +568,7 @@ export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/math_libs/12.2/lib64:${{LD_LIBRARY_PATH}}
 export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/cuda/12.2/lib64:${{LD_LIBRARY_PATH}}
 export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nvshmem_cufftmp_compat/lib:${{LD_LIBRARY_PATH}}
 export LD_LIBRARY_PATH=${{NVHPC_ROOT}}/comm_libs/12.2/nccl/lib:${{LD_LIBRARY_PATH}}
+export LD_PRELOAD=${{NVHPC_ROOT}}/compilers/lib/libgomp.so.1
 
 NTASKS=$SLURM_NTASKS
 CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
