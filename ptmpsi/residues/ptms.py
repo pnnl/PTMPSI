@@ -149,8 +149,8 @@ def doptm(residue, radical, bond, angle, dihedral, argdimeth=False):
 
     # Check that amide and esther bonds are planar
     if radical.name in ["acetylation","phosphorylation"]:
-        site3 = "CP" if radical.name == "acetylation" else "P"
-        site4 = "OP" if radical.name == "acetylation" else "O1"
+        site3 = "CH" if radical.name == "acetylation" else "P"
+        site4 = "OH" if radical.name == "acetylation" else "O1"
         dihedral = get_torsion(residue.find_coord(site[1]),
                 residue.find_coord(site[2]),residue.find_coord(site3),
                 residue.find_coord(site4))
