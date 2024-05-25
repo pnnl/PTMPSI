@@ -129,7 +129,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         fh.write(slurm.header)
 
         # PDB2GMX
-        fh.write(f"""echo -e "1\\n1" | mpirun -np 1 {container} {gmx} pdb2gmx -f {infile} -o step1.gro -merge all \n""")
+        fh.write(f"""echo -e "1\\n1" | mpirun -np 1 {container} {gmx} pdb2gmx -f {infile} -o step1.gro -merge all -ignh \n""")
 
         # EDITCONF
         fh.write(f"""mpirun -np 1 {container} {gmx} editconf -f step1.gro -o step2.gro -bt {bt} -d {d} {c}\n""")
