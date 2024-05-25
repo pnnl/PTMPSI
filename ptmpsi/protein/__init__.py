@@ -243,9 +243,9 @@ class Protein:
 
     def findresidue(self,name):
         for _chain in self.chains:
-            for residue in _chain.residues:
-                if residue.name == name:
-                    print("{}:{}{}".format(_chain.name,name,residue.resid))
+            for _residue in _chain.residues:
+                if _residue.name == name:
+                    print("{}:{}{}".format(_chain.name,name,_residue.resid))
         return
 
 
@@ -264,6 +264,7 @@ class Protein:
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
 
+        do_ti     = kwargs.get("thermo" True)
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
         nsteps    = int(lenlambda*1000000/timestep)
@@ -285,7 +286,6 @@ class Protein:
         prefix = "" if prefix is None else f"{prefix}_"
 
         self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
-
 
         submit = open(f"{path}/submit.sh", "w")
         submit.write("#!/bin/bash\n")
@@ -309,36 +309,37 @@ class Protein:
                     os.symlink(os.path.relpath(f"{path}/specbond.dat", "./"), f"specbond.dat")
 
                     # Thermodynamic integration, symlinks will be broken until file generation
-                    os.mkdir("./dualti")
-                    kpath = os.path.join(jpath, "dualti")
-                    os.chdir(kpath)
-                    os.symlink(os.path.relpath(f"{jpath}/topol.top", "./"), f"topol.top")
-                    for k in range(13):
-                        os.mkdir(f"{kpath}/lam-{k:02d}")
-                        qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
-                        os.mkdir(qpath)
-                        os.chdir(qpath)
-                        os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
-                        os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
-                        os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
-                        os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
-                        os.symlink(os.path.relpath(f"{jpath}/md.cpt", "./"), f"md.cpt")
-                        os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
-                        with open("grompp.mdp", "w") as grompp:
-                            grompp.write(qlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
-                        os.chdir(jpath)
-                        qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
-                        os.mkdir(qpath)
-                        os.chdir(qpath)
-                        os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
-                        os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
-                        os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
-                        os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
-                        os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
-                        with open("grompp.mdp", "w") as grompp:
-                            grompp.write(vdwlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
+                    if do_ti:
+                        os.mkdir("./dualti")
+                        kpath = os.path.join(jpath, "dualti")
                         os.chdir(kpath)
-                    os.chdir(jpath)
+                        os.symlink(os.path.relpath(f"{jpath}/topol.top", "./"), f"topol.top")
+                        for k in range(13):
+                            os.mkdir(f"{kpath}/lam-{k:02d}")
+                            qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
+                            os.mkdir(qpath)
+                            os.chdir(qpath)
+                            os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                            os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                            os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
+                            os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                            os.symlink(os.path.relpath(f"{jpath}/md.cpt", "./"), f"md.cpt")
+                            os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                            with open("grompp.mdp", "w") as grompp:
+                                grompp.write(qlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
+                            os.chdir(jpath)
+                            qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
+                            os.mkdir(qpath)
+                            os.chdir(qpath)
+                            os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                            os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                            os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
+                            os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                            os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                            with open("grompp.mdp", "w") as grompp:
+                                grompp.write(vdwlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
+                            os.chdir(kpath)
+                        os.chdir(jpath)
 
                     # Generate SLURM script
                     amber_to_gromacs_names(_protein)
@@ -348,13 +349,14 @@ class Protein:
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                     submit.write(f"jobid=$(sbatch {prefix}{j:04d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
-                    submit.write(f"cd dualti\n")
-                    for k in range(13):
-                        submit.write(f"cd lam-{k:02d}\n")
-                        submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                    if do_ti:
+                        submit.write(f"cd dualti\n")
+                        for k in range(13):
+                            submit.write(f"cd lam-{k:02d}\n")
+                            submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                            submit.write(f"cd ../ \n")
+                            submit.write(f"sleep 1s \n")
                         submit.write(f"cd ../ \n")
-                        submit.write(f"sleep 1s \n")
-                    submit.write(f"cd ../ \n")
                     submit.write(f"cd {os.path.relpath(path, jpath)} \n")
                     submit.write(f"sleep 1s \n")
                     submit.write(f"\n\n")
