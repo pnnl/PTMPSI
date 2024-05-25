@@ -302,7 +302,7 @@ class Protein:
                     string = ""
                     for _ptm in combi:
                         _protein.modify(_ptm[0], _ptm[1])
-                        string += f" {_ptm[0]} -> {_ptm[1]}"
+                        string += f" {_ptm[0]} -> {_ptm[1]}; "
                     os.chdir(jpath)
                     os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
                     os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
