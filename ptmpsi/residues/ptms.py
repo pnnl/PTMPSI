@@ -113,13 +113,17 @@ def doptm(residue, radical, bond, angle, dihedral, argdimeth=False):
 
 
     # Remove attached hydrogen atom (if any)
-    mask = [*range(0,residue.natoms)]
+    mask = list(range(0,residue.natoms))
+    hlist = []
     for hname in hydrogens[site[2]]:
         try:
             hpos = residue.find(hname)
-            mask.pop(hpos)
+            hlist.append(hpos)
         except:
             pass
+
+    for hpos in reversed(sorted(hlist)):
+        mask.pop(hpos)
 
     if len(mask) < residue.natoms:
         residue.elements = residue.elements[mask]
@@ -237,7 +241,7 @@ def add_hydrogens(residue,ptm):
         newh = nerf(residue.find_coord("CD"),residue.find_coord("CE"),
                         residue.find_coord("NZ"),nhbond,angle,dihedral)
         residue.coordinates = np.vstack((residue.coordinates,newh))
-        residue.names = np.hstack((residue.names,["HZ3"]))
+        residue.names = np.hstack((residue.names,["HZ1"]))
         residue.elements = np.hstack((residue.elements,["H"]))
         residue.natoms += 1
 
