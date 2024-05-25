@@ -14,7 +14,7 @@ def amber_to_gromacs_names(protein):
                 if residue.name not in ["PHE", "HIE", "HIP", "HID", "TYR", "ASH"]:
                     if string == "HD2": names.append(" HD1"); continue
                     if string == "HD3": names.append(" HD2"); continue
-                if residue.name not in ["MET", "PHE", "TRP", "HIE", "TYR" ]:
+                if residue.name not in ["MET", "PHE", "TRP", "HIE", "TYR", "GLH" ]:
                     if string == "HE2": names.append(" HE1"); continue
                     if string == "HE3": names.append(" HE2"); continue
                 if residue.name not in ["LYS", "TRP"]:
