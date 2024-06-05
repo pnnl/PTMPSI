@@ -157,7 +157,9 @@ def digestpdb(protein,interactive=False,delwat=True,delhet=True):
             # Append elements
             names.append(atom)
             elements.append(element)
-            coordinates.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+            coordinates.append([float(line[30:38]), 
+                                float(line[38:46]), 
+                                float(line[46:54])])
 
             # Define backbone
             if atom == 'N':
