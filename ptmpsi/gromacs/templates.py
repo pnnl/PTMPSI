@@ -412,13 +412,13 @@ slurm_header = {}
 slurm_header['Tahoma'] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
-#SBATCH --nodes={nodes}
+#SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
 #SBATCH --job-name={jname}
 #SBATCH --error={jname}-%j.err
 #SBATCH --output={jname}-%j.out
 #SBATCH --partition={partition}
-{gpu}
+#SBATCH --gpus-per-node={ngpus}
 
 # From the user
 {user}
