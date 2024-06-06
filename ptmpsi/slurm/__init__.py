@@ -222,7 +222,7 @@ class Slurm:
                 "scratch"  : self.scratch,
                 "user"     : self.user
                 }
-        if self.ngpus > 0: self.options_dictionary["ngpus"] = self.ngpus
+        self.options_dictionary["ngpus"] = self.ngpus
 
 
         self.header = self._header_template.format(**self.options_dictionary)

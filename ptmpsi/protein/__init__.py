@@ -4,7 +4,7 @@ import numpy as np
 import subprocess
 from shutil import which
 from ..exceptions import FeatureError
-from ptmpsi.residues import resdict, Residue
+from ptmpsi.residues import resdict, one2three, Residue
 from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
 from ptmpsi.protein.tools import get_residue, ptm_combination
@@ -158,7 +158,12 @@ class Protein:
 
     def append(self,chain,residue,psi=None):
         try:
-            _residue = copy.deepcopy(resdict[residue])
+            if len(residue) ==  1:
+                _residue = copy.deepcopy(resdict[one2three[residue.upper()]])
+                resname = one2three[residue.upper()]
+            else:
+                _residue = copy.deepcopy(resdict[residue.upper()])
+                resname = residue.upper()
         except:
             raise MyDockingError("There is no residue with name '{}'".format(residue))
 
@@ -178,7 +183,7 @@ class Protein:
             if _chain.name == chain:
                 newcoords = appendc(_chain,_residue,psi)
                 natoms = len(_residue.coordinates)
-                newres = Residue(residue,natoms)
+                newres = Residue(resname, natoms)
                 newres.names = _residue.elements[:,1]
                 newres.coordinates = newcoords
                 newres.elements = _residue.elements[:,0]
@@ -192,9 +197,14 @@ class Protein:
         return
 
 
-    def prepend(self,chain,residue,phi=None):
+    def prepend(self, chain, residue, phi=None):
         try:
-            _residue = copy.deepcopy(resdict[residue])
+            if len(residue) ==  1:
+                _residue = copy.deepcopy(resdict[one2three[residue.upper()]])
+                resname = one2three[residue.upper()]
+            else:
+                _residue = copy.deepcopy(resdict[residue.upper()])
+                resname = residue.upper()
         except:
             raise MyDockingError("There is no residue with  name '{}'".format(residue))
 
@@ -213,7 +223,7 @@ class Protein:
             if _chain.name == chain:
                 newcoords = prependn(_chain,_residue,phi)
                 natoms = len(_residue.coordinates)
-                newres = Residue(residue,natoms)
+                newres = Residue(resname, natoms)
                 newres.names = _residue.elements[:,1]
                 newres.coordinates = newcoords
                 newres.elements = _residue.elements[:,0]
@@ -227,11 +237,11 @@ class Protein:
                 _chain.residues.insert(0,newres)
                 break
         self.update()
-        find_clashes_residue(newres,[self])
+        find_clashes_residue(newres, [self])
         return
 
 
-    def delchain(self,chain):
+    def delchain(self, chain):
         newchains = []
         for i, _chain in enumerate(self.chains):
             if _chain.name == chain: continue
@@ -356,7 +366,7 @@ class Protein:
                     else:
                         subindex = ""
                         
-                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpud_id=gpud_id, **kwargs)
+                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, **kwargs)
                     fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
@@ -430,7 +440,7 @@ class Protein:
         dock_ligand(self.docking)
         return
 
-    def protonate(self,pdbin=None,pdb=None,pqr=None,ph=7):
+    def protonate(self, pdbin=None, pdb=None, pqr=None, ph=7):
         # Check if pdb2pqr30 is in the path
         if which("pdb2pqr30") is None:
             raise MyDockingError("Cannot find PDB2PQR")
@@ -465,12 +475,18 @@ class Protein:
             lines = fh.readlines()
         for line in lines:
             try:
-                self.charge += float(line.split()[8])
+                _split = line.split()
+                if len(_split) == 9:
+                    self.charge += float(_split[8])
+                elif len(line) >= 62:
+                    self.charge += float(line[55:62])
             except:
                 pass
 
         with open(_pdb,"r") as fh:
             self.pdbfile = fh.readlines()
-        digestpdb(self,interactive=False,delwat=False,delhet=False)
+        for chain in self.chains:
+            self.delchain(chain.name)
+        digestpdb(self, interactive=False, delwat=False, delhet=False)
 
         return
