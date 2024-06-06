@@ -37,7 +37,7 @@ def writexyz(protein,xyzfile):
                     fh.write("{}  {: 16.8f}  {: 16.8f}  {: 16.8f}\n".format(residue.elements[iatom],*residue.coordinates[iatom]))
     return
 
-def digestpdb(protein,interactive=False,delwat=True,delhet=True):
+def digestpdb(protein, interactive=False, delwat=True, delhet=True):
     protein.nonstandard = False
     protein.missing     = False
     nssbonds    = 0

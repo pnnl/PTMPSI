@@ -233,7 +233,26 @@ def prependn(chain,residue,phi=None):
         nterminus.coordinates = nterminus.coordinates[mask]
         nterminus.elements = nterminus.elements[mask]
         nterminus.natoms = len(nterminus.names)
-    hpos = nterminus.find("H")
+    try:
+        hpos = nterminus.find("H")
+    except:
+        hpos = nterminus.natoms
+        nterminus.natoms += 1
+
+        _temp = np.empty(nterminus.natoms, dtype='U4')
+        _temp[:nterminus.natoms-1] = nterminus.names.copy()
+        _temp[-1] = "H"
+        nterminus.names = _temp.copy()
+
+        _temp = np.empty(nterminus.natoms, dtype='U4')
+        _temp[:nterminus.natoms-1] = nterminus.elements.copy()
+        _temp[-1] = "H"
+        nterminus.elements = _temp.copy()
+        
+        _temp = np.empty((nterminus.natoms,3), dtype=float)
+        _temp[:nterminus.natoms-1] = nterminus.coordinates.copy()
+        _temp[-1] = np.array([0.0, 0.0 ,0.0])
+        nterminus.coordinates = _temp.copy()
 
     # Determine attachment vector for N-terminus
     vector1 = nerf(c,ca,n,amidebond,amideangle,phi) - n

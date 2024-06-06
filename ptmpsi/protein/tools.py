@@ -66,7 +66,10 @@ def get_template(residue):
         _residue = residue
     elif isinstance(residue,str):
         try:
-            _residue = copy.deepcopy(resdict[residue.upper()])
+            if len(residue) == 1:
+                _residue = copy.deepcopy(resdict[one2three[residue.upper()]])
+            else:
+                _residue = copy.deepcopy(resdict[residue.upper()])
         except:
             raise MyDockingError("There is no template for '{}'".format(residue))
     else:
@@ -150,7 +153,7 @@ def ptm_combination(protein, ptms, ntuple=-1, exclude=None):
         if _chain is None and _resnum is None:
             residues = findresidue(protein, _resname)
         elif _resnum is None:
-            chain = [ c for c in protein if c.name == _chain ]
+            chain = [ c for c in protein.chains if c.name == _chain ]
             residues = findresidue(chain[0], _resname)
         elif _chain is None and _resname is None:
             if (len(protein.chains) == 1):
