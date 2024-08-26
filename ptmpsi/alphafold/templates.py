@@ -1,5 +1,8 @@
-slurm_header = """#!/bin/bash
-#SBATCH --nodes={nodes}
+slurm_header = {}
+
+
+slurm_header["AQE-LDRD"] = """#!/bin/bash
+#SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
 #SBATCH --time={time}
 #SBATCH --partition={partition}
@@ -8,6 +11,20 @@ slurm_header = """#!/bin/bash
 #SBATCH --output={jname}-%j.out
 #SBATCH --error={jname}-%j.out
 # {scratch}
+# {nthreads}
+"""
+
+slurm_header["Tahoma"] = """#!/bin/bash
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --time={time}
+#SBATCH --partition={partition}
+#SBATCH --job-name={jname}
+#SBATCH --account={account}
+#SBATCH --output={jname}-%j.out
+#SBATCH --error={jname}-%j.out
+# {scratch}
+# {nthreads}
 """
 
 slurm_body = """{header}
