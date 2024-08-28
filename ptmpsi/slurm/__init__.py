@@ -152,6 +152,21 @@ deception = Machine(name="Deception",
         scratchdir="/scratch")
 deception.partitions["slurm"].default = True
 
+perlmutter = Machine(name="Perlmutter",
+        partitions={
+            "regular": Partition(name="regular", memory=0, ncpus=64,
+                              ngpus=0, maxtime=48, maxnode=10),
+            "preempt": Partition(name="preempt", memory=0, ncpus=64,
+                              ngpus=0, maxtime=48, maxnode=128),
+            "shared": Partition(name="shared", memory=0, ncpus=64,
+                              ngpus=0, maxtime=48, maxnode=0.5)
+            },
+        modules={"apptainer": "apptainer/1.2.5",
+                 "gcc": "gcc/11.2.0",
+                 "python": "cray-python/3.11.5",
+                 "openmpi": "openmpi/5.0.3"},
+        scratchdir="$SCRATCH")
+perlmutter.partitions["regular"].default = True
 
 class Slurm:
     def __init__(self, caller, **kwargs):
@@ -162,7 +177,7 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        self.machine = kwargs.pop("machine", tahoma)
+        self.machine = kwargs.pop("machine", perlmutter)
         if not isinstance(self.machine, Machine):
             raise KeyError(f"Machine is not an instance of the Machine class")
 
