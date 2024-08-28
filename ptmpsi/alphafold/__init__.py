@@ -6,6 +6,7 @@ from ptmpsi.alphafold.templates import slurm_body
 
 tahoma_datasets = "/tahoma/datasets/alphafold"
 tahoma_datasets_231 = "/tahoma/datasets/alphafold-20230208"
+perlmutter_datasets = "/global/cfs/cdirs/m742/datasets/alphafold"
 edo_singularity = "oras://ghcr.io/edoapra/alphafold_singularity/alphafold:latest"
 singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:latest"
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
@@ -133,7 +134,7 @@ def prediction(fasta,**kwargs):
         relax = f"--run_relax={options.run_relax}"
 
     with open("alphafold.sbatch","w") as fh:
-        fh.write(slurm_body.format(header=slurm.header,
+        fh.write(slurm_body["Perlmutter"].format(header=slurm.header,
                  data_dir=options.data_dir, 
                  version=options.version,
                  pull=pull,
