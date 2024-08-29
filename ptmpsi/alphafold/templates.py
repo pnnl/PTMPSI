@@ -40,6 +40,17 @@ slurm_header["Perlmutter"] = """#!/bin/bash
 #SBATCH --licenses=scratch,cfs
 """
 
+slurm_header["Frontier"] = """#!/bin/bash
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --time={time}
+#SBATCH --qos={partition}
+#SBATCH --job-name={jname}
+#SBATCH --account={account}
+#SBATCH --output={jname}-%j.out
+#SBATCH --error={jname}-%j.out
+"""
+
 slurm_body["Tahoma"] = """{header}
 source /etc/profile.d/modules.sh
 module load python/3.8.1
@@ -136,6 +147,51 @@ mkdir -p $TMPDIR
 
 python -m pip install --upgrade pip
 python -m pip install absl-py spython
+
+cp $MODFILES_DIR/*.fasta .
+cp $MODFILES_DIR/run_singularity.py .
+
+srun python ./run_singularity.py \\
+            --data_dir=$DOWNLOAD_DIR \\
+            --model_preset={model} \\
+            --max_template_date={date} \\
+            --fasta_paths={fasta_paths} \\
+            --db_preset={dbs} \\
+            --use_gpu={use_gpu} \\
+            --enable_gpu_relax={enable_gpu_relax} \\
+            {relax}
+
+cp -rp $TMPDIR ${{SLURM_SUBMIT_DIR}}/AF_results.$SLURM_JOBID
+"""
+slurm_body["Frontier"] = """{header}
+
+export PYTHONUNBUFFERED=1
+export PYTHONNOUSERSITE=1
+
+export SCRATCH="/lustre/orion/bip258/scratch/${{USER}}"
+
+cd ${{SCRATCH}}
+
+# Set proxy server
+export https_proxy=http://proxy.emsl.pnl.gov:3128
+
+# Remove previous alphafold leftovers
+rm -rf alphafold
+
+# Set useful envinroment variables
+export DOWNLOAD_DIR={data_dir}
+export ALPHAFOLD_DIR=${{SCRATCH}}/alphafold
+export MODFILES_DIR=${{SLURM_SUBMIT_DIR}}
+export TMPDIR=${{SCRATCH}}/alphafold_run
+export ALPHAFOLD_VERSION={version}
+
+mkdir -p alphafold
+
+# Load experimental alphafold module
+{pull}
+
+# Make tmp directory
+mkdir -p $TMPDIR
 
 cp $MODFILES_DIR/*.fasta .
 cp $MODFILES_DIR/run_singularity.py .

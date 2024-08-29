@@ -168,6 +168,28 @@ perlmutter = Machine(name="Perlmutter",
         scratchdir="$SCRATCH")
 perlmutter.partitions["regular"].default = True
 
+frontier = Machine(name="Frontier",
+        partitions={
+            "batch": Partition(name="regular", memory=0, ncpus=56,
+                              ngpus=8, maxtime=48, maxnode=8192),
+            "extended": Partition(name="extended", memory=0, ncpus=56,
+                              ngpus=0, maxtime=24, maxnode=64),
+            },
+        modules={"apptainer": "apptainer/1.2.5",
+                 "gcc": "gcc/11.2.0",
+                 "python": "cray-python/3.11.5",
+                 "openmpi": "openmpi/5.0.3"},
+        scratchdir="/lustre/orion/bip258/scratch/$USER")
+frontier.partitions["batch"].default = True
+
+machines = {'aqe_ldrd': aqe_ldrd,
+            'aqe_h100': aqe_h100,
+            'tahoma': tahoma,
+            'deception': deception,
+            'perlmutter': perlmutter,
+            'frontier': frontier
+           }
+
 class Slurm:
     def __init__(self, caller, **kwargs):
         if caller == "nwchem":
@@ -177,7 +199,7 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        self.machine = kwargs.pop("machine", perlmutter)
+        self.machine = machines[kwargs.pop("machine", 'frontier')]
         if not isinstance(self.machine, Machine):
             raise KeyError(f"Machine is not an instance of the Machine class")
 
