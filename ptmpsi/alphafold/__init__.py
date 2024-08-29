@@ -1,6 +1,6 @@
 import pkgutil
 from datetime import datetime
-from os.path import isfile, isdir
+from os.path import isfile, isdir, join
 from ptmpsi.slurm import Slurm
 from ptmpsi.alphafold.templates import slurm_body
 
@@ -11,7 +11,7 @@ edo_singularity = "oras://ghcr.io/edoapra/alphafold_singularity/alphafold:latest
 singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:latest"
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
 frontier_experimental_232 = "alphafold"
-frontier_experimental_datasets_232 = "/lustre/orion/stf243/world-shared/preview/datasets"
+frontier_experimental_datasets_232 = "/lustre/orion/stf243/world-shared/preview/datasets/"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
@@ -33,7 +33,12 @@ class AlphaFoldOptions:
 
         if self.machine == "frontier":
             self.container = frontier_experimental_232
-            self.data_dir = frontier_experimental_datasets_232
+            if self.dbs == "full_dbs":
+                self.data_dir = join(frontier_experimental_datasets_232, "af2_full")
+            elif self.dbs == "reduced_dbs":
+                self.data_dir = join(frontier_experimental_datasets_232, "af2_reduced")
+            else:
+                raise ValueError("Frontier only supports full_dbs and reduced_dbs")
         
         if self.container is None:
             if self.version == "2.3.2":
