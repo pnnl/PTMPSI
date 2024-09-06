@@ -198,7 +198,8 @@ print(" RESP charges")
 print("")
 """
 
-slurm_header = """#!/bin/bash
+slurm_header = {}
+slurm_header["TAHOMA"] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
 #SBATCH --nodes={nodes}
@@ -230,21 +231,22 @@ module load python
 module load gcc/9.3.0
 module load openmpi
 
-export NWCHEM_BASIS_LIBRARY=/cluster/apps/nwchem/nwchem/src/basis/libraries/
+#export NWCHEM_BASIS_LIBRARY=/cluster/apps/nwchem/nwchem/src/basis/libraries/
+#export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
 export NWC_RANKS_PER_DEVICE=0
 export ARMCI_OPENIB_DEVICE=mlx5_0
 export OMPI_MCA_opal_warn_on_missing_libcuda=0
 export https_proxy="http://proxy.emsl.pnl.gov:3128"
 export http_proxy="http://proxy.emsl.pnl.gov:3128"
 export NWBIN=/big_scratch/nwchems_`id -u`.img
-export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
+#export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
+export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-dev.mpi3.ompi5x:latest"
 
 srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
 export APPTAINERENV_SCRATCH_DIR={scratch}
-export APPTAINERENV_OMP_NUM_THREADS=1
-export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
+export APPTAINERENV_OMP_NUM_THREADS=${OMP_NUM_THREADS}
+#export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
 
 cd {scratch}
