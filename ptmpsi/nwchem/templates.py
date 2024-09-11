@@ -198,7 +198,9 @@ print(" RESP charges")
 print("")
 """
 
-slurm_header = """#!/bin/bash
+slurm_header = {}
+
+slurm_header["Tahoma"] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
 #SBATCH --nodes={nodes}
@@ -239,6 +241,61 @@ export OMPI_MCA_opal_warn_on_missing_libcuda=0
 export https_proxy="http://proxy.emsl.pnl.gov:3128"
 export http_proxy="http://proxy.emsl.pnl.gov:3128"
 export NWBIN=/big_scratch/nwchems_`id -u`.img
+export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
+
+srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
+export APPTAINERENV_SCRATCH_DIR={scratch}
+export APPTAINERENV_OMP_NUM_THREADS=1
+export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
+
+
+cd {scratch}
+"""
+
+slurm_header["Frontier"] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --time={time}
+#SBATCH --nodes={nodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+#SBATCH --partition={partition}
+#SBATCH --qos=debug
+
+cleanup()
+{{
+cp *.xyz $SLURM_SUBMIT_DIR || :
+cp *.log $SLURM_SUBMIT_DIR || :
+cp *.txt $SLURM_SUBMIT_DIR || :
+cp *.json $SLURM_SUBMIT_DIR || :
+cp *.grid $SLURM_SUBMIT_DIR || :
+cp *.qrs $SLURM_SUBMIT_DIR || :
+cp *.pdb $SLURM_SUBMIT_DIR || :
+cp *.rst $SLURM_SUBMIT_DIR || :
+cp *.top $SLURM_SUBMIT_DIR || :
+cp *.trj $SLURM_SUBMIT_DIR || :
+cp *.out $SLURM_SUBMIT_DIR || :
+}}
+
+export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
+
+trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
+source /etc/profile.d/modules.sh
+module purge
+module load python
+module load gcc/9.3.0
+module load openmpi
+
+export NWCHEM_BASIS_LIBRARY=/cluster/apps/nwchem/nwchem/src/basis/libraries/
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NWC_RANKS_PER_DEVICE=0
+export ARMCI_OPENIB_DEVICE=mlx5_0
+export OMPI_MCA_opal_warn_on_missing_libcuda=0
+export https_proxy="http://proxy.emsl.pnl.gov:3128"
+export http_proxy="http://proxy.emsl.pnl.gov:3128"
+export NWBIN=/${{SCRATCH}}/nwchems_`id -u`.img
 export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
 
 srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE

@@ -170,8 +170,19 @@ perlmutter.partitions["regular"].default = True
 
 frontier = Machine(name="Frontier",
         partitions={
-            "batch": Partition(name="regular", memory=0, ncpus=56,
-                              ngpus=8, maxtime=48, maxnode=8192),
+            "batch": Partition(name="batch", memory=0, ncpus=56,
+                              ngpus=8, maxtime=2, maxnode=8192,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "01234567",
+                      "ntasks": 8,
+                      "nthreads": 7,
+                      "nstlist": 300
+                      }
+                    }),
             "extended": Partition(name="extended", memory=0, ncpus=56,
                               ngpus=0, maxtime=24, maxnode=64),
             },
