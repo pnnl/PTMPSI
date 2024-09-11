@@ -219,16 +219,16 @@ def main(argv):
       '--logtostderr',
   ])
 
-  os.environ['ROCR_VISIBLE_DEVICES'] = {{FLAGS.gpu_devices}}
-  os.environ['TF_FORCE_UNIFIED_MEMORY'] = {},
-  os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = {},
-  os.environ['PYTHONNOUSERSITE'] = 1
+  os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_devices
+  os.environ['TF_FORCE_UNIFIED_MEMORY'] = str({})
+  os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str({})
+  os.environ['PYTHONNOUSERSITE'] = str(1)
 
   # Execute run_alphafold.py (converted to frontier)
   run_alphafold = os.path.join(os.environ['OLCF_AF2_ROOT'], 'alphafold-2.3.2', 'run_alphafold.py')
   command = ['python', run_alphafold] + command_args
   logging.info('Running command: {{command}}')
-  subprocess.run(command, check=True)
+  os.system(' '.join(command))
 
 if __name__ == '__main__':
   flags.mark_flags_as_required([
