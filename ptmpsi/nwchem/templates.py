@@ -203,7 +203,7 @@ slurm_header = {}
 slurm_header["Tahoma"] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
-#SBATCH --nodes={nodes}
+#SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
 #SBATCH --job-name={jname}
 #SBATCH --error={jname}-%j.err
@@ -255,7 +255,7 @@ cd {scratch}
 slurm_header["Frontier"] = """#!/bin/bash
 #SBATCH --account={account}
 #SBATCH --time={time}
-#SBATCH --nodes={nodes}
+#SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
 #SBATCH --job-name={jname}
 #SBATCH --error={jname}-%j.err
@@ -281,27 +281,29 @@ cp *.out $SLURM_SUBMIT_DIR || :
 export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
 
 trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
-source /etc/profile.d/modules.sh
 module purge
 module load python
-module load gcc/9.3.0
-module load openmpi
+module load rocm/5.7.1
+module load cray-mpich-abi
 
-export NWCHEM_BASIS_LIBRARY=/cluster/apps/nwchem/nwchem/src/basis/libraries/
-export OMP_NUM_THREADS=1
+export MPICH_GPU_SUPPORT_ENABLED=1
+export MPICH_SMP_SINGLE_COPY_MODE=NONE
+export FI_CXI_RX_MATCH_MODE=hybrid
+export APPTAINERENV_LD_LIBRARY_PATH="${{CRAY_MPICH_ROOTDIR}}/lib-abi-mpich:${{CRAY_MPICH_ROOTDIR}}/gtl/lib:${{CRAY_LD_LIBRARY_PATH}}:${{PE_PERFTOOLS_MPICH_LIBDIR}}:/opt/cray/lib64:/opt/cray/pe/lib64:/opt/cray/xpmem/2.8.4-1.0_7.3__ga37cbd9.shasta/lib64:${{ROCM_PATH}}/lib:${{ROCM_PATH}}/lib64:/opt/amdgpu/lib64:/opt/cray/pe/lib64/cce/:/opt/cray/pe/gcc-libs/:${{LD_LIBRARY_PATH}}"
+export APPTAINER_CONTAINLIBS="/usr/lib64/libcxi.so.1,/usr/lib64/libjson-c.so.3,/lib64/libtinfo.so.6,/usr/lib64/libnl-3.so.200,/usr/lib64/libgfortran.so.5,/usr/lib64/libjansson.so.4"
+export APPTAINERENV_LD_PRELOAD=$CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_hsa.so.0:
+MYFS=$(findmnt -r -T . | tail -1 |cut -d ' ' -f 1)
+export BINDS=/usr/share/libdrm,/var/spool/slurmd,/opt/cray,${{MYFS}},${{ROCM_PATH}},/opt/amdgpu
+
 export MKL_NUM_THREADS=1
-export NWC_RANKS_PER_DEVICE=0
-export ARMCI_OPENIB_DEVICE=mlx5_0
-export OMPI_MCA_opal_warn_on_missing_libcuda=0
-export https_proxy="http://proxy.emsl.pnl.gov:3128"
-export http_proxy="http://proxy.emsl.pnl.gov:3128"
+export http_proxy="http://proxy.ccs.ornl.gov:3128/"
+export https_proxy="http://proxy.ccs.ornl.gov:3128/"
 export NWBIN=/${{SCRATCH}}/nwchems_`id -u`.img
-export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-720.ompi41x:latest"
+export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-dev.mpich3.4.2:latest"
 
-srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
-export APPTAINERENV_SCRATCH_DIR={scratch}
+FC=gfortran ARMCI_NETWORK=MPI-PR MPICH=3.4.2 srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
+export APPTAINERENV_SCRATCH_DIR=/lustre/orion/bip258/scratch/$USER
 export APPTAINERENV_OMP_NUM_THREADS=1
-export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
 
 cd {scratch}
@@ -345,7 +347,7 @@ cd ptmpsi
 python -m pip install .
 cd ..
 
-export NWCHEM_COMMAND="srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
+export NWCHEM_COMMAND="{runsingularity_prefix[machine]}"
 """
 
 slurm_torsiondrive = """
@@ -402,10 +404,10 @@ cp ${SLURM_SUBMIT_DIR}/beta.nw .
 cp ${SLURM_SUBMIT_DIR}/fit.py .
 
 echo "Running alpha-helix conformer"
-srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch $NWBIN nwchem alpha.nw > alpha.log
+{runsingularity_prefix[machine]} alpha.nw > alpha.log
 
 echo "Running beta-strand conformer"
-srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch $NWBIN nwchem beta.nw > beta.log
+{runsingularity_prefix[machine]} beta.nw > beta.log
 
 # Create a Virtual Environment
 if [ -d "venv" ]; then
@@ -429,10 +431,10 @@ cp ${SLURM_SUBMIT_DIR}/alpha_hess.nw .
 cp ${SLURM_SUBMIT_DIR}/beta_hess.nw .
 
 echo "\\n Running alpha-helix hessian"
-srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch $NWBIN nwchem alpha_hess.nw > alpha_hess.log
+{runsingularity_prefix[machine]} alpha_hess.nw > alpha_hess.log
 
 echo "\\n Running beta-sheet hessian"
-srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch $NWBIN nwchem beta_hess.nw > beta_hess.log
+{runsingularity_prefix[machine]} beta_hess.nw > beta_hess.log
 
 cp alpha_hess.log $SLURM_SUBMIT_DIR
 cp beta_hess.log $SLURM_SUBMIT_DIR
@@ -594,5 +596,10 @@ nwconstraint = "constrain  {: 10.6f}  {:5d}\n "
 pyconstraint = "[{},{}],\n"
 coordinates = "{}   {: 14.8f}   {: 14.8f}   {: 14.8f}\n"
 pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
-runsingularity = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity = {}
+runsingularity["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity_prefix = {}
+runsingularity_prefix["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
+runsingularity_prefix["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"
 slurm_copy = "cp ${{SLURM_SUBMIT_DIR}}/{filename} . \n"
