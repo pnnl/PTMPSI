@@ -1,0 +1,682 @@
+[ bondedtypes ]
+; Column 1 : default bondtype
+; Column 2 : default angletype
+; Column 3 : default proper dihedraltype
+; Column 4 : default improper dihedraltype
+; Column 5 : This controls the generation of dihedrals from the bonding.
+;            All possible dihedrals are generated automatically. A value of
+;            1 here means that all these are retained. A value of
+;            0 here requires generated dihedrals be removed if
+;              * there are any dihedrals on the same central atoms
+;                specified in the residue topology, or
+;              * there are other identical generated dihedrals
+;                sharing the same central atoms, or
+;              * there are other generated dihedrals sharing the
+;                same central bond that have fewer hydrogen atoms
+; Column 6 : number of neighbors to exclude from non-bonded interactions
+; Column 7 : 1 = generate 1,4 interactions between pairs of hydrogen atoms
+;            0 = do not generate such
+; Column 8 : 1 = remove proper dihedrals if found centered on the same
+;                bond as an improper dihedral
+;            0 = do not generate such
+; bonds  angles  dihedrals  impropers all_dihedrals nrexcl HH14 RemoveDih
+     1       1          9          4        1         3      1     0
+
+[ NAD ]  ; oxidized nicotinamide adenine dinucleotide (NAD+) (Charge +1)
+  [ atoms ]
+  PA       P           0.942647       1
+  O1A      O2         -0.730357       2
+  O2A      O2         -0.730357       3
+  O5B      OS         -0.356772       4
+  C5B      CT         -0.006696       5
+  C4B      CT          0.079414       6
+  O4B      OS         -0.392815       7
+  C3B      CT          0.117029       8
+  O3B      OH         -0.642890       9
+  C2B      CT          0.102985      10
+  O2B      OH         -0.632214      11
+  C1B      CT          0.061272      12
+  N9A      N*          0.017819      13
+  C8A      CK          0.062362      14
+  N7A      NB         -0.636127      15
+  C5A      CB          0.145792      16
+  C6A      CA          0.647257      17
+  N6A      N2         -0.868126      18
+  N1A      NC         -0.758996      19
+  C2A      CQ          0.531962      20
+  N3A      NC         -0.753252      21
+  C4A      CB          0.410247      22
+  O3       OS         -0.418002      23
+  PN       P           1.277833      24
+  O1N      O2         -0.807507      25
+  O2N      O2         -0.807507      26
+  O5D      OS         -0.590561      27
+  C5D      CT          0.030900      28
+  C4D      CT          0.099200      29
+  O4D      OS         -0.369200      30
+  C3D      CT          0.138200      31
+  O3D      OH         -0.682600      32
+  C2D      CT          0.124400      33
+  O2D      OH         -0.641700      34
+  C1D      CT          0.028100      35
+  N1N      NF          0.097406      36
+  C2N      CJ         -0.015928      37
+  C3N      CF         -0.045985      38
+  C7N      CE          0.645560      39
+  O7N      OE         -0.550549      40
+  N7N      NE         -0.787937      41
+  C4N      CI         -0.036230      42
+  C5N      CF         -0.130438      43
+  C6N      CJ          0.086229      44
+  H51A     H1          0.057653      45
+  H52A     H1          0.057653      46
+  H4B      H1          0.163921      47
+  H3B      H1          0.147030      48
+  HO3A     HO          0.446050      49
+  H2B      H1          0.058324      50
+  HO2A     HO          0.409390      51
+  H1B      H2          0.169012      52
+  H8A      H5          0.222942      53
+  H61A     H           0.390845      54
+  H62A     H           0.390845      55
+  H2A      H5          0.078343      56
+  H51N     H1          0.110331      57
+  H52N     H1          0.110331      58
+  H4D      H1          0.079368      59
+  H3D      H1          0.123780      60
+  HO3N     HO          0.447120      61
+  H2D      H1          0.168179      62
+  HO2N     HO          0.430437      63
+  H1D      H2          0.179115      64
+  H2N      HI          0.147976      65
+  H71N     HE          0.379646      66
+  H72N     HE          0.379646      67
+  H41N     HI          0.187624      68
+  H5N      HI          0.183325      69
+  HN6      HI          0.227144      70
+  [ bonds ]
+  PA       O3
+  PA       O1A
+  PA       O2A
+  PA       O5B 
+  O5B      C5B
+  C5B      C4B
+  C5B      H51A
+  C5B      H52A
+  C4B      O4B
+  C4B      C3B
+  C4B      H4B
+  O4B      C1B
+  C3B      O3B      
+  C3B      C2B
+  C3B      H3B
+  O3B      HO3A
+  C2B      O2B
+  C2B      C1B
+  C2B      H2B
+  O2B      HO2A
+  C1B      N9A
+  C1B      H1B
+  N9A      C8A
+  N9A      C4A
+  C8A      N7A
+  C8A      H8A
+  N7A      C5A
+  C5A      C6A
+  C5A      C4A
+  C6A      N6A
+  C6A      N1A
+  N6A      H61A
+  N6A      H62A
+  N1A      C2A
+  C2A      N3A
+  C2A      H2A
+  N3A      C4A
+  O3       PN
+  PN       O1N
+  PN       O2N
+  PN       O5D
+  O5D      C5D
+  C5D      C4D
+  C5D      H51N
+  C5D      H52N
+  C4D      O4D
+  C4D      C3D
+  C4D      H4D
+  O4D      C1D
+  C3D      O3D
+  C3D      C2D
+  C3D      H3D
+  O3D      HO3N
+  C2D      O2D
+  C2D      C1D
+  C2D      H2D
+  O2D      HO2N
+  C1D      N1N  
+  C1D      H1D
+  N1N      C2N
+  N1N      C6N
+  C2N      C3N
+  C2N      H2N
+  C3N      C7N
+  C3N      C4N
+  C7N      O7N
+  C7N      N7N
+  N7N      H71N
+  N7N      H72N
+  C4N      C5N
+  C4N      H41N
+  C5N      C6N
+  C5N      H5N
+  C6N      HN6
+  [ impropers ]
+  N6A   C6A   H61A   H62A
+  C6A   N1A   C5A    N6A
+  C7N   N7N   C17    O7N
+  C7N   C17   N7N    O7N
+  N7N   C7N   H71N   H72N
+  N7N   C7N   H72N   H71N
+  C6N   N1N   C5N    HN6
+  C5N   C6N   C4N    H5N
+  C4N   C5N   C3N    H41N
+  C2N   C3N   N1N    H2N
+  
+ 
+[ NAI ] ; DIHYDRO NICOTINAMIDE ADENINE DINUCLEOTIDE (Charge -2)
+  [ atoms ]
+ PA         P           0.943000       1
+ O1A        O2         -0.751800       2
+ O2A        O2         -0.751800       3
+ O5B        OS         -0.393700       4
+ C5B        CT          0.018600       5
+ C4B        CT          0.064400       6
+ O4B        OS         -0.408600       7
+ C3B        CT          0.291000       8
+ O3B        OH         -0.656600       9
+ C2B        CT          0.173300      10
+ O2B        OH         -0.605400      11
+ C1B        CT          0.149000      12
+ N9A        N*          0.003700      13
+ C8A        CK          0.074600      14
+ N7A        NB         -0.594800      15
+ C5A        CB          0.164800      16
+ C6A        CA          0.558600      17
+ N6A        N2         -0.777900      18
+ N1A        NC         -0.740800      19
+ C2A        CQ          0.512300      20
+ N3A        NC         -0.683400      21
+ C4A        CB          0.287600      22
+ O3         OS         -0.389300      23
+ PN         P           1.085800      24
+ O1N        O2         -0.772800      25
+ O2N        O2         -0.772800      26
+ O5D        OS         -0.430400      27
+ C5D        CT          0.027100      28
+ C4D        CT          0.060300      29
+ O4D        OS         -0.391400      30
+ C3D        CT          0.241900      31
+ O3D        OH         -0.688200      32
+ C2D        CT          0.085100      33
+ O2D        OH         -0.624300      34
+ C1D        CT          0.037100      35
+ N1N        NF          0.012000      36
+ C2N        CG         -0.109300      37
+ C3N        CF         -0.106000      38
+ C7N        CE          0.651600      39
+ O7N        OE         -0.617700      40
+ N7N        NE         -0.865000      41
+ C4N        CH          0.003600      42
+ C5N        CF         -0.257800      43
+ C6N        CG         -0.066700      44
+ H51A       H1          0.082200      45
+ H52A       H1          0.082200      46
+ H4B        H1          0.110900      47
+ H3B        H1          0.075000      48
+ HO3A       HO          0.399300      49
+ H2B        H1          0.013400      50
+ HO2A       HO          0.390700      51
+ H1B        H2          0.120500      52
+ H8A        H5          0.182900      53
+ H61A       H           0.374700      54
+ H62A       H           0.374700      55
+ H2A        H5          0.073400      56
+ H51N       H1          0.101700      57
+ H52N       H1          0.101700      58
+ H4D        H1          0.074600      59
+ H3D        H1          0.062100      60
+ HO3N       HO          0.443700      61
+ H2D        H1          0.160900      62
+ HO2N       HO          0.393700      63
+ H1D        H2          0.160900      64
+ H2N        HF          0.116500      65
+ H71N       HE          0.374700      66
+ H72N       HE          0.374700      67
+ H41N       HG          0.035400      68
+ H42N       HG          0.035400      69
+ H5N        HF          0.130700      70
+ HN6        HF          0.162800      71
+  [ bonds ]
+   PA       O3   
+   PA       O1A  
+   PA       O2A  
+   PA       O5B  
+   O5B      C5B  
+   C5B      C4B  
+   C5B      H51A 
+   C5B      H52A 
+   C4B      O4B  
+   C4B      C3B  
+   C4B      H4B  
+   O4B      C1B  
+   C3B      O3B  
+   C3B      C2B  
+   C3B      H3B  
+   O3B      HO3A 
+   C2B      O2B  
+   C2B      C1B  
+   C2B      H2B  
+   O2B      HO2A 
+   C1B      N9A  
+   C1B      H1B  
+   N9A      C8A  
+   N9A      C4A  
+   C8A      N7A  
+   C8A      H8A  
+   N7A      C5A  
+   C5A      C6A  
+   C5A      C4A  
+   C6A      N6A  
+   C6A      N1A  
+   N6A      H61A 
+   N6A      H62A 
+   N1A      C2A  
+   C2A      N3A  
+   C2A      H2A  
+   N3A      C4A  
+   O3       PN   
+   PN       O1N  
+   PN       O2N  
+   PN       O5D  
+   O5D      C5D  
+   C5D      C4D  
+   C5D      H51N 
+   C5D      H52N 
+   C4D      O4D  
+   C4D      C3D  
+   C4D      H4D  
+   O4D      C1D  
+   C3D      O3D  
+   C3D      C2D  
+   C3D      H3D  
+   O3D      HO3N 
+   C2D      O2D  
+   C2D      C1D  
+   C2D      H2D  
+   O2D      HO2N 
+   C1D      N1N  
+   C1D      H1D  
+   N1N      C2N  
+   N1N      C6N  
+   C2N      C3N  
+   C2N      H2N  
+   C3N      C7N  
+   C3N      C4N  
+   C7N      O7N  
+   C7N      N7N  
+   N7N      H71N 
+   N7N      H72N 
+   C4N      C5N  
+   C4N      H41N 
+   C4N      H42N 
+   C5N      C6N  
+   C5N      H5N  
+   C6N      HN6  
+  [ impropers ]
+   N6A   C6A   H61A   H62A
+   C6A   N1A   C5A    N6A 
+   C7N   N7N   C17    O7N 
+   C7N   C17   N7N    O7N 
+   N7N   C7N   H71N   H72N
+   N7N   C7N   H72N   H71N
+   C6N   N1N   C5N    HN6 
+   C5N   C6N   C4N    H5N 
+   C4N   C5N   C3N    H41N
+   C2N   C3N   N1N    H2N 
+
+[ NAP ]
+; oxidized nicotinamide adenine dinucleotide, NADP+, adm jr.
+  [ atoms ]
+      C4B      CN7  0.1600   1
+      H4B      HN7  0.0900   2
+      O4B     ON6B -0.5000   3 
+      C1B     CN7B  0.1600   4
+      H1B      HN7  0.0900   5
+      C5A      CN5  0.2800   6
+      N7A      NN4 -0.7100   7
+      C8A      CN4  0.3400   8
+      H8A      HN3  0.1200   9
+      N9A      NN2 -0.0500  10
+      N1A     NN3A -0.7400  11
+      C2A      CN4  0.5000  12
+      H2A      HN3  0.1300  13
+      N3A     NN3A -0.7500  14
+      C4A      CN5  0.4300  15
+      C6A      CN2  0.4600  16
+      N6A      NN1 -0.7700  17
+     H61A      HN1  0.3800  18
+     H62A      HN1  0.3800  19
+      C2B     CN7B  0.0100  20
+      H2B      HN7  0.0900  21
+      O2B      ON2 -0.6200  22
+      P2B        P  1.5000  23
+      O1X      ON3 -0.8200  24
+      O2X      ON3 -0.8200  25
+      O3X      ON4 -0.6800  26
+     HO2A      HN4  0.3400  27
+      C3B      CN7  0.1400  28
+      H3B      HN7  0.0900  29
+      O3B      ON5 -0.6600  30
+     HO3A      HN5  0.4300  31
+      C5B     CN8B -0.0800  32
+     H51A      HN8  0.0900  33
+     H52A      HN8  0.0900  34
+       PA        P  1.5000  35
+      O1A      ON3 -0.8200  36
+      O2A      ON3 -0.8200  37
+      O5B      ON2 -0.6200  38
+       O3      ON2 -0.6800  39
+       PN        P  1.5000  40
+      O1N      ON3 -0.8200  41
+      O2N      ON3 -0.8200  42
+      O5D      ON2 -0.6200  43
+      C5D     CN8B -0.0800  44
+     H51N      HN8  0.0900  45
+     H52N      HN8  0.0900  46
+      C2D     CN7B  0.1400  47
+      H2D      HN7  0.0900  48
+      O2D      ON5 -0.6600  49
+     HO2N      HN5  0.4300  50
+      C3D      CN7  0.1400  51
+      H3D      HN7  0.0900  52
+      O3D      ON5 -0.6600  53
+     HO3N      HN5  0.4300  53
+      C1D     CN7B  0.1600  55
+      H1D      HN7  0.0900  56
+      C4D      CN7  0.1600  57
+      H4D      HN7  0.0900  58
+      O4D     ON6B -0.5000  59
+      N1N      NN2 -0.0700  60
+      C6N     CN3B  0.1600  61
+      HN6     HN3B  0.1900  62
+      C5N      CN3 -0.1000  63
+      H5N     HN3B  0.1600  64
+      C4N     CN3A -0.0500  65
+     H41N     HN3B  0.1600  66
+      C3N      CN3  0.0500  67
+      C2N     CN3B  0.1800  68
+      H2N     HN3B  0.1600  69
+      C7N     CN1A  0.6800  70
+      O7N      ON1 -0.4000  71
+      N7N      NN1 -0.8200  72
+     H71N      HN1  0.3400  73
+     H72N      HN1  0.3600  74
+  [ bonds ]
+      N1A   C2A
+      N3A   C4A
+      C5A   C6A
+      C6A   N6A
+      C5A   N7A
+      C8A   N9A
+      N9A   C4A
+      C2A   H2A
+      N6A  H61A
+      N6A  H62A
+      C8A   H8A
+      C6A   N1A
+      C2A   N3A
+      C4A   C5A
+      N7A   C8A
+      N9A   C1B
+      C1B   C2B
+      C2B   C3B
+      C3B   C4B
+      C4B   O4B
+      O4B   C1B
+      C1B   H1B
+      C2B   O2B
+      O2B   P2B
+      C2B   H2B
+      C3B   H3B
+      C3B   O3B
+      O3B  HO3A
+      C4B   H4B
+      C4B   C5B
+      C5B  H52A
+      C5B  H51A
+      C5B   O5B
+      O5B    PA
+       PA   O1A
+       PA   O2A
+       PA    O3
+       O3    PN
+       PN   O1N
+       PN   O2N
+       PN   O5D
+      O5D   C5D
+      C5D  H51N
+      C5D  H52N
+      C5D   C4D
+      C4D   O4D
+      O4D   C1D
+      C1D   C2D
+      C2D   C3D
+      C3D   C4D
+      C1D   H1D
+      C2D   H2D
+      C2D   O2D
+      O2D  HO2N
+      C3D   H3D
+      C3D   O3D
+      O3D  HO3N
+      C4D   H4D
+      C1D   N1N
+      N1N   C2N
+      C3N   C4N
+      C5N   C6N
+      C2N   H2N
+      C3N   C7N
+      C7N   O7N
+      C7N   N7N
+      N7N  H71N
+      N7N  H72N
+      C4N  H41N
+      C5N   H5N
+      C6N   HN6
+      P2B   O1X
+      P2B   O2X
+      P2B   O3X
+      O3X  HO2A
+      C2N   C3N
+      C4N   C5N
+      C6N   N1N
+  [ impropers ]
+      N6A   C6A  H61A  H62A
+      C6A   N1A   C5A   N6A
+      C7N   N7N   C3N   O7N
+      C7N   C3N   N7N   O7N
+      N7N   C7N  H71N  H72N
+      N7N   C7N  H72N  H71N
+      C6N   N1N   C5N   HN6
+      C5N   C6N   C4N   H5N
+      C4N   C5N   C3N  H41N
+      C2N   C3N   N1N   H2N
+
+[ NDP ]
+; reduced nicotinamide adenine dinucleotide, NADPH, VARNAI/adm jr.
+  [ atoms ]
+      C4B      CN7  0.1600   1
+      H4B      HN7  0.0900   2
+      O4B     ON6B -0.5000   3
+      C1B     CN7B  0.1600   4
+      H1B      HN7  0.0900   5
+      C5A      CN5  0.2800   6
+      N7A      NN4 -0.7100   7
+      C8A      CN4  0.3400   8
+      H8A      HN3  0.1200   9
+      N9A      NN2 -0.0500  10
+      N1A     NN3A -0.7400  11
+      C2A      CN4  0.5000  12
+      H2A      HN3  0.1300  13
+      N3A     NN3A -0.7500  14
+      C4A      CN5  0.4300  15
+      C6A      CN2  0.4600  16
+      N6A      NN1 -0.7700  17
+     H61A      HN1  0.3800  18
+     H62A      HN1  0.3800  19
+      C2B     CN7B  0.0100  20
+      H2B      HN7  0.0900  21
+      O2B      ON2 -0.6200  22
+      P2B        P  1.5000  23
+      O1X      ON3 -0.8200  24
+      O2X      ON3 -0.8200  25
+      O3X      ON4 -0.6800  26
+     HO2A      HN4  0.3400  27
+      C3B      CN7  0.1400  28
+      H3B      HN7  0.0900  29
+      O3B      ON5 -0.6600  30
+     HO3A      HN5  0.4300  31
+      C5B     CN8B -0.0800  32
+     H51A      HN8  0.0900  33
+     H52A      HN8  0.0900  34
+       PA        P  1.5000  35
+      O1A      ON3 -0.8200  36
+      O2A      ON3 -0.8200  37
+      O5B      ON2 -0.6200  38
+       O3      ON2 -0.6800  39
+       PN        P  1.5000  40
+      O1N      ON3 -0.8200  41
+      O2N      ON3 -0.8200  42
+      O5D      ON2 -0.6200  43
+      C5D     CN8B -0.0800  44
+     H51N      HN8  0.0900  45
+     H52N      HN8  0.0900  46
+      C2D     CN7B  0.1400  47
+      H2D      HN7  0.0900  48
+      O2D      ON5 -0.6600  49
+     HO2N      HN5  0.4300  50
+      C3D      CN7  0.1400  51
+      H3D      HN7  0.0900  52
+      O3D      ON5 -0.6600  53
+     HO3N      HN5  0.4300  54
+      C1D     CN7B  0.1600  55
+      H1D      HN7  0.0900  56
+      C4D      CN7  0.1600  57
+      H4D      HN7  0.0900  58
+      O4D     ON6B -0.5000  59
+      N1N      NN2 -0.2700  60
+      C6N     CN3C -0.0600  61
+      HN6      HN6  0.1700  62
+      C5N      CN3 -0.1800  63
+      H5N      HN6  0.1400  64
+      C4N      CN8 -0.2800  65
+     H41N      HN8  0.0900  66
+     H42N      HN8  0.0900  67
+      C3N      CN3  0.3600  68
+      C2N     CN3C -0.1000  69
+      H2N      HN6  0.1400  70
+      C7N     CN1A  0.5500  71
+      O7N      ON1 -0.5100  72
+      N7N      NN1 -0.7200  73
+     H71N      HN1  0.2600  74
+     H72N      HN1  0.3200  75
+  [ bonds ]
+      N1A   C2A
+      N3A   C4A
+      C5A   C6A
+      C6A   N6A
+      C5A   N7A
+      C8A   N9A
+      N9A   C4A
+      C2A   H2A
+      N6A  H61A
+      N6A  H62A
+      C8A   H8A
+      C6A   N1A
+      C2A   N3A
+      C4A   C5A
+      N7A   C8A
+      N9A   C1B
+      C1B   C2B
+      C2B   C3B
+      C3B   C4B
+      C4B   O4B
+      O4B   C1B
+      C1B   H1B
+      C2B   O2B
+      O2B   P2B
+      C2B   H2B
+      C3B   H3B
+      C3B   O3B
+      O3B  HO3A
+      C4B   H4B
+      C4B   C5B
+      C5B  H52A
+      C5B  H51A
+      C5B   O5B
+      O5B    PA
+       PA   O1A
+       PA   O2A
+       PA    O3
+       O3    PN
+       PN   O1N
+       PN   O1N
+       PN   O5D
+      O5D   C5D
+      C5D  H51N
+      C5D  H52N
+      C5D   C4D
+      C4D   O4D
+      O4D   C1D
+      C1D   C2D
+      C2D   C3D
+      C3D   C4D
+      C1D   H1D
+      C2D   H2D
+      C2D   O2D
+      O2D  HO2N
+      C3D   H3D
+      C3D   O3D
+      O3D  HO3N
+      C4D   H4D
+      C1D   N1N
+      N1N   C2N
+      C3N   C4N
+      C5N   C6N
+      C2N   H2N
+      C3N   C7N
+      C7N   O7N
+      C7N   N7N
+      N7N  H71N
+      N7N  H72N
+      C4N  H41N
+      C4N  H42N
+      C5N   H5N
+      C6N   HN6
+      P2B   O1X
+      P2B   O2X
+      P2B   O3X
+      O3X  HO2A
+      C2N   C3N
+      C4N   C5N
+      C6N   N1N
+  [ impropers ]
+      N6A   C6A  H61A  H62A
+      C6A   N1A   C5A   N6A
+      C7N   N7N   C3N   O7N
+      C7N   C3N   N7N   O7N
+      N7N   C7N  H71N  H72N
+      N7N   C7N  H72N  H71N
+      C6N   N1N   C5N   HN6
+      C5N   C6N   C4N   H5N
+      C4N   C5N   C3N  H41N
+      C2N   C3N   N1N   H2N

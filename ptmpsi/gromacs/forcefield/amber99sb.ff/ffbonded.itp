@@ -101,6 +101,22 @@
   CT SNO        1    0.18025   129555.1 ; SNC
   S  OH         1    0.18170   204615.0 ; CSO
   S  SH         1    0.20760   128813.9 ; CSS
+  NE CE         1    0.14800   252713.6 ; NAD+
+  NE HE         1    0.10100   363171.2 ; NAD+
+  OE CE         1    0.12300   719648.0 ; NAD+
+  CE CF         1    0.14800   252713.6 ; NAD+
+  CF CH         1    0.14900   188280.0 ; NADH
+  CF CG         1    0.13200   351456.0 ; NADH
+  CF HF         1    0.10900   312963.2 ; NADH
+  CG HF         1    0.10900   312963.2 ; NADH
+  CH HG         1    0.10900   284512.0 ; NADH
+  CT NF         1    0.14750   282001.6 ; NAD+
+  CJ HI         1    0.10900   292880.0 ; NAD+
+  CF CJ         1    0.13500   351456.0 ; NAD+
+  CF HI         1    0.10900   292880.0 ; NAD+
+  CI CF         1    0.13600   376560.0 ; NAD+
+  CI HI         1    0.10900   292880.0 ; NAD+
+  NF CJ         1    0.13150   351456.0 ; NAD+
 
 
 [ constrainttypes ]
@@ -363,6 +379,40 @@ CT  S   OH           1   100.980    998.614 ; CSO
 S   OH  HO           1   106.850    391.385 ; CSO
 CT  S   SH           1   103.000    841.952 ; CSS
 S   SH  HS           1    97.500    474.300 ; CSS
+HE  NE  HE           1   120.000 
+HE  NE  CE           1   120.000
+NE  CE  OE           1   128.500
+NE  CE  CF           1   113.000
+CE  CF  CG           1   107.800
+CE  CF  CH           1   124.200
+OE  CE  CF           1   118.500
+CF  CH  CF           1   108.000
+CF  CH  HG           1   108.000
+CF  CG  HG           1   110.100
+CF  CG  HF           1   119.000
+CF  CG  NF           1   122.000
+CH  CF  CG           1   128.000
+CH  CF  HF           1   116.000
+CG  NF  CG           1   114.000
+CG  CF  HF           1   116.000 
+CJ  CF  HI           1   122.000
+CF  CJ  HI           1   120.500
+CF  CI  HI           1   121.000
+CI  CF  CJ           1   118.000
+CI  CF  HI           1   119.000
+CE  CF  CI           1   110.200
+CJ  CF  CE           1   131.800
+CJ  NF  CJ           1   120.000
+NF  CG  HF           1   119.000
+NF  CJ  HI           1   117.500
+NF  CJ  CF           1   122.000
+CT  NF  CG           1   121.200
+CT  NF  CJ           1   121.700
+NF  CT  H2           1   109.500
+CT  CT  NF           1   109.500
+OS  CT  NF           1   109.500
+CF  CI  CF           1   118.000
+HG  CH  HG           1   109.500
 
 
 [ dihedraltypes ]

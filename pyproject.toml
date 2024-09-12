@@ -20,6 +20,7 @@ dependencies = [
             'pymbar',
             'matplotlib',
             'lxml',
+            'prody',
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
             'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow ',
 ]
