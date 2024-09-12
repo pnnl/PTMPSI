@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "PTM-Psi"
 version = "0.2"
 dependencies = [
-            'requests<=2.29.0',
+            'requests',
             'pytest',
             'numpy',
             'networkx',
