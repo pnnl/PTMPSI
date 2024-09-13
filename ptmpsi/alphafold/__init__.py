@@ -1,21 +1,25 @@
 import pkgutil
 from datetime import datetime
-from os.path import isfile, isdir
+from os.path import isfile, isdir, join
 from ptmpsi.slurm import Slurm
 from ptmpsi.alphafold.templates import slurm_body
 
 tahoma_datasets = "/tahoma/datasets/alphafold"
 tahoma_datasets_231 = "/tahoma/datasets/alphafold-20230208"
+perlmutter_datasets = "/global/cfs/cdirs/m742/datasets/alphafold"
 edo_singularity = "oras://ghcr.io/edoapra/alphafold_singularity/alphafold:latest"
 singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:latest"
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
+frontier_experimental_232 = "alphafold"
+frontier_experimental_datasets_232 = "/lustre/orion/stf243/world-shared/preview/datasets/"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
         self.model     = kwargs.get("model","monomer")
-        self.version   = kwargs.get("version","2.3.1")
+        self.version   = kwargs.get("version","2.3.2")
         self.dbs       = kwargs.get("dbs","full_dbs")
         self.container = kwargs.get("container", None)
+        self.machine   = kwargs.get("machine", None)
         self.use_gpu       = kwargs.get("use_gpu", True)
         self.gpu_relax     = kwargs.get("enable_gpu_relax", True)
         self.date          = kwargs.get("date",datetime.today().strftime('%Y-%m-%d'))
@@ -27,6 +31,15 @@ class AlphaFoldOptions:
         self.fasta_paths      = fasta_paths
         self.data_dir         = kwargs.get("data_dir", None)
 
+        if self.machine == "frontier":
+            self.container = frontier_experimental_232
+            if self.dbs == "full_dbs":
+                self.data_dir = join(frontier_experimental_datasets_232, "af2_full")
+            elif self.dbs == "reduced_dbs":
+                self.data_dir = join(frontier_experimental_datasets_232, "af2_reduced")
+            else:
+                raise ValueError("Frontier only supports full_dbs and reduced_dbs")
+        
         if self.container is None:
             if self.version == "2.3.2":
                 self.container = singularity_232
@@ -49,7 +62,11 @@ class AlphaFoldOptions:
 
 
 def gen_script(options):
-    if options.version == "2.3.1":
+    if options.machine == "frontier":
+        if options.version != "2.3.2":
+            raise ValueError("Frontier only supports version 2.3.2")
+        filename = "run_alphafold_frontier_232.py"
+    elif options.version == "2.3.1":
         filename = "run_singularity_231.py"
     elif options.version == "2.3.2":
         filename = "run_singularity_232.py"
@@ -62,6 +79,9 @@ def gen_script(options):
 
 def gen_pull(options):
     # Check if Singularity container exists
+    if options.machine == "frontier":
+        print ("\t Info: Frontier will use experimental container for alphafold 2.3.2 from /sw/frontier/preview/modulefiles/")
+        string = "module use /sw/frontier/preview/modulefiles/\nmodule load alphafold/2.3.2"
     if isfile(options.container):
         print("\t Info: run script will use '{}' container".format(container))
         string = "ln -sf {} $ALPHAFOLD_DIR/alphafold.sif\n".format(container)
@@ -133,7 +153,7 @@ def prediction(fasta,**kwargs):
         relax = f"--run_relax={options.run_relax}"
 
     with open("alphafold.sbatch","w") as fh:
-        fh.write(slurm_body.format(header=slurm.header,
+        fh.write(slurm_body[options.machine.capitalize()].format(header=slurm.header,
                  data_dir=options.data_dir, 
                  version=options.version,
                  pull=pull,
