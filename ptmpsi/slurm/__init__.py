@@ -221,7 +221,13 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        self.machine = machines[kwargs.pop("machine", 'frontier')]
+        __machine = kwargs.pop("machine", "frontier")
+        if isinstance(__machine, Machine):
+            self.machine = __machine
+        elif isinstance(__machine, str):
+            self.machine = machines[__machine]
+        else:
+            self.machine = None
         if not isinstance(self.machine, Machine):
             raise KeyError(f"Machine is not an instance of the Machine class")
 
