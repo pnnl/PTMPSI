@@ -276,6 +276,7 @@ class Protein:
 
         do_ti      = kwargs.get("thermo", True)
         do_pdb2pqr = kwargs.get("pdb2pqr", True)
+        cofactor   = kwargs.pop("cofactor", None)
 
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
@@ -288,6 +289,11 @@ class Protein:
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
 
+        cofactorpdb = None
+        if cofactor is not None:
+            with open(cofactor, "r") as fh:
+                cofactorpdb = fh.readlines()
+            
         parent_dir = path if path is not None else cwd
         path = os.path.join(parent_dir, uid)
         os.mkdir(path)
@@ -371,7 +377,7 @@ class Protein:
                     else:
                         subindex = ""
                         
-                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, **kwargs)
+                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, cofactor=cofactorpdb, **kwargs)
                     fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
