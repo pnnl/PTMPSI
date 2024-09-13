@@ -66,3 +66,12 @@ MW                 0.00000      ; Virtual site for tip4p/5p water point charge
 MCH3               0.00000      ; Dummy mass in rigid tetrahedral CH3 group
 MNH3               0.00000      ; Dummy mass in rigid tetrahedral NH3 group
 DU                 1.00800      ; Dummy atom
+NE                14.10000      ; NAD+
+NF                14.10000      ; NAD+
+OE                16.00000      ; NAD+
+CE                12.01000      ; NAD+
+CF                12.01000      ; NAD+
+CI                12.01000      ; NAD+
+CJ                12.01000      ; NAD+
+HE                 1.00800      ; NAD+
+HI                 1.00800      ; NAD+
