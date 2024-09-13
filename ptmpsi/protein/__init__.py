@@ -274,7 +274,9 @@ class Protein:
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
 
-        do_ti     = kwargs.get("thermo", True)
+        do_ti      = kwargs.get("thermo", True)
+        do_pdb2pqr = kwargs.get("pdb2pqr", True)
+
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
         nsteps    = int(lenlambda*1000000/timestep)
@@ -297,7 +299,10 @@ class Protein:
 
         prefix = "" if prefix is None else f"{prefix}_"
 
-        self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+        if do_pdb2pqr:
+            self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+        else:
+            self.write_pdb(f"{path}/{prefix}protonated.pdb")
 
         submit = open(f"{path}/submit.sh", "w")
         submit.write("#!/bin/bash\n")
