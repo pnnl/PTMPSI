@@ -276,6 +276,7 @@ def sltcap(protein, bt="dodecahedron", size=None, conc=0.154, charge=0, **kwargs
 
 
 def generate(protein, filename=None, size=None, conc=None, charge=0, **kwargs):
+    cofactor = kwargs.pop("cofactor", None)
 
     if size is None or conc is None:
         npos = None; nneg = None
@@ -290,6 +291,20 @@ def generate(protein, filename=None, size=None, conc=None, charge=0, **kwargs):
     filename = "protein.pdb" if filename is None else filename
     protein.write_pdb(filename)
 
+    if cofactor is not None:
+        with open(filename, "r") as fh:
+            pdblines = fh.readlines()[:-2]
+        # Get last atom index
+        last = int(pdblines[-1][6:11])
+        for line in cofactor:
+            if len(line) < 54: continue
+            last += 1
+            newline = line[:6]+f"{last:>5d}"+line[11:]
+            pdblines.append(newline)
+        pdblines.append("END")
+        with open(filename, "w") as fh:
+            fh.writelines(pdblines)
+        
     generate_mdp(**kwargs)
     generate_slurm(filename, conc=_conc, npos=npos, nneg=nneg, **kwargs)
     return
