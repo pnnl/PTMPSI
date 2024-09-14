@@ -556,8 +556,8 @@ X   X   CA  H5       4      180.00     4.60240     2    ; bsd.on C6H6 nmodes
  CT  S   SH  HS    9       0.0      4.19096     1  ; CSS
  CT  S   SH  HS    9       0.0     14.17438     2  ; CSS
  CT  S   SH  HS    9       0.0      2.52497     3  ; CSS
- HE  NE  CE  O     9     180.0     10.46000     2  ; NAD+/NADH
- CF  CE  NE  H     9     180.0     10.46000     2  ; NAD+/NADH
+ HE  NE  CE  OE    9     180.0     10.46000     2  ; NAD+/NADH
+ CF  CE  NE  HE    9     180.0     10.46000     2  ; NAD+/NADH
  HI  CF  CI  HI    9     180.0      8.36800     2  ; NAD+/NADH
  HI  CF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
  CJ  CF  CI  HI    9     180.0      4.18400     2  ; NAD+/NADH
