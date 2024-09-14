@@ -172,8 +172,8 @@
   [ impropers ]
   N6A   C6A   H61A   H62A
   C6A   N1A   C5A    N6A
-  C7N   N7N   C17    O7N
-  C7N   C17   N7N    O7N
+  C7N   N7N   C3N    O7N
+  C7N   C3N   N7N    O7N
   N7N   C7N   H71N   H72N
   N7N   C7N   H72N   H71N
   C6N   N1N   C5N    HN6
@@ -334,8 +334,8 @@
   [ impropers ]
    N6A   C6A   H61A   H62A
    C6A   N1A   C5A    N6A 
-   C7N   N7N   C17    O7N 
-   C7N   C17   N7N    O7N 
+   C7N   N7N   C3N    O7N 
+   C7N   C3N   N7N    O7N 
    N7N   C7N   H71N   H72N
    N7N   C7N   H72N   H71N
    C6N   N1N   C5N    HN6 
