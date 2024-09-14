@@ -1356,8 +1356,8 @@ X   X   N   H        4      180.00     4.18400     2
  C4  C4  C   O     9       180.0      9.10020     2
  Br  CT  CT  Br    9         0.0      0.00000     3
  Br  CT  CT  Br    9       180.0      0.00000     1
- HE  NE  CE  O     9     180.0     10.46000     2  ; NAD+/NADH
- CF  CE  NE  H     9     180.0     10.46000     2  ; NAD+/NADH
+ HE  NE  CE  OE    9     180.0     10.46000     2  ; NAD+/NADH
+ CF  CE  NE  HE    9     180.0     10.46000     2  ; NAD+/NADH
  HI  CF  CI  HI    9     180.0      8.36800     2  ; NAD+/NADH
  HI  CF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
  CJ  CF  CI  HI    9     180.0      4.18400     2  ; NAD+/NADH
