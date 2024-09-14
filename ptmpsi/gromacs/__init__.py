@@ -293,15 +293,24 @@ def generate(protein, filename=None, size=None, conc=None, charge=0, **kwargs):
 
     if cofactor is not None:
         with open(filename, "r") as fh:
-            pdblines = fh.readlines()[:-2]
+            pdblines = fh.readlines()
+        if "END" in pdblines[-1]: pdblines.pop(-1)
+        if "TER" not in pdblines[-1]: pdblines.append("TER")
         # Get last atom index
-        last = int(pdblines[-1][6:11])
+        last = int(pdblines[-2][6:11])
         for line in cofactor:
-            if len(line) < 54: continue
             last += 1
-            newline = line[:6]+f"{last:>5d}"+line[11:]
+            if len(line) > 50:
+              newline = line[:6]+f"{last:>5d}"+line[11:]
+            else:
+              newline = line
             pdblines.append(newline)
-        pdblines.append("END")
+        if "END" not in pdblines[-1]: 
+            if "TER" in pdblines[-1]:
+                pdblines.append("END")
+            else:
+                pdblines.append("TER")
+                pdblines.append("END")
         with open(filename, "w") as fh:
             fh.writelines(pdblines)
         
