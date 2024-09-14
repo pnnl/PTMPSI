@@ -169,17 +169,17 @@
   C5N      C6N
   C5N      H5N
   C6N      HN6
-  [ impropers ]
-  N6A   C6A   H61A   H62A
-  C6A   N1A   C5A    N6A
-  C7N   N7N   C3N    O7N
-  C7N   C3N   N7N    O7N
-  N7N   C7N   H71N   H72N
-  N7N   C7N   H72N   H71N
-  C6N   N1N   C5N    HN6
-  C5N   C6N   C4N    H5N
-  C4N   C5N   C3N    H41N
-  C2N   C3N   N1N    H2N
+;  [ impropers ]
+;  N6A   C6A   H61A   H62A
+;  C6A   N1A   C5A    N6A
+;  C7N   N7N   C3N    O7N
+;  C7N   C3N   N7N    O7N
+;  N7N   C7N   H71N   H72N
+;  N7N   C7N   H72N   H71N
+;  C6N   N1N   C5N    HN6
+;  C5N   C6N   C4N    H5N
+;  C4N   C5N   C3N    H41N
+;  C2N   C3N   N1N    H2N
   
  
 [ NAI ] ; DIHYDRO NICOTINAMIDE ADENINE DINUCLEOTIDE (Charge -2)
@@ -331,17 +331,17 @@
    C5N      C6N  
    C5N      H5N  
    C6N      HN6  
-  [ impropers ]
-   N6A   C6A   H61A   H62A
-   C6A   N1A   C5A    N6A 
-   C7N   N7N   C3N    O7N 
-   C7N   C3N   N7N    O7N 
-   N7N   C7N   H71N   H72N
-   N7N   C7N   H72N   H71N
-   C6N   N1N   C5N    HN6 
-   C5N   C6N   C4N    H5N 
-   C4N   C5N   C3N    H41N
-   C2N   C3N   N1N    H2N 
+;  [ impropers ]
+;   N6A   C6A   H61A   H62A
+;   C6A   N1A   C5A    N6A 
+;   C7N   N7N   C3N    O7N 
+;   C7N   C3N   N7N    O7N 
+;   N7N   C7N   H71N   H72N
+;   N7N   C7N   H72N   H71N
+;   C6N   N1N   C5N    HN6 
+;   C5N   C6N   C4N    H5N 
+;   C4N   C5N   C3N    H41N
+;   C2N   C3N   N1N    H2N 
 
 [ NAP ]
 ; oxidized nicotinamide adenine dinucleotide, NADP+, adm jr.
