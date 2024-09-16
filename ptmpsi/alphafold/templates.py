@@ -42,14 +42,15 @@ slurm_header["Perlmutter"] = """#!/bin/bash
 
 slurm_header["Frontier"] = """#!/bin/bash
 #SBATCH --nodes={nnodes}
-#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --cpus-per-task={ncpus}
+#SBATCH --ntasks-per-node=1
 #SBATCH --time={time}
 #SBATCH --partition={partition}
-#SBATCH --qos=debug
 #SBATCH --job-name={jname}
 #SBATCH --account={account}
 #SBATCH --output={jname}-%j.out
 #SBATCH --error={jname}-%j.out
+#SBATCH --gpus-per-node={ngpus}
 """
 
 slurm_body["Tahoma"] = """{header}
@@ -182,6 +183,8 @@ export ALPHAFOLD_DIR=${{SCRATCH}}/alphafold
 export MODFILES_DIR=${{SLURM_SUBMIT_DIR}}
 export TMPDIR=${{SCRATCH}}/alphafold_run
 export ALPHAFOLD_VERSION={version}
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export PATH=/ccs/proj/bip258/apps/alphafold/2.3.2/af-conda-env/hh-suite/install/bin:$PATH
 
 mkdir -p alphafold
 
@@ -194,7 +197,7 @@ mkdir -p $TMPDIR
 cp $MODFILES_DIR/*.fasta .
 cp $MODFILES_DIR/run_singularity.py .
 
-srun python ./run_singularity.py \\
+srun --gpus-per-node=8 -N1 -n1 -c56 python ./run_singularity.py \\
             --data_dir=$DOWNLOAD_DIR \\
             --model_preset={model} \\
             --max_template_date={date} \\
