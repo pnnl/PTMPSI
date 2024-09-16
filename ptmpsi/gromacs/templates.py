@@ -636,7 +636,6 @@ EOF
 slurm_header['Frontier'] = """#!/bin/bash
 #SBATCH --partition={partition}
 #SBATCH --account={account}
-#SBATCH --qos=debug
 #SBATCH --time={time}
 #SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
