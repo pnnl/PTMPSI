@@ -261,7 +261,6 @@ slurm_header["Frontier"] = """#!/bin/bash
 #SBATCH --error={jname}-%j.err
 #SBATCH --output={jname}-%j.out
 #SBATCH --partition={partition}
-#SBATCH --qos=debug
 
 cleanup()
 {{
