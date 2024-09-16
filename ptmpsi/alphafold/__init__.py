@@ -11,7 +11,7 @@ edo_singularity = "oras://ghcr.io/edoapra/alphafold_singularity/alphafold:latest
 singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:latest"
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
 frontier_experimental_232 = "alphafold"
-frontier_experimental_datasets_232 = "/lustre/orion/stf243/world-shared/preview/datasets/"
+frontier_datasets_232 = "/lustre/orion/bip258/world-shared/datasets/alphafold"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
@@ -33,12 +33,8 @@ class AlphaFoldOptions:
 
         if self.machine == "frontier":
             self.container = frontier_experimental_232
-            if self.dbs == "full_dbs":
-                self.data_dir = join(frontier_experimental_datasets_232, "af2_full")
-            elif self.dbs == "reduced_dbs":
-                self.data_dir = join(frontier_experimental_datasets_232, "af2_reduced")
-            else:
-                raise ValueError("Frontier only supports full_dbs and reduced_dbs")
+            if self.dbs != "full_dbs":
+                raise ValueError("Frontier only supports full_dbs")
         
         if self.container is None:
             if self.version == "2.3.2":
@@ -80,8 +76,8 @@ def gen_script(options):
 def gen_pull(options):
     # Check if Singularity container exists
     if options.machine == "frontier":
-        print ("\t Info: Frontier will use experimental container for alphafold 2.3.2 from /sw/frontier/preview/modulefiles/")
-        string = "module use /sw/frontier/preview/modulefiles/\nmodule load alphafold/2.3.2"
+        print ("\t Info: Frontier will use conda environment for alphafold 2.3.2 from /ccs/proj/bip258/apps/modulefiles\nPlease run 'sbatch alphafold.sbatch'")
+        string = "module use /ccs/proj/bip258/apps/modulefiles\nmodule load alphafold/2.3.2\n"
     if isfile(options.container):
         print("\t Info: run script will use '{}' container".format(container))
         string = "ln -sf {} $ALPHAFOLD_DIR/alphafold.sif\n".format(container)
