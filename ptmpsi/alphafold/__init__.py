@@ -35,6 +35,8 @@ class AlphaFoldOptions:
             self.container = frontier_experimental_232
             if self.dbs != "full_dbs":
                 raise ValueError("Frontier only supports full_dbs")
+            if self.data_dir is None:
+                self.data_dir = frontier_datasets_232
         
         if self.container is None:
             if self.version == "2.3.2":

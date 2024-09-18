@@ -171,9 +171,6 @@ export SCRATCH="/lustre/orion/bip258/scratch/${{USER}}"
 
 cd ${{SCRATCH}}
 
-# Set proxy server
-export https_proxy=http://proxy.emsl.pnl.gov:3128
-
 # Remove previous alphafold leftovers
 rm -rf alphafold
 
