@@ -1,3 +1,8 @@
+# Tutorial inputs/outputs
+tutorials/*
+!tutorials/*.ipynb
+outputs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
