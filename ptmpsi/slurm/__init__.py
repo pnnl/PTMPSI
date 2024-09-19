@@ -184,7 +184,18 @@ frontier = Machine(name="Frontier",
                       }
                     }),
             "extended": Partition(name="extended", memory=0, ncpus=56,
-                              ngpus=8, maxtime=24, maxnode=64),
+                              ngpus=8, maxtime=24, maxnode=64,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "01234567",
+                      "ntasks": 8,
+                      "nthreads": 7,
+                      "nstlist": 300
+                      }
+                    }),
             },
         modules={"apptainer": "apptainer/1.2.5",
                  "gcc": "gcc/11.2.0",
