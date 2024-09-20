@@ -722,7 +722,7 @@ def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=Fals
 
     with open("qmmm_optimization.sbatch","w") as sfile:
         sfile.write(slurm.header)
-        sfile.write(qmmm_slurm.format(complex=_pdb))
+        sfile.write(qmmm_slurm[slurm.machine.name].format(complex=_pdb))
 
 
 
