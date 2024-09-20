@@ -346,7 +346,7 @@ cd ptmpsi
 python -m pip install .
 cd ..
 
-export NWCHEM_COMMAND="{runsingularity_prefix[machine]}"
+export NWCHEM_COMMAND="{runsingularity_prefix_tahoma}"
 """
 
 slurm_torsiondrive = """
@@ -403,10 +403,10 @@ cp ${SLURM_SUBMIT_DIR}/beta.nw .
 cp ${SLURM_SUBMIT_DIR}/fit.py .
 
 echo "Running alpha-helix conformer"
-{runsingularity_prefix[machine]} alpha.nw > alpha.log
+{runsingularity_prefix_tahoma} alpha.nw > alpha.log
 
 echo "Running beta-strand conformer"
-{runsingularity_prefix[machine]} beta.nw > beta.log
+{runsingularity_prefix_tahoma} beta.nw > beta.log
 
 # Create a Virtual Environment
 if [ -d "venv" ]; then
@@ -430,10 +430,10 @@ cp ${SLURM_SUBMIT_DIR}/alpha_hess.nw .
 cp ${SLURM_SUBMIT_DIR}/beta_hess.nw .
 
 echo "\\n Running alpha-helix hessian"
-{runsingularity_prefix[machine]} alpha_hess.nw > alpha_hess.log
+{runsingularity_prefix_tahoma} alpha_hess.nw > alpha_hess.log
 
 echo "\\n Running beta-sheet hessian"
-{runsingularity_prefix[machine]} beta_hess.nw > beta_hess.log
+{runsingularity_prefix_tahoma} beta_hess.nw > beta_hess.log
 
 cp alpha_hess.log $SLURM_SUBMIT_DIR
 cp beta_hess.log $SLURM_SUBMIT_DIR
@@ -591,14 +591,52 @@ python -m pip install .
 cd ..
 """
 
+qmmm_slurm = {}
+
+qmmm_slurm["Tahoma"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /cluster/apps/nwchem/nwchem/src/data/amber_s/
+amber_2 /cluster/apps/nwchem/nwchem/src/data/amber_x/
+amber_3 /cluster/apps/nwchem/nwchem/src/data/amber_q/
+spce /cluster/apps/nwchem/nwchem/src/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/{complex} /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw /big_scratch
+
+srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch,$NWCHEM_BASIS_LIBRARY,/cluster/apps/nwchem/nwchem/src/data/ $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
+qmmm_slurm["Frontier"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 ${{AMBER_1}}
+amber_2 ${{AMBER_2}}
+amber_3 ${{AMBER_3}}
+spce ${{SPCE}}
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/{complex} ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw ${{SCRATCH}}
+
+srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
 nwconstraint = "constrain  {: 10.6f}  {:5d}\n "
 pyconstraint = "[{},{}],\n"
 coordinates = "{}   {: 14.8f}   {: 14.8f}   {: 14.8f}\n"
 pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
 runsingularity = {}
-runsingularity["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
-runsingularity["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity_frontier = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
 runsingularity_prefix = {}
-runsingularity_prefix["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
-runsingularity_prefix["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"
+runsingularity_prefix_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
+runsingularity_prefix_frontier = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"
 slurm_copy = "cp ${{SLURM_SUBMIT_DIR}}/{filename} . \n"

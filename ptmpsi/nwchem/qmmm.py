@@ -40,24 +40,6 @@ EAC
    19   18
 """
 
-qmmm_slurm = """
-cat <<EOF >nwchemrc
-ffield amber
-amber_1 /cluster/apps/nwchem/nwchem/src/data/amber_s/
-amber_2 /cluster/apps/nwchem/nwchem/src/data/amber_x/
-amber_3 /cluster/apps/nwchem/nwchem/src/data/amber_q/
-spce /cluster/apps/nwchem/nwchem/src/data/solvents/spce.rst
-EOF
-
-cp ${{SLURM_SUBMIT_DIR}}/*.frg /big_scratch
-cp ${{SLURM_SUBMIT_DIR}}/{complex} /big_scratch
-cp ${{SLURM_SUBMIT_DIR}}/prepare.nw /big_scratch
-
-srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch,$NWCHEM_BASIS_LIBRARY,/cluster/apps/nwchem/nwchem/src/data/ $NWBIN nwchem prepare.nw > prepare.log
-
-cleanup
-"""
-
 prepare = """start {name}
 memory total {memory} mb
 
