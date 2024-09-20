@@ -103,6 +103,7 @@
   S  SH         1    0.20760   128813.9 ; CSS
   NE CE         1    0.14800   252713.6 ; NAD+
   NE HE         1    0.10100   363171.2 ; NAD+
+  NF CG         1    0.13200   351456.0 ; NADH
   OE CE         1    0.12300   719648.0 ; NAD+
   CE CF         1    0.14800   252713.6 ; NAD+
   CF CH         1    0.14900   188280.0 ; NADH
@@ -379,40 +380,40 @@ CT  S   OH           1   100.980    998.614 ; CSO
 S   OH  HO           1   106.850    391.385 ; CSO
 CT  S   SH           1   103.000    841.952 ; CSS
 S   SH  HS           1    97.500    474.300 ; CSS
-HE  NE  HE           1   120.000 
-HE  NE  CE           1   120.000
-NE  CE  OE           1   128.500
-NE  CE  CF           1   113.000
-CE  CF  CG           1   107.800
-CE  CF  CH           1   124.200
-OE  CE  CF           1   118.500
-CF  CH  CF           1   108.000
-CF  CH  HG           1   108.000
-CF  CG  HG           1   110.100
-CF  CG  HF           1   119.000
-CF  CG  NF           1   122.000
-CH  CF  CG           1   128.000
-CH  CF  HF           1   116.000
-CG  NF  CG           1   114.000
-CG  CF  HF           1   116.000 
-CJ  CF  HI           1   122.000
-CF  CJ  HI           1   120.500
-CF  CI  HI           1   121.000
-CI  CF  CJ           1   118.000
-CI  CF  HI           1   119.000
-CE  CF  CI           1   110.200
-CJ  CF  CE           1   131.800
-CJ  NF  CJ           1   120.000
-NF  CG  HF           1   119.000
-NF  CJ  HI           1   117.500
-NF  CJ  CF           1   122.000
-CT  NF  CG           1   121.200
-CT  NF  CJ           1   121.700
-NF  CT  H2           1   109.500
-CT  CT  NF           1   109.500
-OS  CT  NF           1   109.500
-CF  CI  CF           1   118.000
-HG  CH  HG           1   109.500
+HE  NE  HE           1   120.000    292.880 ; NAD+/NADH
+HE  NE  CE           1   120.000    292.880 ; NAD+/NADH
+NE  CE  OE           1   128.500    711.280 ; NAD+/NADH
+NE  CE  CF           1   113.000    711.280 ; NAD+/NADH
+CE  CF  CG           1   107.800     41.840 ; NAD+/NADH
+CE  CF  CH           1   124.200   1046.000 ; NAD+/NADH
+OE  CE  CF           1   118.500    711.280 ; NAD+/NADH
+CF  CH  CF           1   108.000   1046.000 ; NAD+/NADH
+CF  CH  HG           1   108.000    460.240 ; NAD+/NADH
+CF  CG  HG           1   110.100    351.456 ; NAD+/NADH
+CF  CG  HF           1   119.000    351.456 ; NAD+/NADH
+CF  CG  NF           1   122.000    502.080 ; NAD+/NADH
+CH  CF  CG           1   128.000    364.008 ; NAD+/NADH
+CH  CF  HF           1   116.000    251.040 ; NAD+/NADH
+CG  NF  CG           1   114.000    167.360 ; NAD+/NADH
+CG  CF  HF           1   116.000    351.456 ; NAD+/NADH
+CJ  CF  HI           1   122.000    251.040 ; NAD+/NADH
+CF  CJ  HI           1   120.500    669.440 ; NAD+/NADH
+CF  CI  HI           1   121.000    669.440 ; NAD+/NADH
+CI  CF  CJ           1   118.000    334.720 ; NAD+/NADH
+CI  CF  HI           1   119.000    251.040 ; NAD+/NADH
+CE  CF  CI           1   110.200    334.720 ; NAD+/NADH
+CJ  CF  CE           1   131.800     83.680 ; NAD+/NADH
+CJ  NF  CJ           1   120.000    251.040 ; NAD+/NADH
+NF  CG  HF           1   119.000    351.456 ; NAD+/NADH
+NF  CJ  HI           1   117.500    669.400 ; NAD+/NADH
+NF  CJ  CF           1   122.000   1004.150 ; NAD+/NADH
+CT  NF  CG           1   121.200    585.760 ; NAD+/NADH
+CT  NF  CJ           1   121.700    585.760 ; NAD+/NADH
+NF  CT  H2           1   109.500    418.400 ; NAD+/NADH
+CT  CT  NF           1   109.500    418.400 ; NAD+/NADH
+OS  CT  NF           1   109.500    418.400 ; NAD+/NADH
+CF  CI  CF           1   118.000    418.400 ; NAD+/NADH
+HG  CH  HG           1   109.500    292.880 ; NAD+/NADH
 
 
 [ dihedraltypes ]
@@ -555,6 +556,56 @@ X   X   CA  H5       4      180.00     4.60240     2    ; bsd.on C6H6 nmodes
  CT  S   SH  HS    9       0.0      4.19096     1  ; CSS
  CT  S   SH  HS    9       0.0     14.17438     2  ; CSS
  CT  S   SH  HS    9       0.0      2.52497     3  ; CSS
+ HE  NE  CE  OE    9     180.0     10.46000     2  ; NAD+/NADH
+ CF  CE  NE  HE    9     180.0     10.46000     2  ; NAD+/NADH
+ HI  CF  CI  HI    9     180.0      8.36800     2  ; NAD+/NADH
+ HI  CF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CJ  CF  CI  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CI  CF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CJ  NF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CI  CF  CE  NE    9       0.0      2.59408     2  ; NAD+/NADH
+ CI  CF  CE  OE    9     180.0      9.95792     2  ; NAD+/NADH
+ CF  CI  CF  CE    9     180.0     12.55200     2  ; NAD+/NADH
+ CE  CF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CE  CF  CI  HI    9     180.0     20.92000     2  ; NAD+/NADH
+ CF  CI  CF  HI    9     180.0     29.28800     2  ; NAD+/NADH
+ CJ  NF  CJ  CF    9     180.0     16.73600     2  ; NAD+/NADH
+ CJ  CF  CE  NE    9       0.0      1.46440     1  ; NAD+/NADH
+ CJ  CF  CE  NE    9       0.0      2.59408     2  ; NAD+/NADH
+ CJ  CF  CE  OE    9     180.0      9.95792     2  ; NAD+/NADH
+ NF  CJ  CF  CI    9     180.0     29.28800     2  ; NAD+/NADH
+ NF  CJ  CF  HI    9     180.0     29.28800     2  ; NAD+/NADH
+ NE  CE  CF  CG    9     180.0      4.60240     1  ; NAD+/NADH
+ NE  CE  CF  CG    9     180.0      8.15880     2  ; NAD+/NADH
+ NE  CE  CF  CH    9     180.0      2.09200     2  ; NAD+/NADH
+ NE  CE  CF  CH    9     180.0      1.46440     3  ; NAD+/NADH
+ NE  CE  CF  CH    9     180.0      1.67360     6  ; NAD+/NADH
+ OE  CE  CF  CG    9       0.0      1.25520     1  ; NAD+/NADH
+ OE  CE  CF  CG    9     180.0      8.15880     2  ; NAD+/NADH
+ OE  CE  CF  CH    9     180.0      4.18400     2  ; NAD+/NADH
+ OE  CE  CF  CH    9       0.0      4.18400     3  ; NAD+/NADH
+ OE  CE  CF  CH    9       0.0      1.67360     6  ; NAD+/NADH
+ CT  NF  CJ  HI    9     180.0      4.18400     2  ; NAD+/NADH
+ CT  NF  CJ  CF    9     180.0      4.18400     2  ; NAD+/NADH
+ CF  CI  CF  CJ    9     180.0     25.10400     2  ; NAD+/NADH
+ CE  CF  CJ  NF    9     180.0      4.18400     2  ; NAD+/NADH
+ CE  CF  CG  HF    9     180.0      0.41840     2  ; NAD+/NADH
+ CE  CF  CG  NF    9     180.0     10.46000     2  ; NAD+/NADH
+ CE  CF  CH  HF    9     180.0      4.18400     3  ; NAD+/NADH
+ CE  CF  CH  CF    9     180.0      4.18400     1  ; NAD+/NADH
+ CF  CG  NF  CG    9     180.0      0.41840     2  ; NAD+/NADH
+ CF  CH  CF  HF    9     180.0      4.18400     3  ; NAD+/NADH 
+ CF  CH  CF  CG    9     180.0     16.73600     3  ; NAD+/NADH
+ CH  CF  CG  HF    9     180.0      0.41840     2  ; NAD+/NADH
+ CH  CF  CG  NF    9     180.0      0.41840     2  ; NAD+/NADH
+ HG  CH  CF  CG    9     180.0      4.18400     3  ; NAD+/NADH
+ HG  CH  CF  HF    9     180.0      4.18400     3  ; NAD+/NADH
+ HF  CF  CG  HF    9     180.0      1.67360     2  ; NAD+/NADH
+ HF  CF  CG  NF    9     180.0     29.28800     2  ; NAD+/NADH
+ HF  CG  NF  CG    9     180.0     29.28800     2  ; NAD+/NADH
+ CF  CE  NE  HE    9     180.0     10.46000     2  ; NAD+/NADH
+ X   CT  NF  X     9       0.0      0.00000     0  ; NAD+/NADH
+ X   CG  NF  X     9     180.0     7.740400     2  ; NAD+/NADH
  X   C   C   X     9     180.0     15.16700     2  ; Junmei et al, 1999
  X   C   O   X     9     180.0     11.71520     2  ; Junmei et al, 1999
  X   C   OS  X     9     180.0     11.29680     2  ; Junmei et al, 1999
