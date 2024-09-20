@@ -165,7 +165,7 @@ class Protein:
                 _residue = copy.deepcopy(resdict[residue.upper()])
                 resname = residue.upper()
         except:
-            raise MyDockingError("There is no residue with name '{}'".format(residue))
+            raise KeyError("There is no residue with name '{}'".format(residue))
 
 
         if psi is None:
@@ -177,7 +177,7 @@ class Protein:
             elif psi == "beta":
                 psi = 130.0
             else:
-                raise MyDockingError()
+                raise KeyError("Psi has only alpha and beta predefined values")
 
         for _chain in self.chains:
             if _chain.name == chain:
@@ -206,7 +206,7 @@ class Protein:
                 _residue = copy.deepcopy(resdict[residue.upper()])
                 resname = residue.upper()
         except:
-            raise MyDockingError("There is no residue with  name '{}'".format(residue))
+            raise KeyError("There is no residue with  name '{}'".format(residue))
 
         if phi is None:
             phi = -60.0
@@ -217,7 +217,7 @@ class Protein:
             elif phi == "beta":
                 phi = -140.0
             else:
-                raise MyDockingError()
+                raise KeyError("Phi has only alpha and beta predefined values")
 
         for _chain in self.chains:
             if _chain.name == chain:
@@ -401,21 +401,21 @@ class Protein:
 
     def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
         if ligand is None:
-            raise MyDockingError("No ligand was specified")
+            raise KeyError("No ligand was specified")
         if receptor is None:
-            raise MyDockingError("No receptor was specified")
+            raise KeyError("No receptor was specified")
 
         if engine is None:
             self.docking.engine = "vina"
         else:
             if engine not in ["vina", "adgpu"]:
-                raise MyDockingError("Only vina or AutoDockGPU can be used as Docking engines")
+                raise KeyError("Only vina or AutoDockGPU can be used as Docking engines")
             self.docking.engine = engine
 
-        if isinstance(exhaustiveness,int):
+        if isinstance(exhaustiveness, int):
             self.docking.exhaustiveness = exhaustiveness
-        else:
-            raise MyDockingError("Exhaustiveness should be an integer value")
+        elif exhaustiveness is not None:
+            raise KeyError("Exhaustiveness should be an integer value")
 
         if output is None:
             if self.docking.engine == 'vina':
@@ -454,7 +454,7 @@ class Protein:
     def protonate(self, pdbin=None, pdb=None, pqr=None, ph=7):
         # Check if pdb2pqr30 is in the path
         if which("pdb2pqr30") is None:
-            raise MyDockingError("Cannot find PDB2PQR")
+            raise KeyError("Cannot find PDB2PQR")
         if pdbin is None:
             pdbin = ".tmp.pdb"
             self.write_pdb(pdbin)
@@ -469,7 +469,7 @@ class Protein:
             _pqr = f"{self.filename[:-4]}_H.pqr" if pqr is None else pqr
         else:
             if (pdb is None) or (pqr is None):
-                raise MyDockingError("Provide a PDB and PQR filename for protonoation output")
+                raise KeyError("Provide a PDB and PQR filename for protonoation output")
         fh = open("pdb2pqr.log","w")
         subprocess.run(["pdb2pqr30",
             "--ff","AMBER",
