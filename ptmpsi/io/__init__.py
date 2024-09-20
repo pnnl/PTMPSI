@@ -132,7 +132,9 @@ def digestpdb(protein, interactive=False, delwat=True, delhet=True):
             # Check for alternate locations
             altcode = line[16:17]
             if alternate:
-                if altcode != AorB:
+                if altcode == " ":
+                    alternate = False
+                elif altcode != AorB:
                     alternate = False
                     continue
             elif altcode in ["A","B"]:
@@ -144,8 +146,9 @@ def digestpdb(protein, interactive=False, delwat=True, delhet=True):
                     if AorB not in ["A","B"]:
                         raise ValueError("Did not understand alternate location: {}".format(AorB))
                 else:
+                    other = "B" if altcode == "A" else "A"
                     occupancy = float(line[54:60])
-                    AorB = "A" if occupancy >= 0.5 else "B"
+                    AorB = altcode if occupancy >= 0.5 else other
                     print("\t\t Selecting location '{}' with occupancy {:6.2f}".format(AorB,max(occupancy,1-occupancy)))
                 if altcode != AorB:
                     continue
