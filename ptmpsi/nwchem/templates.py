@@ -280,7 +280,6 @@ cp *.out $SLURM_SUBMIT_DIR || :
 export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
 
 trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
-module purge
 module load python
 module load rocm/5.7.1
 module load cray-mpich-abi
