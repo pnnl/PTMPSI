@@ -168,6 +168,50 @@ perlmutter = Machine(name="Perlmutter",
         scratchdir="$SCRATCH")
 perlmutter.partitions["regular"].default = True
 
+frontier = Machine(name="Frontier",
+        partitions={
+            "batch": Partition(name="batch", memory=0, ncpus=56,
+                              ngpus=8, maxtime=2, maxnode=8192,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "01234567",
+                      "ntasks": 8,
+                      "nthreads": 7,
+                      "nstlist": 300
+                      }
+                    }),
+            "extended": Partition(name="extended", memory=0, ncpus=56,
+                              ngpus=8, maxtime=24, maxnode=64,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "01234567",
+                      "ntasks": 8,
+                      "nthreads": 7,
+                      "nstlist": 300
+                      }
+                    }),
+            },
+        modules={"apptainer": "apptainer/1.2.5",
+                 "gcc": "gcc/11.2.0",
+                 "python": "cray-python/3.11.5",
+                 "openmpi": "openmpi/5.0.3"},
+        scratchdir="/lustre/orion/bip258/scratch/$USER")
+frontier.partitions["batch"].default = True
+
+machines = {'aqe_ldrd': aqe_ldrd,
+            'aqe_h100': aqe_h100,
+            'tahoma': tahoma,
+            'deception': deception,
+            'perlmutter': perlmutter,
+            'frontier': frontier
+           }
+
 class Slurm:
     def __init__(self, caller, **kwargs):
         if caller == "nwchem":
@@ -177,7 +221,13 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        self.machine = kwargs.pop("machine", perlmutter)
+        __machine = kwargs.pop("machine", "perlmutter")
+        if isinstance(__machine, Machine):
+            self.machine = __machine
+        elif isinstance(__machine, str):
+            self.machine = machines[__machine]
+        else:
+            self.machine = None
         if not isinstance(self.machine, Machine):
             raise KeyError(f"Machine is not an instance of the Machine class")
 
@@ -232,6 +282,7 @@ class Slurm:
                 "time"     : self.time,
                 "nnodes"   : self.nnodes,
                 "ntasks"   : self.ncpus,
+                "ncpus"    : self.ncpus,
                 "nthreads" : self.nthreads,
                 "jname"    : self.jobname,
                 "scratch"  : self.scratch,

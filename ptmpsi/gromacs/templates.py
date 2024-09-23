@@ -633,6 +633,46 @@ EOF
 
 """
 
+slurm_header['Frontier'] = """#!/bin/bash
+#SBATCH --partition={partition}
+#SBATCH --account={account}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --cpus-per-task={nthreads}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+#SBATCH --gpus-per-node={ngpus}
+
+# From the user
+{user}
+
+export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
+
+module use /ccs/proj/bip258/apps/modulefiles
+module load gromacs/2024.3
+
+NTASKS=$SLURM_NTASKS
+CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+NGPUS=$((SLURM_GPUS_PER_NODE * SLURM_NNODES))
+
+export OMP_STACKSIZE=4G
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+export TMPDIR={scratch}
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+export SYCL_CACHE_PERSISTENT=1
+
+"""
+
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008

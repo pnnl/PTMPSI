@@ -280,13 +280,24 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
             tail = f"conf{str(idx)}"
             infile.write(slurm_copy.format(filename=f"{tail}.nw"))
             infile.write(f"""echo "Running conf{str(idx)} optimization"\n""")
-            infile.write(runsingularity.format(scratch=slurm.scratch,name=tail))
+            infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=tail))
            
             infile.write(slurm_copy.format(filename=f"{tail}_hess.nw"))
             infile.write(f"""echo "Running conf{str(idx)} hessian"\n""")
-            infile.write(runsingularity.format(scratch=slurm.scratch,name=f"{tail}_hess"))
+            infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=f"{tail}_hess"))
+        venv = '''# Create a Virtual Environment
+if [ -d "venv" ]; then
+  echo "Virtual environment already exists"
+else
+  python -m venv venv
+fi
+source venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install numpy'''
+        infile.write(venv)
         infile.write("\npython espfit.py\n")
         infile.write("\npython modseminario.py\n")
+        infile.write("\ndeactivate\n")
         if dotorsions and single: 
             infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
@@ -711,7 +722,7 @@ def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=Fals
 
     with open("qmmm_optimization.sbatch","w") as sfile:
         sfile.write(slurm.header)
-        sfile.write(qmmm_slurm.format(complex=_pdb))
+        sfile.write(qmmm_slurm[slurm.machine.name].format(complex=_pdb))
 
 
 

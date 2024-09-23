@@ -165,7 +165,7 @@ class Protein:
                 _residue = copy.deepcopy(resdict[residue.upper()])
                 resname = residue.upper()
         except:
-            raise MyDockingError("There is no residue with name '{}'".format(residue))
+            raise KeyError("There is no residue with name '{}'".format(residue))
 
 
         if psi is None:
@@ -177,7 +177,7 @@ class Protein:
             elif psi == "beta":
                 psi = 130.0
             else:
-                raise MyDockingError()
+                raise KeyError("Psi has only alpha and beta predefined values")
 
         for _chain in self.chains:
             if _chain.name == chain:
@@ -206,7 +206,7 @@ class Protein:
                 _residue = copy.deepcopy(resdict[residue.upper()])
                 resname = residue.upper()
         except:
-            raise MyDockingError("There is no residue with  name '{}'".format(residue))
+            raise KeyError("There is no residue with  name '{}'".format(residue))
 
         if phi is None:
             phi = -60.0
@@ -217,7 +217,7 @@ class Protein:
             elif phi == "beta":
                 phi = -140.0
             else:
-                raise MyDockingError()
+                raise KeyError("Phi has only alpha and beta predefined values")
 
         for _chain in self.chains:
             if _chain.name == chain:
@@ -274,7 +274,10 @@ class Protein:
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
 
-        do_ti     = kwargs.get("thermo", True)
+        do_ti      = kwargs.get("thermo", True)
+        do_pdb2pqr = kwargs.get("pdb2pqr", True)
+        cofactor   = kwargs.pop("cofactor", None)
+
         lenlambda = kwargs.pop("lenlambda", 2.0)
         timestep  = kwargs.get("timestep",  2.0)
         nsteps    = int(lenlambda*1000000/timestep)
@@ -286,6 +289,11 @@ class Protein:
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
 
+        cofactorpdb = None
+        if cofactor is not None:
+            with open(cofactor, "r") as fh:
+                cofactorpdb = fh.readlines()
+            
         parent_dir = path if path is not None else cwd
         path = os.path.join(parent_dir, uid)
         os.mkdir(path)
@@ -297,7 +305,10 @@ class Protein:
 
         prefix = "" if prefix is None else f"{prefix}_"
 
-        self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+        if do_pdb2pqr:
+            self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+        else:
+            self.write_pdb(f"{path}/{prefix}protonated.pdb")
 
         submit = open(f"{path}/submit.sh", "w")
         submit.write("#!/bin/bash\n")
@@ -366,7 +377,7 @@ class Protein:
                     else:
                         subindex = ""
                         
-                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, **kwargs)
+                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, cofactor=cofactorpdb, **kwargs)
                     fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
@@ -390,21 +401,21 @@ class Protein:
 
     def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
         if ligand is None:
-            raise MyDockingError("No ligand was specified")
+            raise KeyError("No ligand was specified")
         if receptor is None:
-            raise MyDockingError("No receptor was specified")
+            raise KeyError("No receptor was specified")
 
         if engine is None:
             self.docking.engine = "vina"
         else:
             if engine not in ["vina", "adgpu"]:
-                raise MyDockingError("Only vina or AutoDockGPU can be used as Docking engines")
+                raise KeyError("Only vina or AutoDockGPU can be used as Docking engines")
             self.docking.engine = engine
 
-        if isinstance(exhaustiveness,int):
+        if isinstance(exhaustiveness, int):
             self.docking.exhaustiveness = exhaustiveness
-        else:
-            raise MyDockingError("Exhaustiveness should be an integer value")
+        elif exhaustiveness is not None:
+            raise KeyError("Exhaustiveness should be an integer value")
 
         if output is None:
             if self.docking.engine == 'vina':
@@ -443,7 +454,7 @@ class Protein:
     def protonate(self, pdbin=None, pdb=None, pqr=None, ph=7):
         # Check if pdb2pqr30 is in the path
         if which("pdb2pqr30") is None:
-            raise MyDockingError("Cannot find PDB2PQR")
+            raise KeyError("Cannot find PDB2PQR")
         if pdbin is None:
             pdbin = ".tmp.pdb"
             self.write_pdb(pdbin)
@@ -458,7 +469,7 @@ class Protein:
             _pqr = f"{self.filename[:-4]}_H.pqr" if pqr is None else pqr
         else:
             if (pdb is None) or (pqr is None):
-                raise MyDockingError("Provide a PDB and PQR filename for protonoation output")
+                raise KeyError("Provide a PDB and PQR filename for protonoation output")
         fh = open("pdb2pqr.log","w")
         subprocess.run(["pdb2pqr30",
             "--ff","AMBER",
