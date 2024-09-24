@@ -99,6 +99,11 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
     tdrive = TorsionDrive(**kwargs)
     _dohfresp = hfresp if dohfresp else ""
 
+    if slurm.machine.name == "Polaris":
+        script_method = "pbs"
+    else:
+        script_method = "slurm"
+
 
     if ligand and metal:
         raise KeyError("ligand and metal cannot be both True")
@@ -274,15 +279,15 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
 
     with open(f"get_qm_data.sbatch","w") as infile:
         infile.write(slurm.header)
-        infile.write(slurm_copy.format(filename="espfit.py"))
-        infile.write(slurm_copy.format(filename="modseminario.py"))
+        infile.write(script_copy[script_method].format(filename="espfit.py"))
+        infile.write(script_copy[script_method].format(filename="modseminario.py"))
         for idx in range(len(coords)):
             tail = f"conf{str(idx)}"
-            infile.write(slurm_copy.format(filename=f"{tail}.nw"))
+            infile.write(script_copy[script_method].format(filename=f"{tail}.nw"))
             infile.write(f"""echo "Running conf{str(idx)} optimization"\n""")
             infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=tail))
            
-            infile.write(slurm_copy.format(filename=f"{tail}_hess.nw"))
+            infile.write(script_copy[script_method].format(filename=f"{tail}_hess.nw"))
             infile.write(f"""echo "Running conf{str(idx)} hessian"\n""")
             infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=f"{tail}_hess"))
         venv = '''# Create a Virtual Environment
@@ -304,9 +309,9 @@ python -m pip install numpy'''
         if dotorsions and single:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
-                infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
-                infile.write(slurm_copy.format(filename=f"extras{str(idx)}.txt"))
-                infile.write(slurm_copy.format(filename=f"{tail}_tdrive.nw"))
+                infile.write(script_copy[script_method].format(filename=f"dihedrals{str(idx)}.txt"))
+                infile.write(script_copy[script_method].format(filename=f"extras{str(idx)}.txt"))
+                infile.write(script_copy[script_method].format(filename=f"{tail}_tdrive.nw"))
                 infile.write(slurm_tdrive_run.format(
                     tail=tail, charge=nwchem.charge, mult=nwchem.mult, aobasis=nwchem.aobasis,
                     cdbasis=nwchem.cdbasis, nscf=nwchem.nscf, xcfun=nwchem.xcfun,
