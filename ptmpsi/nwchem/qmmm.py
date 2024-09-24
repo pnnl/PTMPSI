@@ -114,8 +114,8 @@ md
   system {name}2_qmmm
   noshake solute
   cutoff 1.2 qmmm 1.2
-  pme grid 32 alpha 1e-6 order 6 fft 2
-  record rest 1
+  #pme grid 32 alpha 1e-6 order 6 fft 2 
+  record rest 1 scoor 1
 end
 
 
@@ -140,8 +140,8 @@ dft
 end
 
 qmmm
-  region qmlink mm_solute solvent
-  maxiter 10 500 500
+  region qmlink mm
+  maxiter 10 500
   ncycles {nopt}
   bqzone {bqzone}
   density espfit
