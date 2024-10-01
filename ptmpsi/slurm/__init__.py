@@ -219,7 +219,7 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        __machine = kwargs.pop("machine", "frontier")
+        __machine = kwargs.pop("machine", "perlmutter")
         if isinstance(__machine, Machine):
             self.machine = __machine
         elif isinstance(__machine, str):
