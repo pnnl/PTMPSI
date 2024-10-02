@@ -151,7 +151,7 @@ def prediction(fasta,**kwargs):
         relax = f"--run_relax={options.run_relax}"
 
     with open("alphafold.sbatch","w") as fh:
-        fh.write(slurm_body[options.machine.capitalize()].format(header=slurm.header,
+        fh.write(slurm_body[slurm.machine.name.capitalize()].format(header=slurm.header,
                  data_dir=options.data_dir, 
                  version=options.version,
                  pull=pull,
