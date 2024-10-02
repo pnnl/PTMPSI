@@ -1,7 +1,7 @@
 import pkgutil
 from datetime import datetime
 from os.path import isfile, isdir, join
-from ptmpsi.slurm import Slurm
+from ptmpsi.slurm import Slurm, default_machine
 from ptmpsi.alphafold.templates import slurm_body
 
 tahoma_datasets = "/tahoma/datasets/alphafold"
@@ -138,6 +138,11 @@ def prediction(fasta,**kwargs):
     # Override default options with user's settings
     options = AlphaFoldOptions(fasta_paths, **kwargs)
     slurm   = Slurm("alphafold", **kwargs)
+    if options.machine == None:
+        options.machine = slurm.machine.name.lowercase()
+        print("\t Info: Using default machine '{}'".format(options.machine))
+    else:
+        print("\t Info: Using machine '{}'".format(options.machine))
     if options.use_gpu == "True":
         slurm.header += "#SBATCH --gres=gpu:1\n"
 
