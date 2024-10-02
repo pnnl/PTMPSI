@@ -260,6 +260,8 @@ machines = {'aqe_ldrd': aqe_ldrd,
             'polaris': polaris
            }
 
+default_machine = "tahoma"
+
 class Slurm:
     def __init__(self, caller, **kwargs):
         if caller == "nwchem":
@@ -269,7 +271,7 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        __machine = kwargs.pop("machine", "frontier")
+        __machine = kwargs.pop("machine", default_machine)
         if isinstance(__machine, Machine):
             self.machine = __machine
         elif isinstance(__machine, str):
