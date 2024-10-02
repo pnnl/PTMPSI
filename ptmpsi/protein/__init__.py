@@ -296,7 +296,7 @@ class Protein:
             
         parent_dir = path if path is not None else cwd
         path = os.path.join(parent_dir, uid)
-        os.mkdir(path)
+        os.makedirs(path, exist_ok=True)
 
         ff_prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../gromacs/forcefield")
         shutil.copytree(f"{ff_prefix}/{ff}.ff", f"{path}/{ff}.ff")
