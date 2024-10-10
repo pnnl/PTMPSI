@@ -210,12 +210,12 @@ polaris = Machine(name="Polaris",
                               ngpus=4, maxtime=1, maxnode=2,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
                       "ntasks": 8,
-                      "nthreads": 7,
+                      "nthreads": 4,
                       "nstlist": 300
                       }
                     }),
@@ -223,25 +223,25 @@ polaris = Machine(name="Polaris",
                               ngpus=4, maxtime=24, maxnode=496,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
                       "ntasks": 8,
-                      "nthreads": 7,
+                      "nthreads": 4,
                       "nstlist": 300
                       }
                     }),
-            "extended": Partition(name="preemptable", memory=0, ncpus=32,
+            "preemptable": Partition(name="preemptable", memory=0, ncpus=32,
                               ngpus=4, maxtime=72, maxnode=10,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
                       "ntasks": 8,
-                      "nthreads": 7,
+                      "nthreads": 4,
                       "nstlist": 300
                       }
                     }),
