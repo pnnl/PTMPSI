@@ -2,6 +2,7 @@ import requests
 import copy
 import numpy as np
 import subprocess
+import warnings
 from shutil import which
 from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, one2three, Residue
@@ -266,6 +267,33 @@ class Protein:
     def get_ptm_combinations(self, ptms, exclude=None, ntuple=-1):
         return ptm_combination(self, ptms, ntuple, exclude)
 
+    def check_combinations_format(self, combinations):
+        if not isinstance(combinations, list):
+            raise ValueError(
+                f"Combinations should be a list of lists of tuples. "
+                f"But a {type(combinations)} was detected."
+            )
+        for i in combinations:
+            if not isinstance(i, list):
+                # Try to fix the format by making it a list of lists.
+                if len(combinations) == 1 and isinstance(i, tuple):
+                    warnings.warn(
+                        "A list of tuples was detected. Trying to fix it by "
+                        "wrapping it in a list of lists of tuples."
+                    )
+                    return [combinations]
+                raise ValueError(
+                    f"Combinations should be a list of lists of tuples, "
+                    f"but a list of {type(i)} was detected."
+                )
+            for j in i:
+                if not isinstance(j, tuple):
+                    raise ValueError(
+                        f"Combinations should be a list of lists of tuples, "
+                        f"but a list of lists of {type(j)} was detected."
+                    )
+        return combinations
+
     def gen_ptm_files(self, combinations, path=None, prefix=None, ff='amber99sb', **kwargs):
         import os
         import uuid
@@ -273,6 +301,8 @@ class Protein:
         import shutil
         cwd = os.getcwd()
         uid = str(uuid.uuid4())
+
+        combinations = self.check_combinations_format(combinations)
 
         do_ti      = kwargs.get("thermo", True)
         do_pdb2pqr = kwargs.get("pdb2pqr", True)
