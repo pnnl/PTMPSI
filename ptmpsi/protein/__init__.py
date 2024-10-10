@@ -285,6 +285,9 @@ class Protein:
         nsplit    = kwargs.pop("nsplit", 1)
         gpu_id    = kwargs.pop("gpu_id", "")
 
+        machine = kwargs.get("machine", "")
+        machine = machine.capitalize()
+
         ff = ff.lower()
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
@@ -382,12 +385,18 @@ class Protein:
 
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    submit.write(f"jobid=$(sbatch {prefix}{j:04d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
+                    if machine == "Polaris":
+                        submit.write(f"jobid=$(qsub {prefix}{j:04d}_slurm.sbatch) \n")
+                    else:
+                        submit.write(f"jobid=$(sbatch {prefix}{j:04d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
                     if do_ti:
                         submit.write(f"cd dualti\n")
                         for k in range(13):
                             submit.write(f"cd lam-{k:02d}\n")
-                            submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                            if machine == "Polaris":
+                                submit.write(f"qsub -W depend=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                            else:
+                                submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
                             submit.write(f"cd ../ \n")
                             submit.write(f"sleep 1s \n")
                         submit.write(f"cd ../ \n")

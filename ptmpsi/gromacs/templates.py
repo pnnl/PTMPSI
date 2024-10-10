@@ -673,6 +673,50 @@ export SYCL_CACHE_PERSISTENT=1
 
 """
 
+slurm_header['Polaris'] = """#!/bin/bash
+#PBS -l select={nnodes}:system=polaris
+#PBS -l walltime={time}
+#PBS -l filesystems=home:grand
+#PBS -q {partition}
+#PBS -N {jname}
+#PBS -A {account}
+#PBS -l place=scatter
+#PBS -r y
+
+module swap PrgEnv-nvhpc PrgEnv-gnu
+module use /soft/modulefiles
+module load cudatoolkit-standalone/12.5.0
+
+# From the user
+{user}
+
+export SCRATCH="/local/scratch"
+
+cd ${{PBS_O_WORKDIR}}
+
+export OMP_STACKSIZE=4G
+export OMP_NUM_THREADS={nthreads}
+export TMPDIR={scratch}
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+
+NNODES=`wc -l < $PBS_NODEFILE`
+NRANKS_PER_NODE={ntasks}
+NDEPTH=1
+NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
+NTHREADS={nthreads}
+
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+
+"""
+
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008

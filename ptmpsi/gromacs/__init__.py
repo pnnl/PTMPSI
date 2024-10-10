@@ -102,10 +102,16 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     slurm = Slurm("gromacs", jobname=jobname, **kwargs)
     gmx       = kwargs.pop("gmx", "gmx")
     container = kwargs.pop("container", "")
-    gpu_id    = kwargs.pop("gpu_id", "")
-    gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
+    if slurm.machine.name == "Polaris":
+        gpu_id = kwargs.pop("gpu_tasks", "")
+        gpu_id = f"-gputasks {gpu_id}" if len(gpu_id) > 0 else ""
+    else:
+        gpu_id    = kwargs.pop("gpu_id", "")
+        gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
     if slurm.machine.name == "Frontier":
         mpirun    = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
+    elif slurm.machine.name == "Polaris":
+        mpirun    = kwargs.pop("mpirun", f"mpiexec -n {slurm.ncpus}")
     else:
         mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
     nstlist   = kwargs.pop("nstlist", 0)
@@ -120,6 +126,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
     if slurm.machine.name == "Frontier":
         single_mpiexec = "srun -n 1"
+    elif slurm.machine.name == "Polaris":
+        single_mpiexec = "mpiexec -n 1"
     else:
         single_mpiexec = "mpirun -np 1"
 
