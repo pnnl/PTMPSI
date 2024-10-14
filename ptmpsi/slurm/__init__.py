@@ -214,8 +214,8 @@ polaris = Machine(name="Polaris",
                       "container": "",
                       "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
                       "gpu_tasks": "00112233",
-                      "ntasks": 8,
-                      "nthreads": 4,
+                      "ntasks": 4,
+                      "nthreads": 8,
                       "nstlist": 300
                       }
                     }),
@@ -227,8 +227,8 @@ polaris = Machine(name="Polaris",
                       "container": "",
                       "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
                       "gpu_tasks": "00112233",
-                      "ntasks": 8,
-                      "nthreads": 4,
+                      "ntasks": 4,
+                      "nthreads": 8,
                       "nstlist": 300
                       }
                     }),
@@ -240,8 +240,8 @@ polaris = Machine(name="Polaris",
                       "container": "",
                       "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
                       "gpu_tasks": "00112233",
-                      "ntasks": 8,
-                      "nthreads": 4,
+                      "ntasks": 4,
+                      "nthreads": 8,
                       "nstlist": 300
                       }
                     }),
