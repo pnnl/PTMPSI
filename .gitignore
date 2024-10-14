@@ -1,6 +1,7 @@
 # Tutorial inputs/outputs
 tutorials/*
 !tutorials/*.ipynb
+!tutorials/start_jupyter_server.sh
 outputs/
 
 # Byte-compiled / optimized / DLL files
