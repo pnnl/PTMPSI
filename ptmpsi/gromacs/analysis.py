@@ -1,6 +1,7 @@
 import errno
 import os
 from collections import defaultdict
+import time
 
 def check_file_exists(filename, canbenone=False):
     #
@@ -51,10 +52,17 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
         check_file_exists(index, canbenone=True)
         #
         # All checks have passed
+        # Make sure the directory exists
+        if prefix:
+            os.makedirs(prefix, exist_ok=True)
+
         # Now get the output filenames
-        outputs.append("" if prefix is None else f"{prefix}_")
-        outputs[-1] += f"{trajectory[:-4]}"
-        outputs[-1] += "" if suffix is None else f"_{suffix}"
+        base_output_name = os.path.splitext(os.path.basename(trajectory))[0]
+        output = os.path.join(prefix, base_output_name) if prefix else base_output_name
+        if suffix:
+            output += f"_{suffix}"
+        outputs.append(output)
+
     #
     # Run interactively
     if interactive:
@@ -81,6 +89,7 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
                 #
                 # Extract the desired group from the first from of the trajectory 
                 __commands = commands
+             
                 __commands += f"echo {group} | gmx trjconv -dump 0 -f {trajectory} -s {structure} -o {output}.gro "
                 __commands += f"-n {index} && " if index is not None else "&& "
                 #
@@ -88,19 +97,20 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
                 __commands += f"echo {group} | gmx trjconv -f {trajectory} -s {structure} -o {output}_whole.xtc -pbc whole "
                 __commands += f"-n {index} && " if index is not None else "&& "
                 #
+                
                 # Remove jumps
                 __commands += f"gmx trjconv -f {output}_whole.xtc -o {output}_whole_nojump.xtc -pbc nojump && "
                 #
+            
                 # Remove rotations and translations
-                __commands += f"echo 3 {group} | gmx trjconv -f {output}_whole_nojump.xtc -o {output}_whole_nojump_fit.xtc -fit rot+trans -s {output}.gro "
-                __commands += f"-n {index} && " if index is not None else "&& "
-                #
+                __commands += f"echo 3 0 | gmx trjconv -f {output}_whole_nojump.xtc -o {output}_whole_nojump_fit.xtc -fit rot+trans -s {output}.gro && "
+                
                 # Generate new TPR file with desired group
-                __commands += f"echo {group} | gmx convert-tpr -s {structure} -o {output}_{group}.tpr "
+                __commands += f"echo '{group}' | gmx convert-tpr -s {structure} -o {output}_{group}.tpr "
                 __commands += f"-n {index}" if index is not None else ""
                 #
                 # Run subprocess and get current process id (PID)
-                subprocesses.append(subprocess.Popen(_commands, shell=True))
+                subprocesses.append(subprocess.Popen(__commands, shell=True))
                 pids.append(subprocesses[-1].pid)
                 #
                 # Set CPU affinity to avoid oversubscription
@@ -250,7 +260,7 @@ def process_dssp(datfile, ref=0, doss="all"):
     sdiff.close()
 
 
-def dssp(trajectory, structure, index=None, interactive=False, maxprocs=90, **kwargs):
+def dssp(trajectory, structure, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
     """
     Takes a trajectory file, or a list of trajectories, alongside their structure files (tpr)
     to run the dssp analysis in GROMACS.
@@ -260,7 +270,22 @@ def dssp(trajectory, structure, index=None, interactive=False, maxprocs=90, **kw
 
     By default, maxprocs processes are started at the same time.
     """
+    if not os.path.exists(output_dir):
+        print(f"Directory {output_dir} does not exist. Creating it now.")
+        try:
+            os.makedirs(output_dir)
+            print(f"Directory {output_dir} created successfully.")
+        except OSError as e:
+            print(f"Failed to create {output_dir}. Error: {e}")
+            raise
+    else:
+        print(f"Directory {output_dir} already exists.")
+        
+    original_directory= os.getcwd()
+    os.chdir(output_dir)
+
     __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
+    print(__trajectories)
     __structures   = structure  if isinstance(structure,  list) else [structure]
     __indices      = index      if isinstance(index,      list) else [index]
     #
@@ -317,6 +342,7 @@ def dssp(trajectory, structure, index=None, interactive=False, maxprocs=90, **kw
         # Process the Data
         #
         process_dssp(datfiles, ref=ref, doss=doss)
+        os.chdir(original_directory)
     else:
         """
         TODO
