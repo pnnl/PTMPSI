@@ -1,0 +1,36 @@
+<BundleInfo name="ChimeraX-RotamerLibsCysPTM" version="0.2"
+            package="chimerax.cysptm_rotamer_lib"
+            installedDataDir="templates"
+            minSessionVersion="1" maxSessionVersion="1">
+
+  <Author>Daniel Mejia-Rodriguez</Author>
+  <Email>daniel.mejia@pnnl.gov</Email>
+  <URL>https://www.pnnl.gov</URL>
+
+  <Synopsis>Post-translationally modified Cys rotamer library</Synopsis>
+  <Description>Post-translationally modified Cys rotamer library -- EMSL/PNNL</Description>
+
+  <DataFiles>
+    <DataFile>*.zip</DataFile>
+    <DataFile>templates/*</DataFile>
+  </DataFiles>
+
+  <Categories>
+    <Category name="Structure Editing"/>
+  </Categories>
+
+  <Dependencies>
+    <Dependency name="ChimeraX-Core" version=">=0.9"/>
+    <Dependency name="ChimeraX-RotamerLibMgr" version="~=4.0"/>
+  </Dependencies>
+
+  <Providers>
+    <Provider name="CysPTM" manager="rotamers"/>
+  </Providers>
+
+  <Classifiers>
+    <PythonClassifier>Development Status :: 2 - Pre-Alpha</PythonClassifier>
+    <PythonClassifier>License :: Free for non-commercial use</PythonClassifier>
+  </Classifiers>
+
+</BundleInfo>
