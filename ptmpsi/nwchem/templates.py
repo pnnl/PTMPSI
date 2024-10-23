@@ -331,39 +331,26 @@ cp *.trj $PBS_O_WORKDIR || :
 cp *.out $PBS_O_WORKDIR || :
 }}
 
+trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
+
 export SCRATCH="/grand/TwinHostPath/${{USER}}/scratch"
 mkdir -p $SCRATCH
 
-trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
-module load cray-python/3.11.5
-ADDITIONAL_PATH=/opt/cray/pe/pals/1.2.12/lib
-module load cray-mpich-abi
-module use /soft/spack/gcc/0.6.1/install/modulefiles/Core
-module load apptainer
+# Load the appropriate environment
+source "/lus/grand/projects/TwinHostPath/software/nwchem/share/export.sh"
+module list
+module unload xalt
+echo $LD_LIBRARY_PATH
 
-export MPICH_GPU_SUPPORT_ENABLED=1
-
-export COMEX_MAX_NB_OUTSTANDING=6
+export MPICH_GPU_SUPPORT_ENABLED=0
+export COMEX_MAX_NB_OUTSTANDING=1
+export MPICH_SMP_SINGLE_COPY_MODE=NONE
 export FI_CXI_RX_MATCH_MODE=hybrid
 export COMEX_EAGER_THRESHOLD=16384
 export FI_CXI_RDZV_THRESHOLD=16384
 export FI_CXI_OFLOW_BUF_COUNT=6
-export MPICH_SMP_SINGLE_COPY_MODE=CMA
-export APPTAINERENV_LD_LIBRARY_PATH="${{CRAY_MPICH_ROOTDIR}}/lib-abi-mpich:${{CRAY_MPICH_ROOTDIR}}/gtl/lib:${{CRAY_LD_LIBRARY_PATH}}:${{PE_PERFTOOLS_MPICH_LIBDIR}}:/opt/cray/pe/lib64:/opt/cray/pe/lib64/cce/:/opt/cray/pe/gcc-libs/:${{LD_LIBRARY_PATH}}:$ADDITIONAL_PATH"
-export APPTAINER_CONTAINLIBS="/usr/lib64/libcxi.so.1,/usr/lib64/libjson-c.so.3,/lib64/libtinfo.so.6,/usr/lib64/libnl-3.so.200,/usr/lib64/libgfortran.so.5,/usr/lib64/libjansson.so.4"
-export APPTAINERENV_LD_PRELOAD=$CRAY_MPICH_ROOTDIR/gtl/lib/libmpi_gtl_hsa.so.0:/soft/xalt/3.0.2-202408282050/lib64/libxalt_init.so
-MYFS=$(findmnt -r -T . | tail -1 |cut -d ' ' -f 1)
-export BINDS=/opt/nvidia,/usr/share/libdrm,/var/spool/pbs,/var/run/palsd,/opt/cray,/opt/cray/libfabric,${{MYFS}}
 
-export MKL_NUM_THREADS=1
-export HTTP_PROXY="http://proxy.alcf.anl.gov:3128"
-export HTTPS_PROXY="http://proxy.alcf.anl.gov:3128"
-export http_proxy="http://proxy.alcf.anl.gov:3128"
-export https_proxy="http://proxy.alcf.anl.gov:3128"
-export ftp_proxy="http://proxy.alcf.anl.gov:3128"
-export no_proxy="admin,polaris-adminvm-01,localhost,*.cm.polaris.alcf.anl.gov,polaris-*,*.polaris.alcf.anl.gov,*.alcf.anl.gov"
-export NWBIN=${{SCRATCH}}/nwchems_`id -u`.img
-export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-dev.mpich3.4.2:latest"
+export NWBIN=/grand/projects/TwinHostPath/dmejiar/nwchem/bin/LINUX64/nwchem
 
 NNODES=`wc -l < $PBS_NODEFILE`
 NRANKS_PER_NODE={ntasks}
@@ -371,11 +358,9 @@ NDEPTH=1
 NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
 NTHREADS=1
 
-echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+export OMP_NUM_THREADS=$NTHREADS
 
-FC=gfortran ARMCI_NETWORK=MPI-PR MPICH=3.4.2 mpiexec apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
-export APPTAINERENV_SCRATCH_DIR=${{SCRATCH}}
-export APPTAINERENV_OMP_NUM_THREADS=1
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
 
 
 cd ${{SCRATCH}}
@@ -698,7 +683,26 @@ cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
 cp ${{SLURM_SUBMIT_DIR}}/{complex} ${{SCRATCH}}
 cp ${{SLURM_SUBMIT_DIR}}/prepare.nw ${{SCRATCH}}
 
-srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem prepare.nw > prepare.log
+srun -N $SLURM_NNODES -n $SLURM_NPROCS $NWBIN prepare.nw > prepare.log
+
+cleanup
+"""
+
+qmmm_slurm["Polaris"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_s/
+amber_2 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_q/
+amber_3 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_x/
+amber_4 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_u/
+spce /grand/projects/TwinHostPath/software/nwchem/share/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/{complex} ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw ${{SCRATCH}}
+
+mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind core apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem prepare.nw > prepare.log
 
 cleanup
 """
@@ -710,7 +714,7 @@ pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
 runsingularity = {}
 runsingularity['Tahoma'] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
 runsingularity['Frontier'] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
-runsingularity['Polaris'] = "mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind=core apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['Polaris'] = "mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind=core $NWBIN {name}.nw > {name}.log\n\n"
 runsingularity_prefix = {}
 runsingularity_prefix_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
 runsingularity_prefix_frontier = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"

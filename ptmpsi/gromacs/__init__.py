@@ -103,7 +103,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     gmx       = kwargs.pop("gmx", "gmx")
     container = kwargs.pop("container", "")
     if slurm.machine.name == "Polaris":
-        gpu_id = kwargs.pop("gpu_tasks", "")
+        # gpu_id = kwargs.pop("gpu_tasks", "")
         # gpu_id = f"-gputasks {gpu_id}" if len(gpu_id) > 0 else ""
         gpu_id = "" # Auto GPU assignment
     else:
