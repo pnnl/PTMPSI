@@ -177,7 +177,6 @@ frontier = Machine(name="Frontier",
                       "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
                       "container": "",
                       "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
                       "ntasks": 8,
                       "nthreads": 7,
                       "nstlist": 300
@@ -190,7 +189,6 @@ frontier = Machine(name="Frontier",
                       "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
                       "container": "",
                       "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
                       "ntasks": 8,
                       "nthreads": 7,
                       "nstlist": 300
@@ -262,6 +260,8 @@ machines = {'aqe_ldrd': aqe_ldrd,
             'polaris': polaris
            }
 
+default_machine = "tahoma"
+
 class Slurm:
     def __init__(self, caller, **kwargs):
         if caller == "nwchem":
@@ -271,7 +271,7 @@ class Slurm:
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
 
-        __machine = kwargs.pop("machine", "perlmutter")
+        __machine = kwargs.pop("machine", default_machine)
         if isinstance(__machine, Machine):
             self.machine = __machine
         elif isinstance(__machine, str):

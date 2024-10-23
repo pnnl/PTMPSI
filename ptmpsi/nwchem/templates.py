@@ -687,10 +687,11 @@ cleanup
 qmmm_slurm["Frontier"] = """
 cat <<EOF >nwchemrc
 ffield amber
-amber_1 ${{AMBER_1}}
-amber_2 ${{AMBER_2}}
-amber_3 ${{AMBER_3}}
-spce ${{SPCE}}
+amber_1 /opt/nwchem/share/data/amber_s/
+amber_2 /opt/nwchem/share/data/amber_q/
+amber_3 /opt/nwchem/share/data/amber_x/
+amber_4 /opt/nwchem/share/data/amber_u/
+spce /opt/nwchem/share/data/solvents/spce.rst
 EOF
 
 cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
