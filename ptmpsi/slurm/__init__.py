@@ -202,12 +202,62 @@ frontier = Machine(name="Frontier",
         scratchdir="/lustre/orion/bip258/scratch/$USER")
 frontier.partitions["batch"].default = True
 
+polaris = Machine(name="Polaris",
+        partitions={
+            "debug": Partition(name="debug", memory=0, ncpus=32,
+                              ngpus=4, maxtime=1, maxnode=2,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            "prod": Partition(name="prod", memory=0, ncpus=32,
+                              ngpus=4, maxtime=24, maxnode=496,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            "preemptable": Partition(name="preemptable", memory=0, ncpus=32,
+                              ngpus=4, maxtime=72, maxnode=10,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gpu_tasks": "00112233",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            },
+        modules={"apptainer": "apptainer/1.2.2",
+                 "gcc": "gcc/11.2.0",
+                 "python": "cray-python/3.11.5",
+                 "openmpi": "openmpi/5.0.3"},
+        scratchdir="/local/scratch")
+polaris.partitions["prod"].default = True
+
 machines = {'aqe_ldrd': aqe_ldrd,
             'aqe_h100': aqe_h100,
             'tahoma': tahoma,
             'deception': deception,
             'perlmutter': perlmutter,
-            'frontier': frontier
+            'frontier': frontier,
+            'polaris': polaris
            }
 
 default_machine = "tahoma"

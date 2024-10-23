@@ -12,6 +12,7 @@ singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:l
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
 frontier_experimental_232 = "alphafold"
 frontier_datasets_232 = "/lustre/orion/bip258/world-shared/datasets/alphafold"
+polaris_datasets_232 = "/grand/TwinHostPath/datasets/alphafold"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
@@ -48,7 +49,16 @@ class AlphaFoldOptions:
 
         if self.data_dir is None:
             if self.version in ["2.3.1","2.3.2"]:
-                self.data_dir = tahoma_datasets_231
+                if self.machine == "polaris":
+                    if self.version == "2.3.2":
+                        if self.dbs == "full_dbs":
+                            self.data_dir = polaris_datasets_232
+                        else:
+                            raise ValueError("Polaris only supports full_dbs")
+                    else:
+                        raise ValueError("Polaris only supports alphafold database 2.3.2")
+                else:
+                    self.data_dir = tahoma_datasets_231
             else:
                 self.data_dir = tahoma_datasets
 
@@ -70,6 +80,11 @@ def gen_script(options):
         filename = "run_singularity_232.py"
     else:
         filename = "run_singularity.py"
+    if options.machine == "polaris":
+        # Assert file is run_singularity_232.py
+        # Assert version is 2.3.2
+        assert filename == "run_singularity_232.py"
+        assert options.version == "2.3.2"
     data = pkgutil.get_data(__name__,filename).decode('utf-8')
     with open("run_singularity.py","w") as fh:
         fh.write(data.format(options.unified_memory, options.xla_mem_fraction))
@@ -87,7 +102,10 @@ def gen_pull(options):
         _split = options.container.split(":")
         if _split[0] in ["oras", "library", "docker", "shub", "http", "https"]:
             print("\t Info: run script will pull container from '{}'".format(options.container))
-            string = "/usr/bin/time -p singularity pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)
+            if options.machine == "polaris":
+                string = "/usr/bin/time -p singularity pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)    
+            else:
+                string = "/usr/bin/time -p apptainer pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)
     return string
             
 
@@ -167,8 +185,11 @@ def prediction(fasta,**kwargs):
                  fasta_paths=",".join(options.fasta_paths),
                  date=options.date,
                  model=options.model))
-
+    if options.machine == 'polaris':
+        execution_command = "qsub alphafold.sbatch"
+    else:
+        execution_command = "sbatch alphafold.sbatch"
     print("\n\t Info: Make sure to copy alphafold.sbatch, run_singularity.py, your")
     print("\t       fasta files and all generated temp*.fasta files to a submission")
-    print("\t       directory and execute `sbatch alphafold.sbatch`")
+    print(f"\t       directory and execute `{execution_command}`")
     return
