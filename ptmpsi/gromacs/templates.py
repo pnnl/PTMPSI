@@ -382,8 +382,8 @@ free_energy              = yes
 delta_lambda             = 0
 ;
 ;couple-moltype          = ATC-A
-couple-intramol         = vdw-q
-couple-lambda0          = vdw-q
+couple-intramol         = no #it was vdw-q which is incorrect, Edited by Hoshin (102824)
+couple-lambda0          = vdw #it must be vdw, not vdw-q during vdw step, Edited by Hoshin (102824)
 couple-lambda1          = none
 init_lambda_state       = {lambda_state}
 calc_lambda_neighbors   = 1
