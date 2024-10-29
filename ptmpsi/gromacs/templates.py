@@ -219,11 +219,11 @@ gen-vel               = no
 ; Dispersion Correction
 DispCorr              = EnerPres
 
-; Distance Restraint
-nstdisreout           = 0
-disre                 = simple
-disre-weighting       = conservative
-disre-fc              = 1000
+; Distance Restraint ; We need to comment out this part as we do not use Dist. Restraint during the MD.
+; nstdisreout           = 0
+; disre                 = simple
+; disre-weighting       = conservative
+; disre-fc              = 1000
 """
 
 SLURM_header = """#!/bin/bash
