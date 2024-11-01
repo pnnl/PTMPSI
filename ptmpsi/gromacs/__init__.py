@@ -244,7 +244,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         fh.write(f"{single_mpiexec} {container} {gmx} grompp -f md.mdp -c fnpt.gro -t fnpt.cpt -p topol.top -n index.ndx -o md.tpr\n")
 
         if checkpointing:
-            fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed))
+            fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours={slurm.get_time_hours()}))
             if auto_submit_ti:
                 fh.write(submit_lambdas)
             checkpoint_arg = "-cpi md.cpt"

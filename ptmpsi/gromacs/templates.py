@@ -942,9 +942,9 @@ estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
 echo "Estimated number of hours: $estimated_hours"
 
 # Calculate number of runs needed
-num_runs=$(echo "($estimated_hours / $max_hours)" | bc)
-remainder=$(echo "$estimated_hours % $max_hours" | bc)
-if [ "$remainder" -gt 0 ]; then
+num_runs=$(echo "($estimated_hours / {job_hours})" | bc)
+remainder=$(echo "$estimated_hours % {job_hours}" | bc)
+if [ "$(echo "$remainder > 0" | bc)" -eq 1 ]; then
   num_runs=$(echo "$num_runs + 1" | bc)
 fi
 
