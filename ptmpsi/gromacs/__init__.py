@@ -1,4 +1,4 @@
-from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg
+from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.slurm import Slurm
 import numpy as np
@@ -119,6 +119,19 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     nstlist   = f"-nstlist {nstlist}" if nstlist > 0 else ""
     do_ti     = kwargs.get("thermo", True)
     subindex  = kwargs.pop("subindex", "")
+    checkpointing = kwargs.pop("checkpointing", True)
+
+    if slurm.machine.name == "Polaris":
+        submit_cmd = "qsub"
+        dependency = "-W depend"
+        sed=""
+        self_jobid = "$PBS_JOBID"
+    else:
+        submit_cmd = "sbatch"
+        dependency = "--dependency"
+        sed="| sed 's/Submitted batch job //'"
+        self_jobid = "$SLURM_JOBID"
+    auto_submit_ti = kwargs.get("auto_submit_ti", True)
 
     if conc is None and (npos is None or nneg is None):
         raise KeyError("Specify total ion concentration or a number of positive and negative ions to add")
@@ -229,18 +242,43 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
         # PRODUCTION
         fh.write(f"{single_mpiexec} {container} {gmx} grompp -f md.mdp -c fnpt.gro -t fnpt.cpt -p topol.top -n index.ndx -o md.tpr\n")
-        if slurm.ngpus > 1:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n")
-        elif slurm.ngpus == 1:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm md \n")
-        else:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun -deffnm md \n")
 
-        # GENERATE TOPOLOGY FOR TI
-        if do_ti:
-            fh.write("\n")
-            fh.write("cd dualti\n")
-            fh.write("python update_topology.py\n")
+        if checkpointing:
+            fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed))
+            if auto_submit_ti:
+                fh.write(submit_lambdas)
+            checkpoint_arg = "-cpi md.cpt"
+            # If the queue is preemptable, maxh won't work well.
+            if slurm.machine.name == "Polaris" and slurm.partition.name == "preemptable":
+                maxh = ""
+            else:
+                maxh = f"-maxh {slurm.get_time_hours()}"
+        else:
+            checkpoint_arg = ""
+            maxh = ""
+
+        if slurm.ngpus > 1:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n"
+        elif slurm.ngpus == 1:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm md \n"
+        else:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} -deffnm md \n"
+
+        if checkpointing:
+            with open("md.sbatch","w") as md_sbatch:
+                slurm.update_jobname(f"{jobname}_md")
+                md_sbatch.write(slurm.header)
+                md_sbatch.write(md_cmd)
+                # GENERATE TOPOLOGY FOR TI
+                if do_ti:
+                    md_sbatch.write(check_and_update_topology.format(job='md', self_jobid=self_jobid))
+        else:
+            fh.write(md_cmd)
+            # GENERATE TOPOLOGY FOR TI
+            if do_ti:
+                fh.write("\n")
+                fh.write("cd dualti\n")
+                fh.write("python update_topology.py\n")
 
     if do_ti:
         for i in range(13):

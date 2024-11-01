@@ -307,7 +307,10 @@ class Slurm:
         _time = kwargs.pop("time", _partition.maxtime if _partition.maxtime > 0 else 144)
         if _partition.maxtime > 0 and _time > _partition.maxtime:
             raise KeyError(f"Partition '{self.partition}' has a maximum time policy of '{_partition.maxtime}' per job")
-        self.time = f"{_time}:00:00"
+        hours = int(_time)
+        minutes = int((_time - hours) * 60)
+        seconds = int(((_time - hours) * 60 - minutes) * 60)
+        self.time = f"{hours:02}:{minutes:02}:{seconds:02}"
 
         self.account = kwargs.pop("account", self.machine.default_account())
 
@@ -340,6 +343,14 @@ class Slurm:
 
         self.header = self._header_template.format(**self.options_dictionary)
 
+        return
+    def get_time_hours(self):
+        hours, minutes, seconds = map(int, self.time.split(":"))
+        return float(hours) + float(minutes) / 60 + float(seconds) / 3600
+    def update_jobname(self, jobname):
+        self.jobname = jobname
+        self.options_dictionary["jname"] = self.jobname
+        self.header = self._header_template.format(**self.options_dictionary)
         return
 
 

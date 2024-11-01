@@ -926,3 +926,61 @@ with open("TItop.top", "w") as topo:
       topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
 """
+queue_estimated_runs = """
+
+# Extract performance value from log file
+hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
+
+# Extract dt and nsteps from mdp file
+dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
+nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
+
+total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
+
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
+
+echo "Estimated number of hours: $estimated_hours"
+
+# Calculate number of runs needed
+num_runs=$(echo "($estimated_hours / $max_hours)" | bc)
+remainder=$(echo "$estimated_hours % $max_hours" | bc)
+if [ "$remainder" -gt 0 ]; then
+  num_runs=$(echo "$num_runs + 1" | bc)
+fi
+
+# Subtract num_runs by 1 to account for the first run aging in the queue
+num_runs=${{num_runs%.*}}
+if [ "$num_runs" -gt 0 ]; then
+  num_runs=$(echo "$num_runs - 1" | bc)
+fi
+
+echo "Number of additional runs needed for $file: $num_runs"
+
+file=$(basename "{mdp_file}" .mdp)
+
+# Obtain the jobid of the first run
+jobid=$(cat ${{file}}.jobid)
+
+for i in $(seq 1 $num_runs); do
+  sleep 1s
+  echo "Batching run $i"
+  jobid=$({submit_cmd} {dependency}=afterok:$jobid ${{file}}.sbatch {sed})
+  echo "Submitted job $jobid"
+done
+
+echo $jobid > ${{file}}.jobid
+"""
+submit_lambdas = """
+echo "Submitting lambdas"
+./submit_lambdas.sh $jobid
+"""
+check_and_update_topology = """
+file_jobid=$(cat {job}.jobid)
+self_jobid=${self_jobid}
+if [ $file_jobid -eq $self_jobid ]; then
+  echo "This is the last {job} job."
+  echo "Updating topology whether nsteps was achieved or not."
+  cd dualti
+  python update_topology.py
+fi
+"""
