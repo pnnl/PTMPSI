@@ -427,8 +427,10 @@ class Protein:
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                     submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
+                    submit.write(f"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\n")
                     if checkpointing:
                         submit.write(f"jobid=$({submit_cmd} md.sbatch {dependency}=afterok:$jobid {sed}) \n")
+                        submit.write(f"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\n")
                         submit.write(f"echo $jobid > md.jobid\n")
                     if do_ti:
                         lambdas = open(f"{jpath}/submit_lambdas.sh", "w")
