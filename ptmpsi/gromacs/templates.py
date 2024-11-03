@@ -935,9 +935,9 @@ hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
 dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
 nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
 
-total_ns=$(echo "$dt * $nsteps / 1000" | bc)
+total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
 
-estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc)
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
 
 echo "Estimated number of hours: $estimated_hours"
 
