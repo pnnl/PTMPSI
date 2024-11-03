@@ -935,28 +935,24 @@ hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
 dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
 nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
 
-total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
+total_ns=$(echo "$dt * $nsteps / 1000" | bc)
 
-estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc)
 
 echo "Estimated number of hours: $estimated_hours"
 
 # Calculate number of runs needed
-num_runs=$(echo "($estimated_hours / {job_hours})" | bc)
-remainder=$(echo "$estimated_hours % {job_hours}" | bc)
-if [ "$(echo "$remainder > 0" | bc)" -eq 1 ]; then
-  num_runs=$(echo "$num_runs + 1" | bc)
-fi
+num_runs=$(echo "($estimated_hours / 2.0 + 0.5)" | bc -l)
+num_runs=$(printf "%.0f" "$num_runs")
 
 # Subtract num_runs by 1 to account for the first run aging in the queue
-num_runs=${{num_runs%.*}}
 if [ "$num_runs" -gt 0 ]; then
   num_runs=$(echo "$num_runs - 1" | bc)
 fi
 
-echo "Number of additional runs needed for $file: $num_runs"
-
 file=$(basename "{mdp_file}" .mdp)
+
+echo "Number of additional runs needed for $file: $num_runs"
 
 # Obtain the jobid of the first run
 jobid=$(cat ${{file}}.jobid)
