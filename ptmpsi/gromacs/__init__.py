@@ -285,6 +285,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
             ipath = os.path.join(path, f"lam-{i:02d}")
             os.chdir(ipath)
             with open(f"{infile[:-4]}_lam{i:02d}_slurm.sbatch","w") as fh:
+                slurm.update_jobname(f"{jobname}_lam{i:02d}")
                 fh.write(slurm.header)
                 fh.write(f"cd 01-q\n")
                 fh.write(f"ln -s ../rankfile1 rankfile1 \n")
