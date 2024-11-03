@@ -976,7 +976,7 @@ echo "Submitting lambdas"
 """
 check_and_update_topology = """
 file_jobid=$(cat {job}.jobid)
-self_jobid=${self_jobid}
+self_jobid={self_jobid}
 if [ $file_jobid -eq $self_jobid ]; then
   echo "This is the last {job} job. Checking to see if requested steps match completed steps."
   requested_nsteps=$(grep nsteps {job}.mdp | awk '{{print $3}}')
