@@ -55,6 +55,9 @@ ACE.coordinates = np.array([
  [3.427420, 2.640795, -2.981008E-06],
  [4.390580, 1.877406, -6.602501E-06]
 ])
+ACE.charges = np.array([
+ 0.1123, -0.3622, 0.1123, 0.1123, 0.5972, -0.5679   
+])
 ACE.backbone = np.array([0,1,4])
 co = ACE.coordinates[5] - ACE.coordinates[4]
 cc = ACE.coordinates[1] - ACE.coordinates[4]
@@ -88,6 +91,9 @@ ALA.coordinates = np.array([
  [5.485541, 2.705207, -4.398755E-06],
  [6.008824, 1.593175, -8.449768E-06]
 ])
+ALA.charges = np.array([
+-0.415700, 0.271900, 0.03370, 0.08230, -0.18250, 0.0603, 0.0603, 0.0603, 0.5973, -0.5679
+    ])
 ALA.backbone = np.array([0,2,8])
 ALA.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 nh = ALA.coordinates[1] - ALA.coordinates[0]
@@ -152,6 +158,32 @@ ARG.coordinates = np.array([
  [6.008824, 1.593175, -8.449768E-06]
 ])
 ARG.backbone = np.array([0,2,-2])
+ARG.charges = np.array([
+-0.347900,
+ 0.274700,
+-0.263700,
+ 0.156000,
+-0.000700,
+ 0.032700,
+ 0.032700,
+ 0.039000,
+ 0.028500,
+ 0.028500,
+ 0.048600,
+ 0.068700,
+ 0.068700,
+-0.529500,
+ 0.345600,
+ 0.807600,
+-0.862700,
+ 0.447800,
+ 0.447800,
+-0.862700,
+ 0.447800,
+ 0.447800,
+ 0.734100,
+-0.589400
+])
 nh = ARG.coordinates[1] - ARG.coordinates[0]
 can = ARG.coordinates[2] - ARG.coordinates[0]
 bisector = np.linalg.norm(nh)*can + np.linalg.norm(can)*nh
@@ -207,7 +239,21 @@ ASH.chi1 = np.array([
     ASH.find("N"), ASH.find("CA"), ASH.find ("CB"), ASH.find("CG") ])
 ASH.chi2 = np.array([
     ASH.find("CA"), ASH.find("CB"), ASH.find ("CG"), ASH.find("OD1") ])
-
+ASH.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.034100,
+ 0.086400,
+-0.031600,
+ 0.048800,
+ 0.048800,
+ 0.646200,
+-0.555400,
+-0.637600,
+ 0.474700,
+ 0.597300,
+-0.567900
+])
 
 ASN = Template()
 ASN.name = "ASN"
@@ -253,6 +299,23 @@ ASN.chi1 = np.array([
     ASN.find("N"), ASN.find("CA"), ASN.find ("CB"), ASN.find("CG") ])
 ASN.chi2 = np.array([
     ASN.find("CA"), ASN.find("CB"), ASN.find ("CG"), ASN.find("OD1") ])
+ASN.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.014300,
+ 0.104800,
+-0.204100,
+ 0.079700,
+ 0.079700,
+ 0.713000,
+-0.593100,
+-0.919100,
+ 0.419600,
+ 0.419600,
+ 0.597300,
+-0.567900
+])
+
 
 ASP = Template()
 ASP.name = "ASP"
@@ -294,7 +357,20 @@ ASP.chi1 = np.array([
     ASP.find("N"), ASP.find("CA"), ASP.find ("CB"), ASP.find("CG") ])
 ASP.chi2 = np.array([
     ASP.find("CA"), ASP.find("CB"), ASP.find ("CG"), ASP.find("OD1") ])
-
+ASP.charges = np.array([
+-0.516300,
+ 0.293600,
+ 0.038100,
+ 0.088000,
+-0.030300,
+-0.012200,
+-0.012200,
+ 0.799400,
+-0.801400,
+-0.801400,
+ 0.536600,
+-0.581900
+])
 
 CYM = Template()
 CYM.name = "CYM"
@@ -331,8 +407,18 @@ CYM.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 CYM.chi1 = np.array([
     CYM.find("N"), CYM.find("CA"), CYM.find ("CB"), CYM.find("SG") ])
 CYM.chi2 = None
-
-
+CYM.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.035100,
+ 0.050800,
+-0.241300,
+ 0.112200,
+ 0.112200,
+-0.884400,
+ 0.597300,
+-0.567900
+])
 
 CYS = Template()
 CYS.name = "CYS"
@@ -372,7 +458,19 @@ CYS.chi1 = np.array([
     CYS.find("N"), CYS.find("CA"), CYS.find ("CB"), CYS.find("SG") ])
 CYS.chi2 = np.array([
     CYS.find("CA"), CYS.find("CB"), CYS.find ("SG"), CYS.find("HG") ])
-
+CYS.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.021300,
+ 0.112400,
+-0.123100,
+ 0.111200,
+ 0.111200,
+-0.311900,
+ 0.193300,
+ 0.597300,
+-0.567900
+])
 
 CYX = Template()
 CYX.name = "CYX"
@@ -409,7 +507,17 @@ CYX.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 CYX.chi1 = np.array([
     CYX.find("N"), CYX.find("CA"), CYX.find ("CB"), CYX.find("SG") ])
 CYX.chi2 = None
-
+CYX.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.042900,
+ 0.076600,
+-0.079000,
+ 0.091000,
+ 0.091000,
+-0.108100,
+ 0.597300,
+-0.567900])
 
 GLH = Template()
 GLH.name = "GLH"
@@ -459,7 +567,23 @@ GLH.chi1 = np.array([
     GLH.find("N"), GLH.find("CA"), GLH.find ("CB"), GLH.find("CG") ])
 GLH.chi2 = np.array([
     GLH.find("CA"), GLH.find("CB"), GLH.find ("CG"), GLH.find("CD") ])
-
+GLH.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.014500,
+ 0.077900,
+-0.007100,
+ 0.025600,
+ 0.025600,
+-0.017400,
+ 0.043000,
+ 0.043000,
+ 0.680100,
+-0.583800,
+-0.651100,
+ 0.464100,
+ 0.597300,
+-0.567900])
 
 GLN = Template()
 GLN.name = "GLN"
@@ -511,8 +635,24 @@ GLN.chi1 = np.array([
     GLN.find("N"), GLN.find("CA"), GLN.find ("CB"), GLN.find("CG") ])
 GLN.chi2 = np.array([
     GLN.find("CA"), GLN.find("CB"), GLN.find ("CG"), GLN.find("CD") ])
-
-
+GLN.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.003100,
+ 0.085000,
+-0.003600,
+ 0.017100,
+ 0.017100,
+-0.064500,
+ 0.035200,
+ 0.035200,
+ 0.695100,
+-0.608600,
+-0.940700,
+ 0.425100,
+ 0.425100,
+ 0.597300,
+-0.567900])
 
 GLU = Template()
 GLU.name = "GLU"
@@ -560,7 +700,22 @@ GLU.chi1 = np.array([
     GLU.find("N"), GLU.find("CA"), GLU.find ("CB"), GLU.find("CG") ])
 GLU.chi2 = np.array([
     GLU.find("CA"), GLU.find("CB"), GLU.find ("CG"), GLU.find("CD") ])
-
+GLU.charges = np.array([
+-0.516300,
+ 0.293600,
+ 0.039700,
+ 0.110500,
+ 0.056000,
+-0.017300,
+-0.017300,
+ 0.013600,
+-0.042500,
+-0.042500,
+ 0.805400,
+-0.818800,
+-0.818800,
+ 0.536600,
+-0.581900])
 
 GLY = Template()
 GLY.name = "GLY"
@@ -588,7 +743,14 @@ can = GLY.coordinates[2] - GLY.coordinates[0]
 bisector = np.linalg.norm(nh)*can + np.linalg.norm(can)*nh
 GLY.nattach = -amidebond*bisector/np.linalg.norm(bisector) + GLY.coordinates[0]
 GLY.cattach = np.array([6.204455,3.702003,-2.420137E-06])
-
+GLY.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.025200,
+ 0.069800,
+ 0.069800,
+ 0.597300,
+-0.567900])
 
 HID = Template()
 HID.name = "HID"
@@ -640,7 +802,24 @@ HID.chi1 = np.array([
     HID.find("N"), HID.find("CA"), HID.find ("CB"), HID.find("CG") ])
 HID.chi2 = np.array([
     HID.find("CA"), HID.find("CB"), HID.find ("CG"), HID.find("ND1") ])
-
+HID.charges = np.array([
+-0.415700,
+ 0.271900,
+ 0.018800,
+ 0.088100,
+-0.046200,
+ 0.040200,
+ 0.040200,
+-0.026600,
+-0.381100,
+ 0.364900,
+ 0.205700,
+ 0.139200,
+-0.572700,
+ 0.129200,
+ 0.114700,
+ 0.597300,
+-0.567900])
 
 
 HIE = Template()
@@ -693,7 +872,24 @@ HIE.chi1 = np.array([
     HIE.find("N"), HIE.find("CA"), HIE.find ("CB"), HIE.find("CG") ])
 HIE.chi2 = np.array([
     HIE.find("CA"), HIE.find("CB"), HIE.find ("CG"), HIE.find("ND1") ])
-
+HIE.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.058100,
+ 0.136000,
+-0.007400,
+ 0.036700,
+ 0.036700,
+ 0.186800,
+-0.543200,
+ 0.163500,
+ 0.143500,
+-0.279500,
+ 0.333900,
+-0.220700,
+ 0.186200,
+ 0.597300,
+-0.567900])
 
 
 HIP = Template()
@@ -748,7 +944,25 @@ HIP.chi1 = np.array([
     HIP.find("N"), HIP.find("CA"), HIP.find ("CB"), HIP.find("CG") ])
 HIP.chi2 = np.array([
     HIP.find("CA"), HIP.find("CB"), HIP.find ("CG"), HIP.find("ND1") ])
-
+HIP.charges = np.array([
+-0.347900,
+ 0.274700,
+-0.135400,
+ 0.121200,
+-0.041400,
+ 0.081000,
+ 0.081000,
+-0.001200,
+-0.151300,
+ 0.386600,
+-0.017000,
+ 0.268100,
+-0.171800,
+ 0.391100,
+-0.114100,
+ 0.231700,
+ 0.734100,
+-0.589400])
 
 ILE = Template()
 ILE.name = "ILE"
@@ -804,7 +1018,27 @@ ILE.chi1 = np.array([
     ILE.find("N"), ILE.find("CA"), ILE.find ("CB"), ILE.find("CG1") ])
 ILE.chi2 = np.array([
     ILE.find("CA"), ILE.find("CB"), ILE.find ("CG1"), ILE.find("CD1") ])
-
+ILE.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.059700,
+ 0.086900,
+ 0.130300,
+ 0.018700,
+-0.320400,
+ 0.088200,
+ 0.088200,
+ 0.088200,
+-0.043000,
+ 0.023600,
+ 0.023600,
+-0.066000,
+ 0.018600,
+ 0.018600,
+ 0.018600,
+ 0.597300,
+-0.567900
+])
 
 LEU = Template()
 LEU.name = "LEU"
@@ -860,7 +1094,26 @@ LEU.chi1 = np.array([
     LEU.find("N"), LEU.find("CA"), LEU.find ("CB"), LEU.find("CG") ])
 LEU.chi2 = np.array([
     LEU.find("CA"), LEU.find("CB"), LEU.find ("CG"), LEU.find("CD1") ])
-
+LEU.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.051800,
+ 0.092200,
+-0.110200,
+ 0.045700,
+ 0.045700,
+ 0.353100,
+-0.036100,
+-0.412100,
+ 0.100000,
+ 0.100000,
+ 0.100000,
+-0.412100,
+ 0.100000,
+ 0.100000,
+ 0.100000,
+ 0.597300,
+-0.567900])
 
 LYN = Template()
 LYN.name = "LYN"
@@ -920,7 +1173,28 @@ LYN.chi1 = np.array([
     LYN.find("N"), LYN.find("CA"), LYN.find ("CB"), LYN.find("CG") ])
 LYN.chi2 = np.array([
     GLN.find("CA"), GLN.find("CB"), GLN.find ("CG"), GLN.find("CD") ])
-
+LYN.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.072060,
+ 0.099400,
+-0.048450,
+ 0.034000,
+ 0.034000,
+ 0.066120,
+ 0.010410,
+ 0.010410,
+-0.037680,
+ 0.011550,
+ 0.011550,
+ 0.326040,
+-0.033580,
+-0.033580,
+-1.035810,
+ 0.386040,
+ 0.386040,
+ 0.597300,
+-0.567900])
 
 
 LYS = Template()
@@ -983,7 +1257,29 @@ LYS.chi1 = np.array([
     LYS.find("N"), LYS.find("CA"), LYS.find ("CB"), LYS.find("CG") ])
 LYS.chi2 = np.array([
     LYS.find("CA"), LYS.find("CB"), LYS.find ("CG"), LYS.find("CD") ])
-
+LYS.charges = np.array([
+-0.347900,
+ 0.274700,
+-0.240000,
+ 0.142600,
+-0.009400,
+ 0.036200,
+ 0.036200,
+ 0.018700,
+ 0.010300,
+ 0.010300,
+-0.047900,
+ 0.062100,
+ 0.062100,
+-0.014300,
+ 0.113500,
+ 0.113500,
+-0.385400,
+ 0.340000,
+ 0.340000,
+ 0.340000,
+ 0.734100,
+-0.589400])
 
 MET = Template()
 MET.name = "MET"
@@ -1035,7 +1331,24 @@ MET.chi1 = np.array([
     MET.find("N"), MET.find("CA"), MET.find ("CB"), MET.find("CG") ])
 MET.chi2 = np.array([
     MET.find("CA"), MET.find("CB"), MET.find ("CG"), MET.find("SD") ])
-
+MET.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.023700,
+ 0.088000,
+ 0.034200,
+ 0.024100,
+ 0.024100,
+ 0.001800,
+ 0.044000,
+ 0.044000,
+-0.273700,
+-0.053600,
+ 0.068400,
+ 0.068400,
+ 0.068400,
+ 0.597300,
+-0.567900])
 
 
 NHE = Template()
@@ -1054,7 +1367,10 @@ nh1 = NHE.coordinates[1] - NHE.coordinates[0]
 nh2 = NHE.coordinates[2] - NHE.coordinates[0]
 bisector = np.linalg.norm(nh1)*nh2 + np.linalg.norm(nh2)*nh1
 NHE.nattach = -amidebond*bisector/np.linalg.norm(bisector) + NHE.coordinates[0]
-
+NHE.charges = np.array([
+-0.463000,
+ 0.231500,
+ 0.231500])
 
 NME = Template()
 NME.name = "NME"
@@ -1079,7 +1395,13 @@ nh = NME.coordinates[1] - NME.coordinates[0]
 nc = NME.coordinates[2] - NME.coordinates[0]
 bisector = np.linalg.norm(nh)*nc + np.linalg.norm(nc)*nh
 NME.nattach = -amidebond*bisector/np.linalg.norm(bisector) + NME.coordinates[0]
-
+NME.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.149000,
+ 0.097600,
+ 0.097600,
+ 0.097600])
 
 PHE = Template()
 PHE.name = "PHE"
@@ -1137,7 +1459,27 @@ PHE.chi1 = np.array([
     PHE.find("N"), PHE.find("CA"), PHE.find ("CB"), PHE.find("CG") ])
 PHE.chi2 = np.array([
     PHE.find("CA"), PHE.find("CB"), PHE.find ("CG"), PHE.find("CD1") ])
-
+PHE.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.002400,
+ 0.097800,
+-0.034300,
+ 0.029500,
+ 0.029500,
+ 0.011800,
+-0.125600,
+ 0.133000,
+-0.170400,
+ 0.143000,
+-0.107200,
+ 0.129700,
+-0.170400,
+ 0.143000,
+-0.125600,
+ 0.133000,
+ 0.597300,
+-0.567900])
 
 PRO = Template()
 PRO.name = "PRO"
@@ -1179,7 +1521,21 @@ cdn = PRO.coordinates[1] - PRO.coordinates[0]
 can = PRO.coordinates[10] - PRO.coordinates[0]
 bisector = np.linalg.norm(cdn)*can + np.linalg.norm(can)*cdn
 PRO.nattach = -amidebond*bisector/np.linalg.norm(bisector) + PRO.coordinates[0]
-
+PRO.charges = np.array([
+-0.254800,
+ 0.019200,
+ 0.039100,
+ 0.039100,
+ 0.018900,
+ 0.021300,
+ 0.021300,
+-0.007000,
+ 0.025300,
+ 0.025300,
+-0.026600,
+ 0.064100,
+ 0.589600,
+-0.574800])
 
 SER = Template()
 SER.name = "SER"
@@ -1218,7 +1574,18 @@ SER.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 SER.chi1 = np.array([
     SER.find("N"), SER.find("CA"), SER.find ("CB"), SER.find("OG") ])
 SER.chi2 = None
-
+SER.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.024900,
+ 0.084300,
+ 0.211700,
+ 0.035200,
+ 0.035200,
+-0.654600,
+ 0.427500,
+ 0.597300,
+-0.567900])
 
 THR = Template()
 THR.name = "THR"
@@ -1263,7 +1630,21 @@ THR.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 THR.chi1 = np.array([
     THR.find("N"), THR.find("CA"), THR.find ("CB"), THR.find("CG2") ])
 THR.chi2 = None
-
+THR.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.038900,
+ 0.100700,
+ 0.365400,
+ 0.004300,
+-0.243800,
+ 0.064200,
+ 0.064200,
+ 0.064200,
+-0.676100,
+ 0.410200,
+ 0.597300,
+-0.567900])
 
 TRP = Template()
 TRP.name = "TRP"
@@ -1329,7 +1710,31 @@ TRP.chi1 = np.array([
     TRP.find("N"), TRP.find("CA"), TRP.find ("CB"), TRP.find("CG") ])
 TRP.chi2 = np.array([
     TRP.find("CA"), TRP.find("CB"), TRP.find ("CG"), TRP.find("CD1") ])
-
+TRP.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.027500,
+ 0.112300,
+-0.005000,
+ 0.033900,
+ 0.033900,
+-0.141500,
+-0.163800,
+ 0.206200,
+-0.341800,
+ 0.341200,
+ 0.138000,
+-0.260100,
+ 0.157200,
+-0.113400,
+ 0.141700,
+-0.197200,
+ 0.144700,
+-0.238700,
+ 0.170000,
+ 0.124300,
+ 0.597300,
+-0.567900])
 
 
 TYR = Template()
@@ -1390,7 +1795,28 @@ TYR.chi1 = np.array([
     TYR.find("N"), TYR.find("CA"), TYR.find ("CB"), TYR.find("CG") ])
 TYR.chi2 = np.array([
     TYR.find("CA"), TYR.find("CB"), TYR.find ("CG"), TYR.find("CD1") ])
-
+TYR.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.001400,
+ 0.087600,
+-0.015200,
+ 0.029500,
+ 0.029500,
+-0.001100,
+-0.190600,
+ 0.169900,
+-0.234100,
+ 0.165600,
+ 0.322600,
+-0.557900,
+ 0.399200,
+-0.234100,
+ 0.165600,
+-0.190600,
+ 0.169900,
+ 0.597300,
+-0.567900])
 
 
 VAL = Template()
@@ -1440,3 +1866,20 @@ VAL.cattach = np.array([6.204455,3.702003,-2.420137E-06])
 VAL.chi1 = np.array([
     VAL.find("N"), VAL.find("CA"), VAL.find ("CB"), VAL.find("CG1") ])
 VAL.chi2 = None
+VAL.charges = np.array([
+-0.415700,
+ 0.271900,
+-0.087500,
+ 0.096900,
+ 0.298500,
+-0.029700,
+-0.319200,
+ 0.079100,
+ 0.079100,
+ 0.079100,
+-0.319200,
+ 0.079100,
+ 0.079100,
+ 0.079100,
+ 0.597300,
+-0.567900])

@@ -382,8 +382,8 @@ free_energy              = yes
 delta_lambda             = 0
 ;
 ;couple-moltype          = ATC-A
-couple-intramol         = vdw-q
-couple-lambda0          = vdw-q
+couple-intramol         = no #it was vdw-q which is incorrect, Edited by Hoshin (102824)
+couple-lambda0          = vdw #it must be vdw, not vdw-q during vdw step, Edited by Hoshin (102824)
 couple-lambda1          = none
 init_lambda_state       = {lambda_state}
 calc_lambda_neighbors   = 1
@@ -391,7 +391,7 @@ calc_lambda_neighbors   = 1
 vdw_lambdas             = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 ; We are not transforming any bonded or restrained interactions
-bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 # NEED TO BE MODIFIED LATER 
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
 mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00

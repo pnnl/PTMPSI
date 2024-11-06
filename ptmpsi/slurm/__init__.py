@@ -29,6 +29,27 @@ class Partition:
         self.default = False
         self.options = options
 
+deception = Machine(
+  name = "DECEPTION",
+  partitions = {
+    "slurm": Partition(
+        name = "slurm",
+        memory  = 256,
+        ncpus   = 64,
+        ngpus   = 0,
+        maxtime = 0,
+        maxnode = 200
+        ),
+    "short": Partition(
+        name = "short",
+        memory = 256,
+        ncpus  = 64,
+        ngpus  = 0,
+        maxtime = 200
+        )
+  }
+
+)
 
 aqe_ldrd = Machine(
   name="AQE-LDRD",
