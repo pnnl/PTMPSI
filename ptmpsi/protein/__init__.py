@@ -128,7 +128,7 @@ class Protein:
 
 
     @staticmethod
-    def addchain(chains,chain,residues,natoms,resid,nmissing):
+    def addchain(chains, chain, residues, natoms, resid, nmissing):
         _chain = Chain(chain)
         _chain.residues = copy.deepcopy(residues)
         _chain.natoms = natoms
@@ -307,13 +307,15 @@ class Protein:
 
         if do_pdb2pqr:
             # Save current state
-            __original_protein = copy.deepcopy(self)
+            __chain_map = { self.chains[ichain].name: ichain for ichain in range(len(self.chains)) }
+            __original_names = [[self.chains[ichain].residues[iresidue].name for iresidue in range(len(self.chains[ichain].residues))] for ichain in range(len(self.chains)) ]
             self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
             # Restore residue naming in case PDB2PQR changed it
             __updates = []
             for ichain in range(len(self.chains)):
+                jchain = __chain_map[self.chains[ichain].name]
                 for iresidue in range(len(self.chains[ichain].residues)):
-                    __original_name = __original_protein.chains[ichain].residues[iresidue].name
+                    __original_name = __original_names[jchain][iresidue]
                     __pdb2pqr_name  = self.chains[ichain].residues[iresidue].name
                     if __original_name != __pdb2pqr_name:
                         __updates.append([ ichain, iresidue, __original_name])
