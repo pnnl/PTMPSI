@@ -318,6 +318,18 @@ class Protein:
         machine = kwargs.get("machine", "")
         machine = machine.capitalize()
 
+        if machine == "Polaris":
+            submit_cmd = "qsub"
+            dependency = "-W depend"
+            sed = ""
+        else:
+            submit_cmd = "sbatch"
+            dependency = "--dependency"
+            sed = "| sed 's/Submitted batch job //'"
+        auto_submit_ti = kwargs.get("auto_submit_ti", True)
+        
+        checkpointing = kwargs.get("checkpointing", True)
+
         ff = ff.lower()
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
@@ -415,21 +427,31 @@ class Protein:
 
                     # Update submission script
                     submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    if machine == "Polaris":
-                        submit.write(f"jobid=$(qsub {prefix}{j:04d}_slurm.sbatch) \n")
-                    else:
-                        submit.write(f"jobid=$(sbatch {prefix}{j:04d}_slurm.sbatch | sed 's/Submitted batch job //') \n")
+                    submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
+                    submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
+                    if checkpointing:
+                        submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md.sbatch {sed}) \n")
+                        submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                        submit.write(f"echo $jobid > md.jobid\n")
                     if do_ti:
-                        submit.write(f"cd dualti\n")
+                        lambdas = open(f"{jpath}/submit_lambdas.sh", "w")
+                        lambdas.write("#!/bin/bash\n")
+                        lambdas.write("jobid=${1:-\"\"}\n")
+                        lambdas.write(f"cd dualti\n")
                         for k in range(13):
-                            submit.write(f"cd lam-{k:02d}\n")
-                            if machine == "Polaris":
-                                submit.write(f"qsub -W depend=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
-                            else:
-                                submit.write(f"sbatch --dependency=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
-                            submit.write(f"cd ../ \n")
-                            submit.write(f"sleep 1s \n")
-                        submit.write(f"cd ../ \n")
+                            lambdas.write(f"cd lam-{k:02d}\n")
+                            lambdas.write(f"if [ -z \"$jobid\" ]; then\n")
+                            lambdas.write(f"  {submit_cmd} {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                            lambdas.write(f"else\n")
+                            lambdas.write(f"  {submit_cmd} {dependency}=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                            lambdas.write(f"fi\n")
+                            lambdas.write(f"cd ../ \n")
+                            lambdas.write(f"sleep 1s \n")
+                        lambdas.write(f"cd ../ \n")
+                        lambdas.close()
+                        subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
+                        if not checkpointing and auto_submit_ti:
+                            submit.write(f"./submit_lambdas.sh $jobid\n")
                     submit.write(f"cd {os.path.relpath(path, jpath)} \n")
                     submit.write(f"sleep 1s \n")
                     submit.write(f"\n\n")
