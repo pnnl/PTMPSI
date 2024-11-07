@@ -326,6 +326,7 @@ class Protein:
             submit_cmd = "sbatch"
             dependency = "--dependency"
             sed = "| sed 's/Submitted batch job //'"
+        auto_submit_ti = kwargs.get("auto_submit_ti", True)
         
         checkpointing = kwargs.get("checkpointing", True)
 
@@ -449,7 +450,7 @@ class Protein:
                         lambdas.write(f"cd ../ \n")
                         lambdas.close()
                         subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
-                        if not checkpointing:
+                        if not checkpointing and auto_submit_ti:
                             submit.write(f"./submit_lambdas.sh $jobid\n")
                     submit.write(f"cd {os.path.relpath(path, jpath)} \n")
                     submit.write(f"sleep 1s \n")
