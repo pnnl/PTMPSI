@@ -116,7 +116,13 @@ aqe_ldrd.partitions["std120c"]  = aqe_ldrd.partitions["standard"]
 aqe_ldrd.partitions["bsc120c"]  = aqe_ldrd.partitions["basic"]
 aqe_ldrd.partitions["premium"].default = True
 
-
+def get_machine_name(machine_in):
+  if isinstance(machine_in, Machine):
+      return machine_in.name
+  elif isinstance(machine_in, str):
+      return machine_in
+  else:
+      raise TypeError("Machine is not a string or an instance of the Machine class")
 
 aqe_h100 = Machine(name="AQE-H100",
   partitions={
@@ -195,10 +201,10 @@ frontier = Machine(name="Frontier",
                               ngpus=8, maxtime=2, maxnode=8192,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
                       "container": "",
                       "gmx": "gmx_mpi",
-                      "ntasks": 8,
+                      "ntasks": 7,
                       "nthreads": 7,
                       "nstlist": 300
                       }
@@ -207,10 +213,10 @@ frontier = Machine(name="Frontier",
                               ngpus=8, maxtime=24, maxnode=64,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
                       "container": "",
                       "gmx": "gmx_mpi",
-                      "ntasks": 8,
+                      "ntasks": 7,
                       "nthreads": 7,
                       "nstlist": 300
                       }
