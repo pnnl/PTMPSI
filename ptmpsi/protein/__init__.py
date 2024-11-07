@@ -14,6 +14,7 @@ from ptmpsi.docking import Dock, dock_ligand
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
 from ptmpsi.gromacs.templates import qlambdas, vdwlambdas
+from ptmpsi.slurm import get_machine_name
 
 
 class Chain:
@@ -316,6 +317,7 @@ class Protein:
         gpu_id    = kwargs.pop("gpu_id", "")
 
         machine = kwargs.get("machine", "")
+        machine = get_machine_name(machine)
         machine = machine.capitalize()
 
         if machine == "Polaris":
