@@ -14,6 +14,7 @@ from ptmpsi.docking import Dock, dock_ligand
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
 from ptmpsi.gromacs.templates import qlambdas, vdwlambdas
+from ptmpsi.slurm import get_machine_name
 
 
 class Chain:
@@ -316,6 +317,7 @@ class Protein:
         gpu_id    = kwargs.pop("gpu_id", "")
 
         machine = kwargs.get("machine", "")
+        machine = get_machine_name(machine)
         machine = machine.capitalize()
 
         if machine == "Polaris":
@@ -351,7 +353,18 @@ class Protein:
         prefix = "" if prefix is None else f"{prefix}_"
 
         if do_pdb2pqr:
+            # Save current state
+            __original_protein = copy.deepcopy(self)
             self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+            # Restore residue naming in case PDB2PQR changed it
+            __updates = []
+            for ichain in range(len(self.chains)):
+                for iresidue in range(len(self.chains[ichain].residues)):
+                    __original_name = __original_protein.chains[ichain].residues[iresidue].name
+                    __pdb2pqr_name  = self.chains[ichain].residues[iresidue].name
+                    if __original_name != __pdb2pqr_name:
+                        __updates.append([ ichain, iresidue, __original_name])
+                        self.chains[ichain].residues[iresidue].name = __original_name
         else:
             self.write_pdb(f"{path}/{prefix}protonated.pdb")
 
@@ -367,6 +380,12 @@ class Protein:
                     jpath = os.path.join(ipath,f"{j:04d}")
                     os.mkdir(jpath)
                     _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
+                    #
+                    # Restore original names
+                    #
+                    for update in __updates:
+                        _protein.chains[update[0]].residues[update[1]].name = update[2]
+
                     string = ""
                     for _ptm in combi:
                         _protein.modify(_ptm[0], _ptm[1])
