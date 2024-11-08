@@ -651,7 +651,7 @@ slurm_header['Frontier'] = """#!/bin/bash
 export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
 
 module use /ccs/proj/bip258/apps/modulefiles
-module load gromacs/2024.3
+module load gromacs/2024.4
 
 NTASKS=$SLURM_NTASKS
 CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
