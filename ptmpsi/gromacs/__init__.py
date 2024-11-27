@@ -249,7 +249,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                 fh.write(submit_lambdas)
             checkpoint_arg = "-cpi md.cpt"
             # If the queue is preemptable, maxh won't work well.
-            if slurm.machine.name == "Polaris" and slurm.partition.name == "preemptable":
+            if slurm.machine.name == "Polaris" and slurm.partition == "preemptable":
                 maxh = ""
             else:
                 maxh = f"-maxh {slurm.get_time_hours()}"
