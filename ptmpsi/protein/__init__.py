@@ -1,3 +1,4 @@
+import os
 import requests
 import copy
 import numpy as np
@@ -14,7 +15,8 @@ from ptmpsi.docking import Dock, dock_ligand
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
 from ptmpsi.gromacs.templates import qlambdas, vdwlambdas
-from ptmpsi.slurm import get_machine_name
+from ptmpsi.slurm import get_machine_name, convert_time_hours
+from ptmpsi.gromacs.templates import flux_header, check_and_queue_estimated_runs_flux
 
 
 class Chain:
@@ -296,7 +298,6 @@ class Protein:
         return combinations
 
     def gen_ptm_files(self, combinations, path=None, prefix=None, ff='amber99sb', **kwargs):
-        import os
         import uuid
         import time
         import shutil
@@ -332,6 +333,10 @@ class Protein:
         
         checkpointing = kwargs.get("checkpointing", True)
 
+        bundling = kwargs.get("bundling", False)
+        jobtime_hours = kwargs.get("time", "12") - 0.2
+        # jobtime = convert_time_hours(jobtime_hours)
+
         ff = ff.lower()
         if ff not in ["amber99sb", "amber99zn", "amber14sb"]:
             KeyError(f"Forcefield '{ff}' not available")
@@ -356,7 +361,7 @@ class Protein:
             # Save current state
             __chain_map = { self.chains[ichain].name: ichain for ichain in range(len(self.chains)) }
             __original_names = [[self.chains[ichain].residues[iresidue].name for iresidue in range(len(self.chains[ichain].residues))] for ichain in range(len(self.chains)) ]
-            self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+            self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr", path=path)
             # Restore residue naming in case PDB2PQR changed it
             __updates = []
             for ichain in range(len(self.chains)):
@@ -372,6 +377,47 @@ class Protein:
 
         submit = open(f"{path}/submit.sh", "w")
         submit.write("#!/bin/bash\n")
+        if bundling:
+            njobs = sum([len(i) for i in combinations])
+            submit.write(f"cd {path}\n")
+            submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
+            submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
+            if checkpointing:
+                submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
+                submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                submit.write(f"echo $jobid > md.jobid\n")
+            else:
+                raise NotImplementedError("Checkpointing is currently required for bundling")
+            if do_ti and auto_submit_ti:
+                raise NotImplementedError("Auto submit for TI is not yet implemented for bundling")
+                submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid ti.sbatch {sed}) \n")
+                submit.write(f"echo \"Submitted ti.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                submit.write(f"echo $jobid > ti.jobid\n")
+            for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
+                with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
+                    fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
+                    fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
+                subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
+                with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
+                    for i in range(len(combinations)):
+                        for j in range(len(combinations[i])):
+                            if scriptname == "":
+                                runscript = f"{scriptname}{j:04d}_slurm.sbatch"
+                            else:
+                                runscript = scriptname
+                            fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
+                with open(os.path.join(path, f"{prefix}{jobname}bundle_flux.sh"), "w") as fh:
+                    fh.write("#!/bin/bash\n")
+                    fh.write("flux resource list\n")
+                    fh.write("while IFS= read -r line; do\n")
+                    fh.write("  dir=$(dirname $line)\n")
+                    fh.write("  base=$(basename $line)\n")
+                    fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
+                    fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
+                    fh.write("flux queue drain\n")
+                    if jobname == "":
+                        fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
+                subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
         with open(f"{path}/README", "w") as fh:
             today = time.ctime()
             fh.write(f"""Files generated on {today}\n""")
@@ -447,13 +493,14 @@ class Protein:
                     fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
 
                     # Update submission script
-                    submit.write(f"cd {os.path.relpath(jpath, path)} \n")
-                    submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
-                    submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
-                    if checkpointing:
-                        submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md.sbatch {sed}) \n")
-                        submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
-                        submit.write(f"echo $jobid > md.jobid\n")
+                    if not bundling:
+                        submit.write(f"cd {os.path.relpath(jpath, path)} \n")
+                        submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
+                        submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
+                        if checkpointing:
+                            submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md.sbatch {sed}) \n")
+                            submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                            submit.write(f"echo $jobid > md.jobid\n")
                     if do_ti:
                         lambdas = open(f"{jpath}/submit_lambdas.sh", "w")
                         lambdas.write("#!/bin/bash\n")
@@ -473,10 +520,12 @@ class Protein:
                         subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
                         if not checkpointing and auto_submit_ti:
                             submit.write(f"./submit_lambdas.sh $jobid\n")
-                    submit.write(f"cd {os.path.relpath(path, jpath)} \n")
-                    submit.write(f"sleep 1s \n")
-                    submit.write(f"\n\n")
+                    if not bundling:
+                        submit.write(f"cd {os.path.relpath(path, jpath)} \n")
+                        submit.write(f"sleep 1s \n")
+                        submit.write(f"\n\n")
         submit.close()
+        subprocess.run(["chmod", "+x", f"{path}/submit.sh"])
         os.chdir(cwd)
 
         return uid
@@ -533,7 +582,7 @@ class Protein:
         dock_ligand(self.docking)
         return
 
-    def protonate(self, pdbin=None, pdb=None, pqr=None, ph=7):
+    def protonate(self, pdbin=None, pdb=None, pqr=None, ph=7, path="."):
         # Check if pdb2pqr30 is in the path
         if which("pdb2pqr30") is None:
             raise KeyError("Cannot find PDB2PQR")
@@ -552,7 +601,7 @@ class Protein:
         else:
             if (pdb is None) or (pqr is None):
                 raise KeyError("Provide a PDB and PQR filename for protonoation output")
-        fh = open("pdb2pqr.log","w")
+        fh = open(os.path.join(path, "pdb2pqr.log"),"w")
         subprocess.run(["pdb2pqr30",
             "--ff","AMBER",
             "--ffout","AMBER",
