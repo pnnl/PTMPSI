@@ -198,15 +198,22 @@ perlmutter.partitions["regular"].default = True
 frontier = Machine(name="Frontier",
         partitions={
             "batch": Partition(name="batch", memory=0, ncpus=56,
-                              ngpus=8, maxtime=2, maxnode=8192,
+                              ngpus=8, maxtime=12, maxnode=9408,
                               options = {
                     "gromacs": {
                       "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-node=8",
+                      "gputasks": "45236701",
                       "container": "",
                       "gmx": "gmx_mpi",
                       "ntasks": 7,
                       "nthreads": 7,
                       "nstlist": 300
+                      },
+                      "timebins": {
+                        91: 2,
+                        183: 6,
+                        float('inf'): 12
                       }
                     }),
             "extended": Partition(name="extended", memory=0, ncpus=56,
@@ -214,6 +221,8 @@ frontier = Machine(name="Frontier",
                               options = {
                     "gromacs": {
                       "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7",
+                      "gputasks": "45236701",
                       "container": "",
                       "gmx": "gmx_mpi",
                       "ntasks": 7,
@@ -294,6 +303,7 @@ class Slurm:
             from ptmpsi.alphafold.templates import slurm_header
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
+            from ptmpsi.gromacs.templates import flux_header
 
         __machine = kwargs.pop("machine", default_machine)
         if isinstance(__machine, Machine):
@@ -344,6 +354,15 @@ class Slurm:
         self.nnodes  = kwargs.pop("nnodes", 1)
         if self.nnodes > _partition.maxnode:
             raise KeyError(f"Partition '{self.partition}' has only {_partition.maxnode} nodes available")
+        if _partition.options.get("timebins") is not None:
+            maxtime = 0
+            for k,v in _partition.options["timebins"].items():
+                if self.nnodes <= k:
+                    maxtime = v
+                else:
+                    break
+            if _time > maxtime:
+                raise ValueError(f"Partition '{self.partition}' has a maximum time policy of '{maxtime}' per job for '{self.nnodes}' nodes. Please consider lowering the time or raising the number of nodes.")
 
         self.scratch = kwargs.pop("scratch", self.machine.scratchdir)
 
@@ -380,4 +399,8 @@ class Slurm:
         self.header = self._header_template.format(**self.options_dictionary)
         return
 
-
+def convert_time_hours(time):
+        hours = int(time)
+        minutes = int((time - hours) * 60)
+        seconds = int(((time - hours) * 60 - minutes) * 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"

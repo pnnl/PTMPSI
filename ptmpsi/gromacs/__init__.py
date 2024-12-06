@@ -1,7 +1,8 @@
-from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas
+from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas,write_estimated_runs,flux_node_header
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.slurm import Slurm
 import numpy as np
+import subprocess
 
 _navogadro = 6.0221408E23
 _cm2nm = 1.0E7
@@ -102,15 +103,22 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     slurm = Slurm("gromacs", jobname=jobname, **kwargs)
     gmx       = kwargs.pop("gmx", "gmx")
     container = kwargs.pop("container", "")
+    bundling = kwargs.get("bundling", False)
     if slurm.machine.name == "Polaris":
         # gpu_id = kwargs.pop("gpu_tasks", "")
         # gpu_id = f"-gputasks {gpu_id}" if len(gpu_id) > 0 else ""
         gpu_id = "" # Auto GPU assignment
     else:
-        gpu_id    = kwargs.pop("gpu_id", "")
-        gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
+        if slurm.machine.name == "Frontier" and bundling:
+            gpu_id = f"-gputasks {kwargs.get('gputasks', '')}"
+        else:
+            gpu_id    = kwargs.pop("gpu_id", "")
+            gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
     if slurm.machine.name == "Frontier":
-        mpirun    = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
+        if bundling:
+            mpirun = kwargs.pop("fluxrun", f"flux run -n {slurm.ncpus}")
+        else:
+            mpirun = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
     elif slurm.machine.name == "Polaris":
         mpirun    = kwargs.pop("mpirun", f"mpiexec -n {slurm.ncpus}")
     else:
@@ -120,6 +128,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     do_ti     = kwargs.get("thermo", True)
     subindex  = kwargs.pop("subindex", "")
     checkpointing = kwargs.pop("checkpointing", True)
+
+    if bundling:
+        assert slurm.machine.name == "Frontier", "Bundling is currently only supported on Frontier"
 
     if slurm.machine.name == "Polaris":
         submit_cmd = "qsub"
@@ -139,7 +150,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     addion = f"-np {npos} -nn {nneg}" if conc is None else "-neutral -conc {}".format(conc)
 
     if slurm.machine.name == "Frontier":
-        single_mpiexec = "srun -n 1"
+        single_mpiexec = "flux run -n 1" if bundling else "srun -n 1"
     elif slurm.machine.name == "Polaris":
         single_mpiexec = "mpiexec -n 1"
     else:
@@ -157,7 +168,12 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
     # Write the slurm submission script
     with open(f"{infile[:-4]}_slurm.sbatch","w") as fh:
-        fh.write(slurm.header)
+        if bundling:
+            fh.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
+            fh.write("flux resource list\n")
+            fh.write("module list\n")
+        else:
+            fh.write(slurm.header)
 
         # PDB2GMX
         fh.write(f"""echo -e "1\\n1" | {single_mpiexec} {container} {gmx} pdb2gmx -f {infile} -o step1.gro -merge all -ignh \n""")
@@ -244,15 +260,18 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         fh.write(f"{single_mpiexec} {container} {gmx} grompp -f md.mdp -c fnpt.gro -t fnpt.cpt -p topol.top -n index.ndx -o md.tpr\n")
 
         if checkpointing:
-            fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
-            if auto_submit_ti:
-                fh.write(submit_lambdas)
+            if not bundling:
+                fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
+                if auto_submit_ti:
+                    fh.write(submit_lambdas)
+            else:
+                fh.write(write_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
             checkpoint_arg = "-cpi md.cpt"
             # If the queue is preemptable, maxh won't work well.
             if slurm.machine.name == "Polaris" and slurm.partition == "preemptable":
                 maxh = ""
             else:
-                maxh = f"-maxh {slurm.get_time_hours()}"
+                maxh = f"-maxh {slurm.get_time_hours() - 0.2}"
         else:
             checkpoint_arg = ""
             maxh = ""
@@ -267,11 +286,19 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         if checkpointing:
             with open("md.sbatch","w") as md_sbatch:
                 slurm.update_jobname(f"{jobname}_md")
-                md_sbatch.write(slurm.header)
+                if bundling:
+                    md_sbatch.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
+                    md_sbatch.write("flux resource list\n")
+                    md_sbatch.write("module list\n")
+                else:
+                    md_sbatch.write(slurm.header)
                 md_sbatch.write(md_cmd)
                 # GENERATE TOPOLOGY FOR TI
                 if do_ti:
-                    md_sbatch.write(check_and_update_topology.format(job='md', self_jobid=self_jobid))
+                    jobpath = "../../md" if bundling else "md"
+                    md_sbatch.write(check_and_update_topology.format(job='md', jobpath=jobpath, self_jobid=self_jobid))
+            if bundling:
+                subprocess.run(["chmod", "+x", "md.sbatch"])
         else:
             fh.write(md_cmd)
             # GENERATE TOPOLOGY FOR TI
@@ -279,6 +306,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                 fh.write("\n")
                 fh.write("cd dualti\n")
                 fh.write("python update_topology.py\n")
+    if bundling:
+        subprocess.run(["chmod", "+x", f"{infile[:-4]}_slurm.sbatch"])
 
     if do_ti:
         for i in range(13):

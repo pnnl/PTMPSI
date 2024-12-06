@@ -717,6 +717,49 @@ echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= 
 
 """
 
+flux_header = {}
+
+flux_header['Frontier'] = """#!/bin/bash
+#SBATCH --partition={partition}
+#SBATCH --account={account}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+module use /ccs/proj/bip258/apps/modulefiles
+module load gromacs/2024.4
+module load hwloc/2.9.1-gpu # Flux requires a GPU-enabled hwloc to see the GPUs
+module load flux
+
+"""
+flux_node_header = {}
+flux_node_header['Frontier'] = """#!/bin/bash
+# From the user
+{user}
+
+export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
+
+module use /ccs/proj/bip258/apps/modulefiles
+module load gromacs/2024.4
+
+export OMP_STACKSIZE=4G
+export OMP_NUM_THREADS=7
+export TMPDIR=${{SCRATCH}}
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+export SYCL_CACHE_PERSISTENT=1
+
+"""
+
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008
@@ -962,6 +1005,60 @@ with open("TItop.top", "w") as topo:
       topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
 """
+check_and_queue_estimated_runs_flux = """
+maxestruns=0
+while IFS= read -r line; do
+  dir=$(dirname $line)
+  estruns=$(cat ${{dir}}/estruns.txt)
+  if [ $estruns -gt $maxestruns ]; then
+    maxestruns=$estruns
+  fi
+done < {prefix}{jobname}_fluxjobs.txt
+echo $maxestruns > {prefix}maxestruns.txt
+echo "Number of additional runs needed: $maxestruns"
+
+# Obtain the jobid of the first run
+jobid=$(cat {jobname}.jobid)
+
+for i in $(seq 1 $maxestruns); do
+  sleep 1s
+  echo "Batching run $i"
+  jobid=$({submit_cmd} {dependency}=afterok:$jobid {jobname}.sbatch {sed})
+  echo "Submitted job $jobid"
+done
+
+echo $jobid > ${jobname}.jobid
+"""
+write_estimated_runs = """
+
+# Extract performance value from log file
+hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
+
+# Extract dt and nsteps from mdp file
+dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
+nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
+
+total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
+
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
+
+echo "Estimated number of hours: $estimated_hours"
+
+# Calculate number of runs needed
+num_runs=$(echo "($estimated_hours / 2.0 + 0.5)" | bc -l)
+num_runs=$(printf "%.0f" "$num_runs")
+
+# Subtract num_runs by 1 to account for the first run aging in the queue
+if [ "$num_runs" -gt 0 ]; then
+  num_runs=$(echo "$num_runs - 1" | bc)
+fi
+
+file=$(basename "{mdp_file}" .mdp)
+
+echo "Number of additional runs needed for $file: $num_runs"
+
+echo $num_runs > estruns.txt
+"""
 queue_estimated_runs = """
 
 # Extract performance value from log file
@@ -1007,7 +1104,7 @@ echo "Submitting lambdas"
 ./submit_lambdas.sh $jobid
 """
 check_and_update_topology = """
-file_jobid=$(cat {job}.jobid)
+file_jobid=$(cat {jobpath}.jobid)
 self_jobid={self_jobid}
 if [ $file_jobid -eq $self_jobid ]; then
   echo "This is the last {job} job. Checking to see if requested steps match completed steps."
