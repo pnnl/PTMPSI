@@ -296,6 +296,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                 # GENERATE TOPOLOGY FOR TI
                 if do_ti:
                     jobpath = "../../md" if bundling else "md"
+                    self_jobid = "$(cat ../../md_current.jobid)" if bundling else self_jobid
                     md_sbatch.write(check_and_update_topology.format(job='md', jobpath=jobpath, self_jobid=self_jobid))
             if bundling:
                 subprocess.run(["chmod", "+x", "md.sbatch"])
