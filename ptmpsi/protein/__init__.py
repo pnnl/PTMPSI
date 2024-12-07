@@ -396,7 +396,7 @@ class Protein:
             for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
                 with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
                     fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
-                    fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid")
+                    fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid\n")
                     fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
                 subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
                 with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
