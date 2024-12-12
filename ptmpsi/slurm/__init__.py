@@ -202,7 +202,7 @@ frontier = Machine(name="Frontier",
                               options = {
                     "gromacs": {
                       "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
-                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-node=8",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-task=1",
                       "gputasks": "45236701",
                       "container": "",
                       "gmx": "gmx_mpi",
@@ -221,7 +221,7 @@ frontier = Machine(name="Frontier",
                               options = {
                     "gromacs": {
                       "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
-                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-task=1",
                       "gputasks": "45236701",
                       "container": "",
                       "gmx": "gmx_mpi",
