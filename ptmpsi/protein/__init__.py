@@ -4,6 +4,7 @@ import copy
 import numpy as np
 import subprocess
 import warnings
+import concurrent.futures
 from shutil import which
 from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, one2three, Residue
@@ -297,6 +298,91 @@ class Protein:
                     )
         return combinations
 
+    def process_combination(self, protonated_protein, i, j, combi, path, prefix, ff, do_ti, gpu_id, nsteps, timestep, nsplit, temp, cofactorpdb, submit_cmd, dependency, **kwargs):
+        ipath = os.path.join(path, f"{i+1}tuples")
+        jpath = os.path.join(ipath, f"{j:04d}")
+        os.makedirs(jpath, exist_ok=True)
+        _protein = copy.deepcopy(protonated_protein)
+
+        string = ""
+        for _ptm in combi:
+            _protein.modify(_ptm[0], _ptm[1])
+            string += f" {_ptm[0]} -> {_ptm[1]}; "
+        os.chdir(jpath)
+        os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+        os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+        os.symlink(os.path.relpath(f"{path}/specbond.dat", "./"), f"specbond.dat")
+
+        # Thermodynamic integration, symlinks will be broken until file generation
+        if do_ti:
+            os.mkdir("./dualti")
+            kpath = os.path.join(jpath, "dualti")
+            os.chdir(kpath)
+            os.symlink(os.path.relpath(f"{jpath}/topol.top", "./"), f"topol.top")
+            for k in range(13):
+                os.mkdir(f"{kpath}/lam-{k:02d}")
+                qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
+                os.mkdir(qpath)
+                os.chdir(qpath)
+                os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
+                os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                os.symlink(os.path.relpath(f"{jpath}/md.cpt", "./"), f"md.cpt")
+                os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                with open("grompp.mdp", "w") as grompp:
+                    grompp.write(qlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
+                os.chdir(jpath)
+                qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
+                os.mkdir(qpath)
+                os.chdir(qpath)
+                os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
+                os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
+                os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
+                os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
+                os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
+                with open("grompp.mdp", "w") as grompp:
+                    grompp.write(vdwlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
+                os.chdir(kpath)
+            os.chdir(jpath)
+
+        # Generate SLURM script
+        amber_to_gromacs_names(_protein)
+
+        if nsplit > 1:
+            mod = j%nsplit
+            subindex = f"_{j%nsplit+1}"
+            if mod == 0:
+                gpu_id = "0123"
+            else:
+                gpu_id = "4567"
+        else:
+            subindex = ""
+            
+        generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, cofactor=cofactorpdb, **kwargs)
+        # fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
+        string = f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n"
+
+        # Update submission script
+        if do_ti:
+            lambdas = open(f"{jpath}/submit_lambdas.sh", "w")
+            lambdas.write("#!/bin/bash\n")
+            lambdas.write("jobid=${1:-\"\"}\n")
+            lambdas.write(f"cd dualti\n")
+            for k in range(13):
+                lambdas.write(f"cd lam-{k:02d}\n")
+                lambdas.write(f"if [ -z \"$jobid\" ]; then\n")
+                lambdas.write(f"  {submit_cmd} {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                lambdas.write(f"else\n")
+                lambdas.write(f"  {submit_cmd} {dependency}=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
+                lambdas.write(f"fi\n")
+                lambdas.write(f"cd ../ \n")
+                lambdas.write(f"sleep 1s \n")
+            lambdas.write(f"cd ../ \n")
+            lambdas.close()
+            subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
+        return string
+
     def gen_ptm_files(self, combinations, path=None, prefix=None, ff='amber99sb', **kwargs):
         import uuid
         import time
@@ -316,6 +402,7 @@ class Protein:
         temp      = kwargs.get("temp", 300.0)
         nsplit    = kwargs.pop("nsplit", 1)
         gpu_id    = kwargs.pop("gpu_id", "")
+        max_script_workers = kwargs.pop("max_script_workers", 1)
 
         machine = kwargs.get("machine", "")
         machine = get_machine_name(machine)
@@ -349,6 +436,7 @@ class Protein:
         parent_dir = path if path is not None else cwd
         path = os.path.join(parent_dir, uid)
         os.makedirs(path, exist_ok=True)
+        print(f"Generating input files in {path}")
 
         ff_prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../gromacs/forcefield")
         shutil.copytree(f"{ff_prefix}/{ff}.ff", f"{path}/{ff}.ff")
@@ -375,126 +463,55 @@ class Protein:
         else:
             self.write_pdb(f"{path}/{prefix}protonated.pdb")
 
-        submit = open(f"{path}/submit.sh", "w")
-        submit.write("#!/bin/bash\n")
-        if bundling:
-            njobs = sum([len(i) for i in combinations])
-            submit.write(f"cd {path}\n")
-            submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
-            submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
-            if checkpointing:
-                submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
-                submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
-                submit.write(f"echo $jobid > md.jobid\n")
+        with open(f"{path}/submit.sh", "w") as submit:
+            submit.write("#!/bin/bash\n")
+            if bundling:
+                njobs = sum([len(i) for i in combinations])
+                submit.write(f"cd {path}\n")
+                submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
+                submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
+                if checkpointing:
+                    submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
+                    submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                    submit.write(f"echo $jobid > md.jobid\n")
+                else:
+                    raise NotImplementedError("Checkpointing is currently required for bundling")
+                if do_ti and auto_submit_ti:
+                    raise NotImplementedError("Auto submit for TI is not yet implemented for bundling")
+                    submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid ti.sbatch {sed}) \n")
+                    submit.write(f"echo \"Submitted ti.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                    submit.write(f"echo $jobid > ti.jobid\n")
+                for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
+                    with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
+                        fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
+                        fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid\n")
+                        fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
+                    subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
+                    with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
+                        for i in range(len(combinations)):
+                            for j in range(len(combinations[i])):
+                                if scriptname == "":
+                                    runscript = f"{scriptname}{j:04d}_slurm.sbatch"
+                                else:
+                                    runscript = scriptname
+                                fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
+                    with open(os.path.join(path, f"{prefix}{jobname}bundle_flux.sh"), "w") as fh:
+                        fh.write("#!/bin/bash\n")
+                        fh.write("flux resource list\n")
+                        fh.write("while IFS= read -r line; do\n")
+                        fh.write("  dir=$(dirname $line)\n")
+                        fh.write("  base=$(basename $line)\n")
+                        fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
+                        fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
+                        fh.write("flux queue drain\n")
+                        if jobname == "":
+                            fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
+                    subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
             else:
-                raise NotImplementedError("Checkpointing is currently required for bundling")
-            if do_ti and auto_submit_ti:
-                raise NotImplementedError("Auto submit for TI is not yet implemented for bundling")
-                submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid ti.sbatch {sed}) \n")
-                submit.write(f"echo \"Submitted ti.sbatch as job id $jobid with a dependency on the previous job.\"\n")
-                submit.write(f"echo $jobid > ti.jobid\n")
-            for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
-                with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
-                    fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
-                    fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid\n")
-                    fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
-                subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
-                with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
-                    for i in range(len(combinations)):
-                        for j in range(len(combinations[i])):
-                            if scriptname == "":
-                                runscript = f"{scriptname}{j:04d}_slurm.sbatch"
-                            else:
-                                runscript = scriptname
-                            fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
-                with open(os.path.join(path, f"{prefix}{jobname}bundle_flux.sh"), "w") as fh:
-                    fh.write("#!/bin/bash\n")
-                    fh.write("flux resource list\n")
-                    fh.write("while IFS= read -r line; do\n")
-                    fh.write("  dir=$(dirname $line)\n")
-                    fh.write("  base=$(basename $line)\n")
-                    fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
-                    fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
-                    fh.write("flux queue drain\n")
-                    if jobname == "":
-                        fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
-                subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
-        with open(f"{path}/README", "w") as fh:
-            today = time.ctime()
-            fh.write(f"""Files generated on {today}\n""")
-            for i in range(len(combinations)):
-                ipath = os.path.join(path, f"{i+1}tuples")
-                os.mkdir(ipath)
-                for j,combi in enumerate(combinations[i]):
-                    jpath = os.path.join(ipath,f"{j:04d}")
-                    os.mkdir(jpath)
-                    _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
-                    #
-                    # Restore original names
-                    #
-                    for update in __updates:
-                        _protein.chains[update[0]].residues[update[1]].name = update[2]
-
-                    string = ""
-                    for _ptm in combi:
-                        _protein.modify(_ptm[0], _ptm[1])
-                        string += f" {_ptm[0]} -> {_ptm[1]}; "
-                    os.chdir(jpath)
-                    os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
-                    os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
-                    os.symlink(os.path.relpath(f"{path}/specbond.dat", "./"), f"specbond.dat")
-
-                    # Thermodynamic integration, symlinks will be broken until file generation
-                    if do_ti:
-                        os.mkdir("./dualti")
-                        kpath = os.path.join(jpath, "dualti")
-                        os.chdir(kpath)
-                        os.symlink(os.path.relpath(f"{jpath}/topol.top", "./"), f"topol.top")
-                        for k in range(13):
-                            os.mkdir(f"{kpath}/lam-{k:02d}")
-                            qpath = os.path.join(kpath, f"lam-{k:02d}/01-q")
-                            os.mkdir(qpath)
-                            os.chdir(qpath)
-                            os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
-                            os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
-                            os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
-                            os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
-                            os.symlink(os.path.relpath(f"{jpath}/md.cpt", "./"), f"md.cpt")
-                            os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
-                            with open("grompp.mdp", "w") as grompp:
-                                grompp.write(qlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
-                            os.chdir(jpath)
-                            qpath = os.path.join(kpath, f"lam-{k:02d}/02-vdw")
-                            os.mkdir(qpath)
-                            os.chdir(qpath)
-                            os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
-                            os.symlink(os.path.relpath(f"{path}/residuetypes.dat", "./"), f"residuetypes.dat")
-                            os.symlink(os.path.relpath(f"{jpath}/index.ndx", "./"), f"index.ndx")
-                            os.symlink(os.path.relpath(f"{jpath}/md.gro", "./"), f"md.gro")
-                            os.symlink(os.path.relpath(f"{kpath}/TItop.top", "./"), "topol.top")
-                            with open("grompp.mdp", "w") as grompp:
-                                grompp.write(vdwlambdas.format(lambda_state=k, nsteps=nsteps, timestep=timestep, temp=temp))
-                            os.chdir(kpath)
-                        os.chdir(jpath)
-
-                    # Generate SLURM script
-                    amber_to_gromacs_names(_protein)
-
-                    if nsplit > 1:
-                        mod = j%nsplit
-                        subindex = f"_{j%nsplit+1}"
-                        if mod == 0:
-                            gpu_id = "0123"
-                        else:
-                            gpu_id = "4567"
-                    else:
-                        subindex = ""
-                        
-                    generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, cofactor=cofactorpdb, **kwargs)
-                    fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
-
-                    # Update submission script
-                    if not bundling:
+                for i in range(len(combinations)):
+                    ipath = os.path.join(path, f"{i+1}tuples")
+                    for j, combi in enumerate(combinations[i]):
+                        jpath = os.path.join(ipath, f"{j:04d}")
                         submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                         submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
                         submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
@@ -502,31 +519,35 @@ class Protein:
                             submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md.sbatch {sed}) \n")
                             submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
                             submit.write(f"echo $jobid > md.jobid\n")
-                    if do_ti:
-                        lambdas = open(f"{jpath}/submit_lambdas.sh", "w")
-                        lambdas.write("#!/bin/bash\n")
-                        lambdas.write("jobid=${1:-\"\"}\n")
-                        lambdas.write(f"cd dualti\n")
-                        for k in range(13):
-                            lambdas.write(f"cd lam-{k:02d}\n")
-                            lambdas.write(f"if [ -z \"$jobid\" ]; then\n")
-                            lambdas.write(f"  {submit_cmd} {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
-                            lambdas.write(f"else\n")
-                            lambdas.write(f"  {submit_cmd} {dependency}=afterok:$jobid {prefix}{j:04d}_lam{k:02d}_slurm.sbatch\n")
-                            lambdas.write(f"fi\n")
-                            lambdas.write(f"cd ../ \n")
-                            lambdas.write(f"sleep 1s \n")
-                        lambdas.write(f"cd ../ \n")
-                        lambdas.close()
-                        subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
-                        if not checkpointing and auto_submit_ti:
-                            submit.write(f"./submit_lambdas.sh $jobid\n")
-                    if not bundling:
-                        submit.write(f"cd {os.path.relpath(path, jpath)} \n")
-                        submit.write(f"sleep 1s \n")
-                        submit.write(f"\n\n")
-        submit.close()
-        subprocess.run(["chmod", "+x", f"{path}/submit.sh"])
+                    if do_ti and not checkpointing and auto_submit_ti:
+                        submit.write(f"./submit_lambdas.sh $jobid\n")
+                if not bundling:
+                    submit.write(f"cd {os.path.relpath(path, jpath)} \n")
+                    submit.write(f"sleep 1s \n")
+                    submit.write(f"\n\n")
+        subprocess.run(["chmod", "+x", f"{path}/submit.sh"])   
+
+        _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
+        #
+        # Restore original names
+        #
+        for update in __updates:
+            _protein.chains[update[0]].residues[update[1]].name = update[2]     
+        
+        for i in range(len(combinations)):
+            ipath = os.path.join(path, f"{i+1}tuples")
+            os.makedirs(ipath, exist_ok=True)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_script_workers) as executor:
+            futures = []
+            for i in range(len(combinations)):
+                for j, combi in enumerate(combinations[i]):
+                    futures.append(executor.submit(self.process_combination, _protein, i, j, combi, path, prefix, ff, do_ti, gpu_id, nsteps, timestep, nsplit, temp, cofactorpdb, submit_cmd, dependency, **kwargs))
+            combinations = [combination.result() for combination in futures]
+            with open(f"{path}/README", "w") as fh:
+                today = time.ctime()
+                fh.write(f"""Files generated on {today}\n""")
+                for combination in combinations:
+                    fh.write(combination)
         os.chdir(cwd)
 
         return uid
