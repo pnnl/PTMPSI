@@ -1,3 +1,4 @@
+import numpy as np
 def amber_to_gromacs_names(protein):
     for chain in protein.chains:
         for residue in chain.residues:
@@ -33,6 +34,5 @@ def amber_to_gromacs_names(protein):
                 if residue.name in ["ILE"]:
                     if string == "CD1": names.append(" CD"); continue
                 names.append(residue.names[index])
-            import numpy as np
             residue.names = np.array(names)
 
