@@ -1023,7 +1023,7 @@ jobid=$(cat {jobname}.jobid)
 for i in $(seq 1 $maxestruns); do
   sleep 1s
   echo "Batching run $i"
-  jobid=$({submit_cmd} {dependency}=afterok:$jobid {jobname}.sbatch {sed})
+  jobid=$({submit_cmd} {dependency}=afterok:$jobid {jobname}_bundle.sbatch {sed})
   echo "Submitted job $jobid"
 done
 
@@ -1045,7 +1045,7 @@ estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
 echo "Estimated number of hours: $estimated_hours"
 
 # Calculate number of runs needed
-num_runs=$(echo "($estimated_hours / 2.0 + 0.5)" | bc -l)
+num_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
 num_runs=$(printf "%.0f" "$num_runs")
 
 # Subtract num_runs by 1 to account for the first run aging in the queue
@@ -1075,7 +1075,7 @@ estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
 echo "Estimated number of hours: $estimated_hours"
 
 # Calculate number of runs needed
-num_runs=$(echo "($estimated_hours / 2.0 + 0.5)" | bc -l)
+num_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
 num_runs=$(printf "%.0f" "$num_runs")
 
 # Subtract num_runs by 1 to account for the first run aging in the queue
