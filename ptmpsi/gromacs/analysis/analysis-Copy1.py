@@ -6,7 +6,6 @@ import shutil
 import psutil
 import subprocess
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 def check_file_exists(filename, canbenone=False):
     #
@@ -283,10 +282,10 @@ def construct_residue_path(file_path):
 
 def add_residue_file(file_path):
     """
-    Add 'residuetypes.dat' to the working directory if itz doesn't exist.
+    Add 'residuetypes.dat' to the working directory if it doesn't exist.
     """
     # Construct the path where 'residuetypes.dat' should be
-    residue_path = construct_residue_path(fzile_path)
+    residue_path = construct_residue_path(file_path)
     print("residue path is:", residue_path)
 
     # Check if the file already exists
@@ -331,7 +330,7 @@ def dssp(trajectory, structure, output_dir, index=None, interactive=False, maxpr
 
     By default, maxprocs processes are started at the same time.
     """
-    add_residue_file(trajectory)
+    #add_residue_file(trajectory)
     print("1) working directory is", os.getcwd()) 
     if not os.path.exists(output_dir):
         print(f"Directory {output_dir} does not exist. Creating it now.")
@@ -1077,31 +1076,123 @@ def gyration(trajectory, structure, output_dir, index=None, group=4, interactive
         os.chdir(original_directory)
         print("3) Changed back to original directory:", os.getcwd())
 
+def contact_map_old(trajectory, structure, md_file, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
+    print("1) Initial working directory is:", os.getcwd())
+    if not os.path.exists(output_dir):
+        print(f"Directory {output_dir} does not exist. Creating it now.")
+        try:
+            os.makedirs(output_dir)
+            print(f"Directory {output_dir} created successfully.")
+        except OSError as e:
+            print(f"Failed to create {output_dir}. Error: {e}")
+            raise
+    else:
+        print(f"Directory {output_dir} already exists.")
 
-def run_commands(i, j, begin, end, trajectory_path, structure_path, index_path, output_dir, commands_base):
-    basename_index = os.path.basename(os.path.dirname(trajectory_path))
-    contact_file = f"{basename_index}_dist_{begin}.xvg"
-    output_file = os.path.join(output_dir, contact_file)
-    command = commands_base.format(
-        trajectory=trajectory_path,
-        structure=structure_path,
-        begin=begin,
-        end=end,
-        output_file=output_file
-    )
-    if index_path is not None:
-        command += f" -n {index_path}"
-    
-    print(f"Executing command: {command}")
-    print(f"Output file will be saved at: {output_file}")
-    
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=output_dir)
+    print(f"Changing to output directory: {output_dir}")
+    original_directory = os.getcwd()
+    os.chdir(output_dir)
+    print("2) Current working directory is:", os.getcwd())
+
+    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
+    __structures   = structure  if isinstance(structure, list) else [structure]
+    __indices      = index      if isinstance(index, list) else [index]
+
+    ntraj = len(__trajectories)
+
+    for i in range(ntraj):
+        check_file_exists(__trajectories[i])
+        check_file_exists(__structures[i])
+        if __indices[i] is not None:
+            check_file_exists(__indices[i])
+
+    if interactive:
+        nprocs    = psutil.cpu_count(logical=False)
+        nlogical  = psutil.cpu_count()
+        nskip     = int(nlogical / nprocs)
+        __nprocs  = min(maxprocs, nprocs)
+
+        print(f"Found {nprocs} physical CPUs available")
+        print(f"Will use {__nprocs} CPUs at the same time")
+
+        result_files = []
+        commands = (
+            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
+            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
+        )
+
+        for i in range(0, ntraj, __nprocs):
+            subprocesses = []
+            pids = []
+            for j in range(__nprocs):
+                if i + j == ntraj:
+                    break
+                
+                basename_index = os.path.basename(os.path.dirname(__trajectories[i + j]))
+
+                _commands = commands
+                _commands += f"gmx pairdist -f {__trajectories[i + j]} -s {__structures[i + j]} -refgrouping res -selgrouping res -ref 0 -sel 0 -o {basename_index}_dist.xvg -cutoff 1.0 -dt 1000.0"
+                
+                if __indices[i + j] is not None:
+                    _commands += f" -n {__indices[i + j]}"
+
+                contact_file = f"{basename_index}_dist.xvg"
+
+                print(f"Executing command: {_commands}")
+                print(f"Output file will be saved at: {os.path.join(output_dir, contact_file)}")
+
+                result_files.append(contact_file)
+
+                process = subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocesses.append(process)
+                pids.append(process.pid)
+
+                p = psutil.Process(process.pid)
+                p.cpu_affinity([j * nskip])
+
+                time.sleep(2)
+            
+            exit_codes = [p.wait() for p in subprocesses]
+
+            for ex in exit_codes:
+                print(f"Process exited with code: {ex}")
+                if ex != 0:
+                    idx = exit_codes.index(ex)
+                    process = subprocesses[idx]
+                    stdout, stderr = process.communicate()
+                    print(f"Command failed for file {result_files[idx]}, checking logs...")
+                    print(f"stdout: {stdout.decode()}")
+                    print(f"stderr: {stderr.decode()}")
+
+        os.chdir(original_directory)
+        print("3) Changed back to original directory:", os.getcwd())
+        
+def get_number_of_residues(gro_filepath):
+    """Extract the number of residues from the .gro file."""
+    with open(gro_filepath, 'r', encoding='latin-1') as f:
+        lines = f.readlines()
+        if len(lines) < 2:
+            raise ValueError(f"File {gro_filepath} doesn't contain enough lines to extract the number of residues.")
+        # Extract the first integer from the second-to-last line
+        second_to_last_line = lines[-2].strip().split()
+        number_of_residues = int(''.join(filter(str.isdigit, second_to_last_line[0])))
+
+        return number_of_residues
+
+def get_frame_count(trajectory_file):
+    """Get the total number of frames and print it
+    some issues with this"""
+    command = f"source /anfhome/.profile && source /anfhome/shared/qipd/gromacs/bin/GMXRC && gmx check -f {trajectory_file}"
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, executable='/bin/bash')
     stdout, stderr = process.communicate()
     if process.returncode != 0:
-        print(f"Error in processing {contact_file}. Command failed")
-        print(f"stdout: {stdout.decode()}")
-        print(f"stderr: {stderr.decode()}")
-    return output_file
+        raise RuntimeError(f"Failed to check frame count for {trajectory_file}, error: {stderr.decode()}")
+    for line in stdout.decode().split('\n'):
+        if "Read n frames" in line:
+            frame_count = int(line.split()[2])
+            print(f"Total number of frames in {trajectory_file}: {frame_count}")
+            return frame_count
+    raise RuntimeError("Failed to parse frame count from gmx check output")
 
 def contact_map(trajectory, structure, md_file, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
     print("1) Initial working directory is:", os.getcwd())
@@ -1115,87 +1206,126 @@ def contact_map(trajectory, structure, md_file, output_dir, index=None, interact
             raise
     else:
         print(f"Directory {output_dir} already exists.")
+
     print(f"Changing to output directory: {output_dir}")
     original_directory = os.getcwd()
     os.chdir(output_dir)
     print("2) Current working directory is:", os.getcwd())
+
     __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
     __structures   = structure  if isinstance(structure, list) else [structure]
     __indices      = index      if isinstance(index, list) else [index]
+
     ntraj = len(__trajectories)
+
     for i in range(ntraj):
         check_file_exists(__trajectories[i])
         check_file_exists(__structures[i])
         if __indices[i] is not None:
             check_file_exists(__indices[i])
+
     if interactive:
-        nprocs    = min(psutil.cpu_count(logical=False), maxprocs)
+        nprocs    = psutil.cpu_count(logical=False)
         nlogical  = psutil.cpu_count()
-        nskip     = max(1, int(nlogical / nprocs))
+        nskip     = int(nlogical / nprocs)
+        __nprocs  = min(maxprocs, nprocs)
 
         print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {nprocs} CPUs at the same time")
-        
-        result_files = []
+        print(f"Will use {__nprocs} CPUs at the same time")
 
-        commands_base = (
+        result_files = []
+        commands = (
             "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
             "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-            "gmx pairdist -f {trajectory} -s {structure} -b {begin} -e {end} -refgrouping res -selgrouping res "
-            "-ref 0 -sel 0 -o {output_file} -cutoff 1.0 -dt 500"
         )
+        # Get number of residues from the postprocessed gro file
+        nres = get_number_of_residues(md_file)
+        print("number of residues is: ", nres)
 
-        with ProcessPoolExecutor(max_workers=nprocs) as executor:
-            futures = []
-            for i in range(ntraj):
-                num_frames = 0
-                total_frames = 3000
+        for i in range(0, ntraj, __nprocs):
+            subprocesses = []
+            pids = []
+            matrix = np.zeros((nres, nres))
+            num_frames = 0
+
+            for j in range(__nprocs):
+                if i + j == ntraj:
+                    break
+                
+                basename_index = os.path.basename(os.path.dirname(__trajectories[i + j]))
+                total_frames=3000
                 while num_frames < total_frames:
-                    begin, end = num_frames, num_frames + 1000
-                    futures.append(executor.submit(
-                        run_commands, i, 0, begin, end, __trajectories[i],
-                        __structures[i], __indices[i], output_dir, commands_base
-                    ))
-                    num_frames += 1000
+                    print("num frames: ",num_frames)
+                    begin, end = num_frames, num_frames+1000 #removed +1
+                    stderr_file = os.path.join(output_dir, f"stderr_{basename_index}_{num_frames}.log")
+                    stdout_file = os.path.join(output_dir, f"stdout_{basename_index}_{num_frames}.log")
 
-            for future in as_completed(futures):
-                result_file = future.result()
-                if result_file:
-                    result_files.append(result_file)
+                    _commands = commands
+                    print(begin, end)
+                    _commands += f"gmx pairdist -f {__trajectories[i + j]} -s {__structures[i + j]} -b {begin} -e {end} -refgrouping res -selgrouping res -ref 0 -sel 0 -o {basename_index}_dist_{num_frames}.xvg -cutoff 1.0 -dt 500"
+                    
+                    if __indices[i + j] is not None:
+                        _commands += f" -n {__indices[i + j]}"
 
-        process_contact(result_files)
-         
+                    contact_file = f"{basename_index}_dist_{num_frames}.xvg"
+
+                    print(f"Executing command: {_commands}")
+                    print(f"Output file will be saved at: {os.path.join(output_dir, contact_file)}")
+
+                    result_files.append(contact_file)
+                    process = subprocess.Popen(_commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=output_dir)
+                    subprocesses.append(process)
+                    pids.append(process.pid)
+                    
+                    # Set CPU affinity
+                    p = psutil.Process(pids[-1])
+                    p.cpu_affinity([j * nskip])
+                    time.sleep(2)
+                    exit_codes = [p.wait() for p in subprocesses]
+                    num_frames+=1000
+                    
+                    for ex in exit_codes:
+                        print(f"Process exited with code: {ex}")
+                        if ex != 0:
+                            print(f"Command failed for file {result_files[exit_codes.index(ex)]}, checking logs...")
+                            stdout, stderr = subprocesses[exit_codes.index(ex)].communicate()
+                            print(f"stdout: {stdout.decode()}")
+                            print(f"stderr: {stderr.decode()}")
+        
+                            # Process generated files
+                            for process in subprocesses:
+                                stdout, stderr = process.communicate()
+                                if process.returncode == 0:
+                                        basename_index = os.path.basename(os.path.dirname(__trajectories[i]))
+                                        contact_file = f"{basename_index}_dist_{num_frames - 1}.xvg"
+                        
+    process_contact(result_files, nres)
     os.chdir(original_directory)
     print("3) Changed back to original directory:", os.getcwd())
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-
 def process_contact(contact_files):
-    # Create a list to store the contact matrices for each contact file
-    matrices = []
-    print("Processing contact files")
+    # Create a list to store results for each contact file
+    results = []
+    print(contact_files)
+    print("processing contact files")
     
     # Process each contact file
     for contact_file in contact_files:
         with open(contact_file, 'r', encoding='latin-1') as file:
-            # Skip the first 24 lines; adjust if necessary based on comment lines
-            lines = file.readlines()[24:]
-            if not lines:
-                print(f"No data available in file: {contact_file}")
-                continue
-            
-            # Assuming all lines have the same number of entries based on the first line
+            # Skip the first 24 lines; adjust this if necessary based on comment lines
+            lines = file.readlines()[24:] 
+
+            # Assuming all lines have the same number of entries based on the first line after skipping
             first_line = lines[0]
             parts = first_line.split()
-            
-            # Calculate nres as the square root of the number of entries, rounded down
+
+            # Calculate nres as the square root of the number of entries and rounding down
             nres = int(np.floor(np.sqrt(len(parts))))
-            
+
             # Create a zero matrix of dimensions nres x nres
             contact_matrix = np.zeros((nres, nres))
-            
+
             # Accumulate matrix information from each line
             for line in lines:
                 parts = [float(entry) for entry in line.split()]
@@ -1204,42 +1334,27 @@ def process_contact(contact_files):
                     # Adjust nres in cases of non-square number of parts
                     print(f"Skipping line due to insufficient data: {line}")
                     continue
-                
+
                 index = 0
                 for i in range(nres):
                     for j in range(nres):
                         if index < len(parts) and parts[index] > 0.5:
                             contact_matrix[i, j] += 1
                         index += 1
+
+            # Calculate the sum of entries in the contact matrix
+            matrix_sum = np.sum(contact_matrix)
             
-            # Store the contact matrix for each file
-            matrices.append(contact_matrix)
-    
-    if not matrices:
-        print("No valid data matrices found.")
-        return 
+            # Calculate the average sum by nres*nres
+            average_contact = matrix_sum / (nres * nres)
+            
+            # Append the result for the current file
+            results.append(average_contact)
 
-    # Calculate the average contact matrix
-    cumulative_matrix = sum(matrices)
-    average_contact_matrix = cumulative_matrix / len(matrices)
-    
-    # Plotting the heatmap
-    plt.figure(figsize=(10, 8))
-    plt.imshow(average_contact_matrix, cmap='Greens', interpolation='nearest')
-    
-    # Add a color bar with key
-    plt.colorbar(label='Fraction of Close Contact')
-    
-    # Annotate the axes
-    plt.xlabel('Residue Index (Columns)')
-    plt.ylabel('Residue Index (Rows)')
-    plt.title('Fraction of Close Contact for Residues')
-    
-    # Show the plot
-    plt.show()
+    # Return the list of results for each file
+    return results
 
-# Example usage:
-# process_contact(["contact_file1.txt", "contact_file2.txt", "contact_file3.txt"])
+
 
 #for bash script
 if __name__ == "__main__":
