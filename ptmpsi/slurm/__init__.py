@@ -253,7 +253,7 @@ polaris = Machine(name="Polaris",
                       }
                     }),
             "prod": Partition(name="prod", memory=0, ncpus=32,
-                              ngpus=4, maxtime=24, maxnode=496,
+                              ngpus=4, maxtime=24, maxnode=476,
                               options = {
                     "gromacs": {
                       "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
