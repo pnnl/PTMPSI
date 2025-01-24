@@ -246,7 +246,7 @@ polaris = Machine(name="Polaris",
                     "gromacs": {
                       "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gmx": "gmx_mpi",
                       "ntasks": 4,
                       "nthreads": 8,
                       "nstlist": 300
@@ -258,7 +258,7 @@ polaris = Machine(name="Polaris",
                     "gromacs": {
                       "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gmx": "gmx_mpi",
                       "ntasks": 4,
                       "nthreads": 8,
                       "nstlist": 300
@@ -270,7 +270,7 @@ polaris = Machine(name="Polaris",
                     "gromacs": {
                       "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
                       "container": "",
-                      "gmx": "/home/wjiang/gromacs-2024.2/build/bin/gmx_mpi",
+                      "gmx": "gmx_mpi",
                       "ntasks": 4,
                       "nthreads": 8,
                       "nstlist": 300

@@ -5,6 +5,7 @@ import numpy as np
 import subprocess
 import warnings
 import concurrent.futures
+from math import ceil
 from shutil import which
 from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, one2three, Residue
@@ -17,7 +18,7 @@ from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
 from ptmpsi.gromacs.templates import qlambdas, vdwlambdas
 from ptmpsi.slurm import get_machine_name, convert_time_hours
-from ptmpsi.gromacs.templates import flux_header, check_and_queue_estimated_runs_flux
+from ptmpsi.gromacs.templates import flux_header, check_and_queue_estimated_runs_flux, parsl_header, parsl_worker_init
 
 
 class Chain:
@@ -468,45 +469,80 @@ class Protein:
             if bundling:
                 njobs = sum([len(i) for i in combinations])
                 submit.write(f"cd {path}\n")
-                submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
-                submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
-                if checkpointing:
-                    submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
-                    submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
-                    submit.write(f"echo $jobid > md.jobid\n")
-                else:
-                    raise NotImplementedError("Checkpointing is currently required for bundling")
+                if machine == "Frontier":
+                    submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
+                    submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
+                    if checkpointing:
+                        submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
+                        submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
+                        submit.write(f"echo $jobid > md.jobid\n")
+                    else:
+                        raise NotImplementedError("Checkpointing is currently required for bundling on Frontier")
+                elif machine == "Polaris" and checkpointing:
+                        raise NotImplementedError("Checkpointing is currently not supported for bundling on Polaris")
                 if do_ti and auto_submit_ti:
                     raise NotImplementedError("Auto submit for TI is not yet implemented for bundling")
                     submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid ti.sbatch {sed}) \n")
                     submit.write(f"echo \"Submitted ti.sbatch as job id $jobid with a dependency on the previous job.\"\n")
                     submit.write(f"echo $jobid > ti.jobid\n")
-                for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
-                    with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
-                        fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
-                        fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid\n")
-                        fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
-                    subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
-                    with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
-                        for i in range(len(combinations)):
-                            for j in range(len(combinations[i])):
-                                if scriptname == "":
-                                    runscript = f"{scriptname}{j:04d}_slurm.sbatch"
+                if checkpointing and machine == "Frontier":
+                    for jobname, jobfile, scriptname in zip(["", "md_", "ti_"], ["bundle.sbatch", "md_bundle.sbatch", "ti_bundle.sbatch"], [f"{prefix}", "md.sbatch", "run_lambdas.sh"]):
+                        with open(os.path.join(path, f"{prefix}{jobfile}"), "w") as fh:
+                            fh.write(flux_header[machine].format(partition="batch", account="bip258", time="12:00:00", jname=f"{prefix}{jobname}bundle", nnodes=njobs))
+                            fh.write("echo $SLURM_JOB_ID > {prefix}{jobname}current.jobid\n")
+                            fh.write(f"srun -N $SLURM_NNODES -n $SLURM_NNODES -c 56 --gpus-per-node=8 flux start ./{prefix}{jobname}bundle_flux.sh\n")
+                        subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobfile}"])
+                        with open(os.path.join(path, f"{prefix}{jobname}fluxjobs.txt"), "w") as fh:
+                            for i in range(len(combinations)):
+                                for j in range(len(combinations[i])):
+                                    if scriptname == "":
+                                        runscript = f"{scriptname}{j:04d}_slurm.sbatch"
+                                    else:
+                                        runscript = scriptname
+                                    fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
+                        with open(os.path.join(path, f"{prefix}{jobname}bundle_flux.sh"), "w") as fh:
+                            fh.write("#!/bin/bash\n")
+                            fh.write("flux resource list\n")
+                            fh.write("while IFS= read -r line; do\n")
+                            fh.write("  dir=$(dirname $line)\n")
+                            fh.write("  base=$(basename $line)\n")
+                            fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
+                            fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
+                            fh.write("flux queue drain\n")
+                            if jobname == "":
+                                fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
+                        subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
+                elif machine == "Polaris":
+                    # TODO: Create slurm object here and pass to generate_gromacs
+                    max_nodes = 476
+                    num_batches = ceil(njobs/max_nodes)
+                    njobs_per_node = [njobs // num_batches + (1 if x < njobs % num_batches else 0) for x in range(num_batches)]
+                    with open(os.path.join(path, f"{path}/worker_init.sh"), "w") as wi:
+                        wi.write(parsl_worker_init[machine])
+                    shutil.copy(os.path.join(os.path.dirname(__file__), "parsl_config_polaris.py"), path)
+                    shutil.copy(os.path.join(os.path.dirname(__file__), "parsl_workflow_polaris.py"), path)
+                    for jobname, jobfile, scriptname in zip(["", "ti_"], ["bundle", "ti_bundle"], [f"{prefix}", "run_lambdas.sh"]):
+                        with open(os.path.join(path, f"{prefix}{jobname}parsl_jobs.txt"), "w") as fh:
+                            for i in range(len(combinations)):
+                                for j in range(len(combinations[i])):
+                                    if scriptname == "":
+                                        runscript = f"{scriptname}{j:04d}.sh"
+                                    else:
+                                        runscript = scriptname
+                                    fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
+                        start_id = 0
+                        for i, nnodes in enumerate(njobs_per_node):
+                            with open(os.path.join(path, f"{prefix}{jobfile}_{i}.sbatch"), "w") as fh:
+                                parsl_script = f"parsl_workflow_polaris.py --start-id {start_id} --workers-per-node 1 --run-dir {path} --worker-init {path}/worker_init.sh --joblist {path}/{prefix}{jobname}parsl_jobs.txt"
+                                fh.write(parsl_header[machine].format(partition="prod", account=kwargs.get("account", "TwinHostPath"), time="24:00:00", jname=f"{prefix}{jobname}bundle", nnodes=nnodes, script=parsl_script))
+                                start_id += nnodes
+                            if jobname != "ti_":
+                                if auto_submit_ti:
+                                    submit.write(f"jobid=$({submit_cmd} {prefix}{jobfile}_{i}.sbatch {sed}) \n")
                                 else:
-                                    runscript = scriptname
-                                fh.write(f"{i+1}tuples/{j:04d}/{runscript}\n")
-                    with open(os.path.join(path, f"{prefix}{jobname}bundle_flux.sh"), "w") as fh:
-                        fh.write("#!/bin/bash\n")
-                        fh.write("flux resource list\n")
-                        fh.write("while IFS= read -r line; do\n")
-                        fh.write("  dir=$(dirname $line)\n")
-                        fh.write("  base=$(basename $line)\n")
-                        fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
-                        fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
-                        fh.write("flux queue drain\n")
-                        if jobname == "":
-                            fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
-                    subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
+                                    submit.write(f"{submit_cmd} {prefix}{jobfile}_{i}.sbatch\n")
+                            elif auto_submit_ti:
+                                submit.write(f"{submit_cmd} {dependency}=afterok:$jobid {prefix}{jobfile}_{i}.sbatch\n")
             else:
                 for i in range(len(combinations)):
                     ipath = os.path.join(path, f"{i+1}tuples")

@@ -1,4 +1,4 @@
-from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas,write_estimated_runs,flux_node_header
+from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas,write_estimated_runs,flux_node_header,parsl_worker_header,set_affinity_gpu_polaris
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.slurm import Slurm
 import numpy as np
@@ -129,14 +129,20 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     subindex  = kwargs.pop("subindex", "")
     checkpointing = kwargs.pop("checkpointing", True)
 
-    if bundling:
-        assert slurm.machine.name == "Frontier", "Bundling is currently only supported on Frontier"
+    if bundling and slurm.machine.name != "Frontier" and slurm.machine.name != "Polaris":
+        raise NotImplementedError(f"Bundling is only supported on Frontier and Polaris, not {slurm.machine.name}.")
 
     if slurm.machine.name == "Polaris":
         submit_cmd = "qsub"
         dependency = "-W depend"
         sed=""
         self_jobid = "$PBS_JOBID"
+        with open("set_affinity_gpu_polaris.sh", "w") as sa:
+            sa.write(set_affinity_gpu_polaris)
+        subprocess.run(["chmod", "+x", "set_affinity_gpu_polaris.sh"])
+        mpirun = mpirun + " ./set_affinity_gpu_polaris.sh"
+        if bundling:
+            mpirun = mpirun.replace("PBS_NODEFILE", "HOSTFILE")
     else:
         submit_cmd = "sbatch"
         dependency = "--dependency"
@@ -165,13 +171,20 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     if do_ti:
         with open(f"{path}/update_topology.py", "w") as fh:
             fh.write(update_topology)
+    
+    if bundling and slurm.machine.name == "Polaris":
+        run_script = f"{infile[:-4]}.sh"
+    else:
+        run_script = f"{infile[:-4]}_slurm.sbatch"
 
     # Write the slurm submission script
-    with open(f"{infile[:-4]}_slurm.sbatch","w") as fh:
-        if bundling:
+    with open(run_script,"w") as fh:
+        if bundling and slurm.machine.name == "Frontier":
             fh.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
             fh.write("flux resource list\n")
             fh.write("module list\n")
+        elif bundling and slurm.machine.name == "Polaris":
+            fh.write(parsl_worker_header[slurm.machine.name].format(**slurm.options_dictionary, working_dir=cwd))
         else:
             fh.write(slurm.header)
 
@@ -286,7 +299,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         if checkpointing:
             with open("md.sbatch","w") as md_sbatch:
                 slurm.update_jobname(f"{jobname}_md")
-                if bundling:
+                if bundling and slurm.machine.name == "Frontier":
                     md_sbatch.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
                     md_sbatch.write("flux resource list\n")
                     md_sbatch.write("module list\n")
@@ -298,7 +311,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                     jobpath = "../../md" if bundling else "md"
                     self_jobid = "$(cat ../../md_current.jobid)" if bundling else self_jobid
                     md_sbatch.write(check_and_update_topology.format(job='md', jobpath=jobpath, self_jobid=self_jobid))
-            if bundling:
+            if bundling and slurm.machine.name == "Polaris":
                 subprocess.run(["chmod", "+x", "md.sbatch"])
         else:
             fh.write(md_cmd)
@@ -308,13 +321,14 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                 fh.write("cd dualti\n")
                 fh.write("python update_topology.py\n")
     if bundling:
-        subprocess.run(["chmod", "+x", f"{infile[:-4]}_slurm.sbatch"])
+        subprocess.run(["chmod", "+x", run_script])
 
     if do_ti:
         for i in range(13):
+            lam_filename = f"{infile[:-4]}_lam{i:02d}.sh" if slurm.machine.name == "Polaris" else f"{infile[:-4]}_lam{i:02d}_slurm.sbatch"
             ipath = os.path.join(path, f"lam-{i:02d}")
             os.chdir(ipath)
-            with open(f"{infile[:-4]}_lam{i:02d}_slurm.sbatch","w") as fh:
+            with open(lam_filename,"w") as fh:
                 slurm.update_jobname(f"{jobname}_lam{i:02d}")
                 fh.write(slurm.header)
                 fh.write(f"cd 01-q\n")

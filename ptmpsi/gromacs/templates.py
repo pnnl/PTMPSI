@@ -683,9 +683,7 @@ slurm_header['Polaris'] = """#!/bin/bash
 #PBS -l place=scatter
 #PBS -r y
 
-module swap PrgEnv-nvhpc PrgEnv-gnu
-module use /soft/modulefiles
-module load cudatoolkit-standalone/12.5.0
+module load gromacs/2024.4
 
 # From the user
 {user}
@@ -694,6 +692,7 @@ export SCRATCH="/local/scratch"
 
 cd ${{PBS_O_WORKDIR}}
 
+export MPICH_GPU_SUPPORT_ENABLED=1
 export OMP_STACKSIZE=4G
 export OMP_NUM_THREADS={nthreads}
 export TMPDIR={scratch}
@@ -760,6 +759,87 @@ export SYCL_CACHE_PERSISTENT=1
 
 """
 
+parsl_header = {}
+
+parsl_header['Polaris'] = """#!/bin/bash
+#PBS -l select={nnodes}:system=polaris
+#PBS -l walltime={time}
+#PBS -l filesystems=home:grand
+#PBS -q {partition}
+#PBS -N {jname}
+#PBS -A {account}
+#PBS -l place=scatter
+
+module use /grand/TwinHostPath/apps/modulefiles
+module load parsl/2025.01.20
+module load gromacs/2024.4
+
+cd ${{PBS_O_WORKDIR}}
+
+python {script}
+
+"""
+
+parsl_worker_init = {}
+
+# TODO: Ensure that the cwd is specified properly when executing the app
+
+parsl_worker_init['Polaris'] = """module use /grand/TwinHostPath/apps/modulefiles
+module load parsl/2025.01.20
+module load gromacs/2024.4
+
+module list
+
+export SCRATCH="/local/scratch"
+
+export MPICH_GPU_SUPPORT_ENABLED=1
+export OMP_STACKSIZE=4G
+export TMPDIR=$SCRATCH
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+
+"""
+
+parsl_worker_header = {}
+
+parsl_worker_header['Polaris'] = """cd {working_dir}
+
+set -e
+export CORES=$(getconf _NPROCESSORS_ONLN)
+echo "Found cores : $CORES"
+
+HOSTFILE="hostfile"
+
+NNODES={nnodes}
+NRANKS_PER_NODE={ntasks}
+NDEPTH=8
+NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
+NTHREADS={nthreads}
+
+export OMP_NUM_THREADS=$NTHREADS
+export OMP_PLACES=cores
+
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+"""
+
+# From https://docs.alcf.anl.gov/polaris/running-jobs/#binding-mpi-ranks-to-gpus
+set_affinity_gpu_polaris = """#!/bin/bash -l
+num_gpus=4
+# need to assign GPUs in reverse order due to topology
+# See Polaris Device Affinity Information:
+# https://www.alcf.anl.gov/support/user-guides/polaris/hardware-overview/machine-overview/index.html
+gpu=$((${num_gpus} - 1 - ${PMI_LOCAL_RANK} % ${num_gpus}))
+export CUDA_VISIBLE_DEVICES=$gpu
+echo "RANK= ${PMI_RANK} LOCAL_RANK= ${PMI_LOCAL_RANK} gpu= ${gpu}"
+exec "$@"
+"""
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008
