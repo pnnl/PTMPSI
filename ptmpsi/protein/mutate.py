@@ -96,9 +96,8 @@ def post_translational_modification(protein,original,ptm):
     # Special case for Cystein PTMs
     if _original.name in ["CYS", "CYX", "CYM"]:
         new = ptm2nonstandard.get(_ptm, None)
-        print(ptm,new)
         if new is not None:
-            point_mutation(protein,_original,new)
+            if _original.name != new: point_mutation(protein,_original,new)
             return
     elif _ptm in _CYSPTMS:
         raise MyDockingError("Post-translational modification '{}' is only coded for CYS-type residues".format(_ptm))
