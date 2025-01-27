@@ -3,6 +3,7 @@ import requests
 import copy
 import numpy as np
 import subprocess
+import logging
 import warnings
 import concurrent.futures
 from math import ceil
@@ -265,8 +266,8 @@ class Protein:
         return
 
 
-    def modify(self,original,modification):
-        post_translational_modification(self,original,modification)
+    def modify(self,original,modification,logger=None):
+        post_translational_modification(self,original,modification,logger)
         return
 
     def get_ptm_combinations(self, ptms, exclude=None, ntuple=-1):
@@ -305,9 +306,25 @@ class Protein:
         os.makedirs(jpath, exist_ok=True)
         _protein = copy.deepcopy(protonated_protein)
 
+        combination_logging = kwargs.get("combination_logging", True)
+
+        
+        if combination_logging:
+            # Set up a specific logger for the process_combination function
+            logger = logging.getLogger(f'process_combination_{i+1}tuples_{j:04d}')
+            logger.setLevel(logging.INFO)
+            fh = logging.FileHandler(os.path.join(jpath, 'process_combination.log'))
+            fh.setLevel(logging.INFO)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            fh.setFormatter(formatter)
+            logger.addHandler(fh)
+            logger.info(f"Processing combination {j:04d} in {i+1}tuples")
+        else:
+            logger = None
+
         string = ""
         for _ptm in combi:
-            _protein.modify(_ptm[0], _ptm[1])
+            _protein.modify(_ptm[0], _ptm[1], logger=logger)
             string += f" {_ptm[0]} -> {_ptm[1]}; "
         os.chdir(jpath)
         os.symlink(os.path.relpath(f"{path}/{ff}.ff", "./"), f"{ff}.ff")
@@ -359,6 +376,9 @@ class Protein:
                 gpu_id = "4567"
         else:
             subindex = ""
+        
+        if combination_logging:
+            logger.info(f'Generating GROMACS files for combination {j:04d} in {i+1}tuples')
             
         generate_gromacs(_protein, filename=f"{prefix}{j:04d}.pdb", subindex=subindex, gpu_id=gpu_id, cofactor=cofactorpdb, **kwargs)
         # fh.write(f"{i+1}tuples/{j:04d}/{prefix}{j:04d}.pdb: {string}\n")
@@ -382,6 +402,9 @@ class Protein:
             lambdas.write(f"cd ../ \n")
             lambdas.close()
             subprocess.run(["chmod", "+x", f"{jpath}/submit_lambdas.sh"])
+        
+        if combination_logging:
+            logger.info(f"Combination {j:04d} in {i+1}tuples finished")
         return string
 
     def gen_ptm_files(self, combinations, path=None, prefix=None, ff='amber99sb', **kwargs):
