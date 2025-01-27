@@ -82,7 +82,7 @@ lincs-iter            = 1
 lincs-order           = 4
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 500
 nstlog                = 500
 nstdisreout           = 0
@@ -148,7 +148,7 @@ lincs-iter            = 1
 lincs-order           = 4
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 500
 nstlog                = 500
 nstdisreout           = 0
@@ -213,7 +213,7 @@ lincs-order           = 4
 comm-mode             = linear
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 5000
 nstlog                = 5000
 nstxout               = 0

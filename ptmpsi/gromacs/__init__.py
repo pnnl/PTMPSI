@@ -42,6 +42,11 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs
     lennpt = kwargs.pop("lennpt", 500.0)
     lenmd  = kwargs.pop("lenmd",  100.0)
     timestep = kwargs.pop("timestep", 2.0)
+    nstxout_compressed = kwargs.pop("nstxout_compressed", 50000)
+    # If not specified, use the same sampling rate as the general argument.
+    nstxout_compressed_heating = kwargs.pop("nstxout_compressed_heating", nstxout_compressed)
+    nstxout_compressed_npt = kwargs.pop("nstxout_compressed_npt", nstxout_compressed)
+    nstxout_compressed_md = kwargs.pop("nstxout_compressed_md", nstxout_compressed)
 
 
     # Generate MDP file for ions addition
@@ -66,24 +71,24 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs
     # Generate MDP file restrained NVT equilibration 
     with open("heating.mdp","w") as fh:
         restraint = "define          = -DP1"
-        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=restraint))
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=restraint, nstxout_compressed=nstxout_compressed_heating))
 
     # Generate MDP file free NVT equilibration 
     with open("fheating.mdp","w") as fh:
-        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=""))
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint="", nstxout_compressed=nstxout_compressed_heating))
 
     # Generate MDP files for NPT equilibration
     with open("npt.mdp", "w") as fh:
         restraint = "define          = -DP1"
-        fh.write(npt.format(temp=temp, restraint=restraint, timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
+        fh.write(npt.format(temp=temp, restraint=restraint, timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000), nstxout_compressed=nstxout_compressed_npt))
 
     # Generate MDP files for free NPT equilibration
     with open("fnpt.mdp", "w") as fh:
-        fh.write(npt.format(temp=temp, restraint="", timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
+        fh.write(npt.format(temp=temp, restraint="", timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000), nstxout_compressed=nstxout_compressed_npt))
 
     # Generate MDP file for MD production
     with open("md.mdp","w") as fh:
-        fh.write(md.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lenmd*1000000/timestep)))
+        fh.write(md.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lenmd*1000000/timestep), nstxout_compressed=nstxout_compressed_md))
 
     return
 
