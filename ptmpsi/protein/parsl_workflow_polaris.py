@@ -47,8 +47,8 @@ if __name__ == "__main__":
         
         job_list = [job.strip() for job in job_list]
 
-        if len(job_list) != num_nodes:
-            raise ValueError(f"Number of jobs ({len(job_list)}) must match number of nodes ({num_nodes})")
+        if len(job_list) < args.start_id + num_nodes:
+            raise ValueError(f"Not enough jobs in {args.joblist} to run on {num_nodes} nodes starting at {args.start_id}")  
 
         for i, job in enumerate(job_list):
             dir_name = os.path.dirname(job)
