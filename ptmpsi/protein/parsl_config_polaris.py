@@ -19,7 +19,7 @@ def gen_parsl_config(worker_init=None, num_nodes=1, workers_per_node=1, nodes_pe
                 label="htex",
                 heartbeat_period=15,
                 heartbeat_threshold=120,
-                worker_debug=True,
+                worker_debug=False,
                 max_workers_per_node=workers_per_node,
                 address=address_by_interface("bond0"),
                 cpu_affinity="block-reverse",
