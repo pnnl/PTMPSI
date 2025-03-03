@@ -88,6 +88,21 @@ def post_translational_modification(protein,original,ptm):
                 protein.prepend(_original.chain,"ACE")
                 return
 
+
+    if _ptm == 'deamidation':
+        # Deamidation: Asn --> Asp, Gln --> Glu
+        # Optionally handle ASH/GLH if you track protonation states
+        if _original.name in ["ASN", "ASH"]:
+            # We can just reuse point_mutation to go from Asn -> Asp
+            point_mutation(protein, original, "ASP")
+            return
+        elif _original.name in ["GLN", "GLH"]:
+            point_mutation(protein, original, "GLU")
+            return
+        else:
+            raise MyDockingError(f"Don't know how to deamidate residue '{_original.name}'")
+
+
     # Get radical to be attached
     _radical = ptmdict.get(_ptm,0)
     if _radical == 0:
