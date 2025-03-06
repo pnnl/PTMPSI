@@ -165,6 +165,7 @@ ptmdict = {
         "asymmetric dimethylation": ptms.methylation,
         "cyanylation": None,
         "carbamoylation": None,
+        "deamidation": None,
         }
 
 ptm2nonstandard = {
