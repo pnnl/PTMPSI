@@ -167,6 +167,7 @@ ptmdict = {
         "carbamoylation": None,
         "reduction": None,
         "oxidation": None,
+        "deamidation": None,
         }
 
 ptm2nonstandard = {

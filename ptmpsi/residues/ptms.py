@@ -152,9 +152,9 @@ def doptm(residue, radical, bond, angle, dihedral, argdimeth=False):
 
 
     # Check that amide and esther bonds are planar
-    if radical.name in ["acetylation","phosphorylation"]:
-        site3 = "CH" if radical.name == "acetylation" else "P"
-        site4 = "OH" if radical.name == "acetylation" else "O1"
+    if radical.name in ["acetylation","phosphorylation","deamidation"]:
+        site3 = "CP" if radical.name == "acetylation" else "P" if radical.name == "phosphorylation" else "C"  # Assuming deamidation creates a carboxyl group with a carbonyl carbon
+        site4 = "OP" if radical.name == "acetylation" else "O1" if radical.name == "phosphorylation" else "O"  # For the oxygen in carboxyl group
         dihedral = get_torsion(residue.find_coord(site[1]),
                 residue.find_coord(site[2]),residue.find_coord(site3),
                 residue.find_coord(site4))
@@ -217,7 +217,14 @@ def check_ptm(residue,ptm):
         if residue not in ["ARG"]:
             raise MyDockingError("Don't know how to asymmetric dimethylate {} residue".format(residue))
         return amidebond, 120, 180
+<<<<<<< HEAD
     raise RuntimeError("Something went wrong")
+=======
+    elif ptm == 'deamidation':
+        if residue not in ["ASN", "GLN"]:
+            raise MyDockingError("Don't know how to deamidate {} residue".format(residue))
+        return amidebond, 120, 180  # Adjust these values if needed
+>>>>>>> add-deamidation
     return
 
 
