@@ -128,7 +128,7 @@ class Protein:
 
 
     @staticmethod
-    def addchain(chains,chain,residues,natoms,resid,nmissing):
+    def addchain(chains, chain, residues, natoms, resid, nmissing):
         _chain = Chain(chain)
         _chain.residues = copy.deepcopy(residues)
         _chain.natoms = natoms
@@ -318,7 +318,6 @@ class Protein:
                     if __original_name != __pdb2pqr_name:
                         __updates.append([ ichain, iresidue, __original_name])
                         self.chains[ichain].residues[iresidue].name = __original_name
-
         else:
             self.write_pdb(f"{path}/{prefix}protonated.pdb")
 

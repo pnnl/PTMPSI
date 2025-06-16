@@ -1,0 +1,38 @@
+<BundleInfo name="ChimeraX-DoPTM" version="0.2" package="chimerax.do_ptm"
+  	    customInit="true" minSessionVersion="1" maxSessionVersion="1">
+
+  <!-- Additional information about bundle source -->
+  <Author>Daniel Mejia-Rodriguez</Author>
+  <Email>daniel.mejia@pnnl.gov</Email>
+  <URL>https://www.pnnl.gov</URL>
+
+  <!-- Synopsis is a one-line description
+       Description is a full multi-line description -->
+  <Synopsis>Introduce post-translational modifications into Cys side chains</Synopsis>
+  <Description>Introduces post-translational modifications into Cys side chains, using rotamer libraries where applicable</Description>
+
+  <!-- Categories is a list where this bundle should appear -->
+  <Categories>
+    <Category name="Structure Editing"/>
+  </Categories>
+
+  <!-- Dependencies on other ChimeraX/Python packages -->
+  <Dependencies>
+    <Dependency name="ChimeraX-Core" version="~=1.0"/>
+    <Dependency name="ChimeraX-Atomic" version="~=1.0"/>
+    <Dependency name="ChimeraX-Clashes" version="~=2.0"/>
+    <Dependency name="ChimeraX-Geometry" version="~=1.0"/>
+    <Dependency name="ChimeraX-Hbonds" version="~=2.0"/>
+    <Dependency name="ChimeraX-RotamerLibMgr" version="~=4.0"/>
+    <Dependency name="ChimeraX-UI" version="~=1.0"/>
+  </Dependencies>
+
+  <Classifiers>
+    <!-- Development Status should be compatible with bundle version number -->
+    <PythonClassifier>Development Status :: 2 - Pre-Alpha</PythonClassifier>
+    <PythonClassifier>License :: Free for non-commercial use</PythonClassifier>
+    <ChimeraXClassifier>Command :: modify :: Structure Editing :: post-translational amino acid residue modification </ChimeraXClassifier>
+    <ChimeraXClassifier>Tool :: Do PTM :: Structure Editing :: post-translational amino acid residue modification</ChimeraXClassifier>
+  </Classifiers>
+
+</BundleInfo>
