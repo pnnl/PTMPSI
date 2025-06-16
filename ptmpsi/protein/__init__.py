@@ -306,7 +306,19 @@ class Protein:
         prefix = "" if prefix is None else f"{prefix}_"
 
         if do_pdb2pqr:
+            __chain_map = { self.chains[ichain].name: ichain for ichain in range(len(self.chains)) }
+            __original_names = [[ self.chains[ichain].residues[iresidue].name for iresidue in range(len(self.chains[ichain].residues))] for ichain in range(len(self.chains)) ]
             self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr")
+            __updates = []
+            for ichain in range(len(self.chains)):
+                jchain = __chain_map[self.chains[ichain].name]
+                for iresidue in range(len(self.chains[ichain].residues)):
+                    __original_name = __original_names[jchain][iresidue]
+                    __pdb2pqr_name  = self.chains[ichain].residues[iresidue].name
+                    if __original_name != __pdb2pqr_name:
+                        __updates.append([ ichain, iresidue, __original_name])
+                        self.chains[ichain].residues[iresidue].name = __original_name
+
         else:
             self.write_pdb(f"{path}/{prefix}protonated.pdb")
 
@@ -322,6 +334,8 @@ class Protein:
                     jpath = os.path.join(ipath,f"{j:04d}")
                     os.mkdir(jpath)
                     _protein = Protein(filename=f"{path}/{prefix}protonated.pdb")
+                    for update in __updates:
+                        _protein.chains[update[0]].residues[update[1]].name = update[2]
                     string = ""
                     for _ptm in combi:
                         _protein.modify(_ptm[0], _ptm[1])
