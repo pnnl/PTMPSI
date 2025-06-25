@@ -227,7 +227,7 @@ def main(argv):
   # Execute run_alphafold.py (converted to frontier)
   run_alphafold = os.path.join(os.environ['OLCF_AF2_ROOT'], 'alphafold-2.3.2', 'run_alphafold.py')
   command = ['python', run_alphafold] + command_args
-  logging.info('Running command: {{command}}')
+  logging.info(f'Running command: {{command}}')
   os.system(' '.join(command))
 
 if __name__ == '__main__':

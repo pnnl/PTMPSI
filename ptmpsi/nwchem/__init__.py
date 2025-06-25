@@ -88,7 +88,7 @@ def get_qdata(files):
             qdata.write(f"FORCES {forces} \n\n")
 
 
-def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kwargs):
+def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path=None,**kwargs):
     """ Get all QM data needed to parameterize a non-standard
     amino acid or a new ligand.
     """
@@ -99,6 +99,17 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
     tdrive = TorsionDrive(**kwargs)
     _dohfresp = hfresp if dohfresp else ""
 
+    if slurm.machine.name == "Polaris":
+        script_method = "pbs"
+    else:
+        script_method = "slurm"
+
+    if path is not None:
+        qm_path = os.path.abspath(path)
+        if not os.path.exists(qm_path):
+            os.makedirs(qm_path, exist_ok=True)
+    else:
+        qm_path = os.getcwd()
 
     if ligand and metal:
         raise KeyError("ligand and metal cannot be both True")
@@ -240,7 +251,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
                     if atom in ["CA","ZN","CU","FE","CO"]:
                         gcons += f"  fix atom {iatom}\n"
             gcons += "end"
-        with open(filename,"w") as infile:
+        with open(os.path.join(qm_path, filename),"w") as infile:
             infile.write(respnw.format(
                 name=f"conf{str(idx)}", zcoord=zcoord, charge=nwchem.charge,
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
@@ -250,7 +261,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
                 noautoz=noautoz, dohfresp=_dohfresp))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
-        with open(filename,"w") as infile:
+        with open(os.path.join(qm_path, filename),"w") as infile:
             infile.write(hessnw.format(
                 name=f"conf{str(idx)}-hess", zcoord=zcoord, charge=nwchem.charge,
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
@@ -259,30 +270,30 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,**kw
                 geometry=_geometry))
         if dotorsions and single:
             filename = f"conf{str(idx)}_tdrive.nw"
-            with open(filename,"w") as infile:
+            with open(os.path.join(qm_path, filename),"w") as infile:
                 infile.write(torsnw.format(
                     name=f"conf{str(idx)}-tdrive", charge=nwchem.charge,
                     mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                     grid=nwchem.tdgrid, aobasis=nwchem.tdbasis, cdbasis=nwchem.cdbasis,
                     nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
                     geometry="@geometry@"))
-            with open(f"dihedrals{str(idx)}.txt","w") as infile:
+            with open(os.path.join(qm_path, f"dihedrals{str(idx)}.txt"),"w") as infile:
                 infile.write("{} {} {} {}".format(*tdrive.torsions[-1]))
-            with open(f"extras{str(idx)}.txt","w") as infile:
+            with open(os.path.join(qm_path, f"extras{str(idx)}.txt"),"w") as infile:
                 infile.write("$set\n dihedral  {}  {}  {}  {}  {}\n".format(*_phi,round(phi_val)))
                 infile.write(" dihedral  {}  {}  {}  {}  {}".format(*_psi,round(psi_val)))
 
-    with open(f"get_qm_data.sbatch","w") as infile:
+    with open(os.path.join(qm_path, f"get_qm_data.sbatch"),"w") as infile:
         infile.write(slurm.header)
-        infile.write(slurm_copy.format(filename="espfit.py"))
-        infile.write(slurm_copy.format(filename="modseminario.py"))
+        infile.write(script_copy[script_method].format(filename="espfit.py"))
+        infile.write(script_copy[script_method].format(filename="modseminario.py"))
         for idx in range(len(coords)):
             tail = f"conf{str(idx)}"
-            infile.write(slurm_copy.format(filename=f"{tail}.nw"))
+            infile.write(script_copy[script_method].format(filename=f"{tail}.nw"))
             infile.write(f"""echo "Running conf{str(idx)} optimization"\n""")
             infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=tail))
            
-            infile.write(slurm_copy.format(filename=f"{tail}_hess.nw"))
+            infile.write(script_copy[script_method].format(filename=f"{tail}_hess.nw"))
             infile.write(f"""echo "Running conf{str(idx)} hessian"\n""")
             infile.write(runsingularity[slurm.machine.name].format(scratch=slurm.scratch,name=f"{tail}_hess"))
         venv = '''# Create a Virtual Environment
@@ -304,16 +315,16 @@ python -m pip install numpy'''
         if dotorsions and single:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
-                infile.write(slurm_copy.format(filename=f"dihedrals{str(idx)}.txt"))
-                infile.write(slurm_copy.format(filename=f"extras{str(idx)}.txt"))
-                infile.write(slurm_copy.format(filename=f"{tail}_tdrive.nw"))
+                infile.write(script_copy[script_method].format(filename=f"dihedrals{str(idx)}.txt"))
+                infile.write(script_copy[script_method].format(filename=f"extras{str(idx)}.txt"))
+                infile.write(script_copy[script_method].format(filename=f"{tail}_tdrive.nw"))
                 infile.write(slurm_tdrive_run.format(
                     tail=tail, charge=nwchem.charge, mult=nwchem.mult, aobasis=nwchem.aobasis,
                     cdbasis=nwchem.cdbasis, nscf=nwchem.nscf, xcfun=nwchem.xcfun,
                     grid=nwchem.grid, disp=nwchem.disp, memory=nwchem.memory,
                     spacing=tdrive.spacing, idx=str(idx)))
         infile.write("\n cleanup")
-    with open("espfit.py","w") as fitting:
+    with open(os.path.join(qm_path, "espfit.py"),"w") as fitting:
         hcons = []
         for i,iname in enumerate(names):
             if iname[0:2] not in ["HA","HB","HG","HD","HE","HH","H1","H2","H3"]: continue
@@ -347,13 +358,13 @@ python -m pip install numpy'''
             files=[f"conf{str(idx)}" for idx in range(len(coords))]))
     filename = os.path.join(os.path.dirname(os.path.abspath(__file__)),"bonds_and_angles.py")
     with open(filename,"r") as fh: modseminario = fh.read()
-    with open("modseminario.py","w") as seminario:
+    with open(os.path.join(qm_path, "modseminario.py"),"w") as seminario:
         seminario.write(modseminario.format(
             elements=elems, names=names, nconf=len(coords)))
 
     _bonds_graph = get_bond_graph(coords[0],elems)
     _torsions_graph = get_torsion_graph(_bonds_graph)
-    with open("torsions.dat","w") as fh:
+    with open(os.path.join(qm_path, "torsions.dat"),"w") as fh:
         for _torsion in _torsions_graph:
             i,j,k,l = _torsion
             fh.write(f"{i+1:4d} {names[i]:<5s}  {j+1:4d} {names[j]:<5s} {k+1:4d} {names[k]:<5s} {l+1:4d} {names[l]:<5s}\n")
@@ -659,15 +670,28 @@ def bonds_and_angles(protein,ligand=False):
     print("")
     return
 
-def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=False, totcharge=0, **kwargs):
+def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=False, totcharge=0, path=None, **kwargs):
     
     # Process all keyword arguments
     slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
 
-    # Remove extension
-    name = filename[:-4]
+    if path is not None:
+        qmmm_path = os.path.abspath(path)
+        if not os.path.exists(qmmm_path):
+            os.makedirs(qmmm_path, exist_ok=True)
+    else:
+        qmmm_path = os.getcwd()
 
+    # Remove extension
+    basename = os.path.basename(filename)
+    name = os.path.splitext(basename)[0]
+
+    filename = os.path.abspath(filename)
+
+    original_dir = os.getcwd()
+    os.chdir(qmmm_path)
+    
     # Clean PDB file
     _pdb = f"{name}_clean.pdb"
     _pqr = f"{name}_clean.pqr"
@@ -722,8 +746,8 @@ def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=Fals
 
     with open("qmmm_optimization.sbatch","w") as sfile:
         sfile.write(slurm.header)
-        sfile.write(qmmm_slurm.format(complex=_pdb))
+        sfile.write(qmmm_slurm[slurm.machine.name].format(complex=_pdb))
 
-
+    os.chdir(original_dir)
 
     return

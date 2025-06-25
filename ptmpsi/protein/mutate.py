@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 from copy import deepcopy as copy
 from ptmpsi.math import alignres, rotate_chi1, rotate_chi2, find_clashes_residue, nerf, rotmatvec
 from ptmpsi.residues import Residue, resdict, ptmdict, ptm2nonstandard
@@ -10,7 +11,7 @@ from ptmpsi.protein.tools import get_residue, get_template
 
 _CYSPTMS = ["carbamoylation", "sulfhydration","sulfenylation","sulfinylation","sulfonylation","nitrosylation","glutathionylation", "cysteinylation"]
 
-def point_mutation(protein,original,new):
+def point_mutation(protein,original,new,logger=None):
     """
     Perform a point mutation.
     """
@@ -56,14 +57,20 @@ def point_mutation(protein,original,new):
 
     # Scan chi1 and chi2 dihedrals for a better rotamer
     if nclashes > 0:
-        found, angle1, angle2, minclashes = scan_chi1_chi2(protein,_original,nclashes,_new.chi1,_new.chi2)
+        found, angle1, angle2, minclashes = scan_chi1_chi2(protein,_original,nclashes,_new.chi1,_new.chi2,logger)
 
     # Get final rotamer
     if found:
-        print("\n\t Found rotamer with no clashes!")
+        if logger:
+            logger.info("Found rotamer with no clashes!")
+        else:
+            print("\n\t Found rotamer with no clashes!")
     else:
-        print("\n\t\t Warning: All rotamers had clashes!")
-        print("\t\t          using rotamer with {} clashes".format(minclashes))
+        if logger:
+            logger.warning("All rotamers had clashes! Using rotamer with {} clashes".format(minclashes))
+        else:
+            print("\n\t\t Warning: All rotamers had clashes!")
+            print("\t\t          using rotamer with {} clashes".format(minclashes))
         _original.coordinates = copy(newcoords)
         if angle1 > 0: rotate_chi1(_original,_new.chi1,angle1)
         if angle2 > 0: rotate_chi2(_original,_new.chi2,angle2)
@@ -74,7 +81,7 @@ def point_mutation(protein,original,new):
     return
 
 
-def post_translational_modification(protein,original,ptm):
+def post_translational_modification(protein,original,ptm,logger=None):
     _ptm = ptm.lower()
     _original = get_residue(protein, original)
 
@@ -96,9 +103,8 @@ def post_translational_modification(protein,original,ptm):
     # Special case for Cystein PTMs
     if _original.name in ["CYS", "CYX", "CYM"]:
         new = ptm2nonstandard.get(_ptm, None)
-        print(ptm,new)
         if new is not None:
-            point_mutation(protein,_original,new)
+            if _original.name != new: point_mutation(protein,_original,new,logger)
             return
     elif _ptm in _CYSPTMS:
         raise MyDockingError("Post-translational modification '{}' is only coded for CYS-type residues".format(_ptm))
@@ -160,14 +166,20 @@ def post_translational_modification(protein,original,ptm):
                 _original.find(_template.elements[_template.chi2[2],1]),
                 _original.find(_template.elements[_template.chi2[3],1])
                 ])
-        found, angle1, angle2, minclashes = scan_chi1_chi2(protein,_original,nclashes,chi1,chi2)
+        found, angle1, angle2, minclashes = scan_chi1_chi2(protein,_original,nclashes,chi1,chi2,logger)
 
     # Get final rotamer
     if found:
-        print("\n\t Found rotamer with no clashes!")
+        if logger:
+            logger.info("Found rotamer with no clashes!")
+        else:
+            print("\n\t Found rotamer with no clashes!")
     else:
-        print("\n\t\t Warning: All rotamers had clashes!")
-        print("\t\t          using rotamer with {} clashes".format(minclashes))
+        if logger:
+            logger.warning("All rotamers had clashes! Using rotamer with {} clashes".format(minclashes))
+        else:
+            print("\n\t\t Warning: All rotamers had clashes!")
+            print("\t\t          using rotamer with {} clashes".format(minclashes))
         _original.coordinates = copy(newcoords)
         if angle1 > 0: rotate_chi1(_original,chi1,angle1)
         if angle2 > 0: rotate_chi2(_original,chi2,angle2)
@@ -178,8 +190,11 @@ def post_translational_modification(protein,original,ptm):
     return
 
 
-def scan_chi1_chi2(protein,residue,nclashes,chi1,chi2):
-    print("\n\t Current rotamer has {} possible clashes".format(nclashes))
+def scan_chi1_chi2(protein,residue,nclashes,chi1,chi2,logger=None):
+    if logger:
+        logger.info("\t Current rotamer has {} possible clashes".format(nclashes))
+    else:
+        print("\n\t Current rotamer has {} possible clashes".format(nclashes))
     angle1 = 0; angle2 = 0
     minclashes = nclashes
     found = False
@@ -201,7 +216,10 @@ def scan_chi1_chi2(protein,residue,nclashes,chi1,chi2):
                 if nclashes == 0:
                     found = True
                     return found, 0, 0, 0
-                print("\t Current rotamer has {} possible clashes".format(nclashes))
+                if logger:
+                    logger.info("\t Current rotamer has {} possible clashes".format(nclashes))
+                else:
+                    print("\t Current rotamer has {} possible clashes".format(nclashes))
                 if nclashes < minclashes:
                     minclashes = nclashes
                     angle1 = irot

@@ -116,7 +116,13 @@ aqe_ldrd.partitions["std120c"]  = aqe_ldrd.partitions["standard"]
 aqe_ldrd.partitions["bsc120c"]  = aqe_ldrd.partitions["basic"]
 aqe_ldrd.partitions["premium"].default = True
 
-
+def get_machine_name(machine_in):
+  if isinstance(machine_in, Machine):
+      return machine_in.name
+  elif isinstance(machine_in, str):
+      return machine_in
+  else:
+      raise TypeError("Machine is not a string or an instance of the Machine class")
 
 aqe_h100 = Machine(name="AQE-H100",
   partitions={
@@ -192,20 +198,38 @@ perlmutter.partitions["regular"].default = True
 frontier = Machine(name="Frontier",
         partitions={
             "batch": Partition(name="batch", memory=0, ncpus=56,
-                              ngpus=8, maxtime=2, maxnode=8192,
+                              ngpus=8, maxtime=12, maxnode=9408,
                               options = {
                     "gromacs": {
-                      "mpirun": "srun -N1 -n8 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-task=1",
+                      "gputasks": "45236701",
                       "container": "",
                       "gmx": "gmx_mpi",
-                      "gpu_id": "01234567",
-                      "ntasks": 8,
+                      "ntasks": 7,
+                      "nthreads": 7,
+                      "nstlist": 300
+                      },
+                      "timebins": {
+                        91: 2,
+                        183: 6,
+                        float('inf'): 12
+                      }
+                    }),
+            "extended": Partition(name="extended", memory=0, ncpus=56,
+                              ngpus=8, maxtime=24, maxnode=64,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "srun -N1 -n7 -c7 --gpus-per-task=1 --gpu-bind=closest",
+                      "fluxrun": "flux run --nodes=1 --ntasks=8 --cores-per-task=7 --gpus-per-task=1",
+                      "gputasks": "45236701",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "ntasks": 7,
                       "nthreads": 7,
                       "nstlist": 300
                       }
                     }),
-            "extended": Partition(name="extended", memory=0, ncpus=56,
-                              ngpus=0, maxtime=24, maxnode=64),
             },
         modules={"apptainer": "apptainer/1.2.5",
                  "gcc": "gcc/11.2.0",
@@ -214,13 +238,62 @@ frontier = Machine(name="Frontier",
         scratchdir="/lustre/orion/bip258/scratch/$USER")
 frontier.partitions["batch"].default = True
 
+polaris = Machine(name="Polaris",
+        partitions={
+            "debug": Partition(name="debug", memory=0, ncpus=32,
+                              ngpus=4, maxtime=1, maxnode=2,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            "prod": Partition(name="prod", memory=0, ncpus=32,
+                              ngpus=4, maxtime=24, maxnode=476,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            "preemptable": Partition(name="preemptable", memory=0, ncpus=32,
+                              ngpus=4, maxtime=72, maxnode=10,
+                              options = {
+                    "gromacs": {
+                      "mpirun": "mpiexec -hostfile $PBS_NODEFILE -n $NTOTRANKS -ppn $NRANKS_PER_NODE --depth=$NDEPTH --env OMP_NUM_THREADS=$NTHREADS --cpu-bind=core",
+                      "container": "",
+                      "gmx": "gmx_mpi",
+                      "ntasks": 4,
+                      "nthreads": 8,
+                      "nstlist": 300
+                      }
+                    }),
+            },
+        modules={"apptainer": "apptainer/1.2.2",
+                 "gcc": "gcc/11.2.0",
+                 "python": "cray-python/3.11.5",
+                 "openmpi": "openmpi/5.0.3"},
+        scratchdir="/local/scratch")
+polaris.partitions["prod"].default = True
+
 machines = {'aqe_ldrd': aqe_ldrd,
             'aqe_h100': aqe_h100,
             'tahoma': tahoma,
             'deception': deception,
             'perlmutter': perlmutter,
-            'frontier': frontier
+            'frontier': frontier,
+            'polaris': polaris
            }
+
+default_machine = "tahoma"
 
 class Slurm:
     def __init__(self, caller, **kwargs):
@@ -230,8 +303,9 @@ class Slurm:
             from ptmpsi.alphafold.templates import slurm_header
         elif caller == "gromacs":
             from ptmpsi.gromacs.templates import slurm_header
+            from ptmpsi.gromacs.templates import flux_header
 
-        __machine = kwargs.pop("machine", "frontier")
+        __machine = kwargs.pop("machine", default_machine)
         if isinstance(__machine, Machine):
             self.machine = __machine
         elif isinstance(__machine, str):
@@ -270,13 +344,25 @@ class Slurm:
         _time = kwargs.pop("time", _partition.maxtime if _partition.maxtime > 0 else 144)
         if _partition.maxtime > 0 and _time > _partition.maxtime:
             raise KeyError(f"Partition '{self.partition}' has a maximum time policy of '{_partition.maxtime}' per job")
-        self.time = f"{_time}:00:00"
+        hours = int(_time)
+        minutes = int((_time - hours) * 60)
+        seconds = int(((_time - hours) * 60 - minutes) * 60)
+        self.time = f"{hours:02}:{minutes:02}:{seconds:02}"
 
         self.account = kwargs.pop("account", self.machine.default_account())
 
         self.nnodes  = kwargs.pop("nnodes", 1)
         if self.nnodes > _partition.maxnode:
             raise KeyError(f"Partition '{self.partition}' has only {_partition.maxnode} nodes available")
+        if _partition.options.get("timebins") is not None:
+            maxtime = 0
+            for k,v in _partition.options["timebins"].items():
+                if self.nnodes <= k:
+                    maxtime = v
+                else:
+                    break
+            if _time > maxtime:
+                raise ValueError(f"Partition '{self.partition}' has a maximum time policy of '{maxtime}' per job for '{self.nnodes}' nodes. Please consider lowering the time or raising the number of nodes.")
 
         self.scratch = kwargs.pop("scratch", self.machine.scratchdir)
 
@@ -292,6 +378,7 @@ class Slurm:
                 "time"     : self.time,
                 "nnodes"   : self.nnodes,
                 "ntasks"   : self.ncpus,
+                "ncpus"    : self.ncpus,
                 "nthreads" : self.nthreads,
                 "jname"    : self.jobname,
                 "scratch"  : self.scratch,
@@ -303,5 +390,17 @@ class Slurm:
         self.header = self._header_template.format(**self.options_dictionary)
 
         return
+    def get_time_hours(self):
+        hours, minutes, seconds = map(int, self.time.split(":"))
+        return float(hours) + float(minutes) / 60 + float(seconds) / 3600
+    def update_jobname(self, jobname):
+        self.jobname = jobname
+        self.options_dictionary["jname"] = self.jobname
+        self.header = self._header_template.format(**self.options_dictionary)
+        return
 
-
+def convert_time_hours(time):
+        hours = int(time)
+        minutes = int((time - hours) * 60)
+        seconds = int(((time - hours) * 60 - minutes) * 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"

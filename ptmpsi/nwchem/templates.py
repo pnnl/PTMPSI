@@ -249,7 +249,6 @@ export APPTAINERENV_SCRATCH_DIR={scratch}
 export APPTAINERENV_OMP_NUM_THREADS=${OMP_NUM_THREADS}
 #export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
-
 cd {scratch}
 """
 
@@ -262,7 +261,6 @@ slurm_header["Frontier"] = """#!/bin/bash
 #SBATCH --error={jname}-%j.err
 #SBATCH --output={jname}-%j.out
 #SBATCH --partition={partition}
-#SBATCH --qos=debug
 
 cleanup()
 {{
@@ -282,7 +280,6 @@ cp *.out $SLURM_SUBMIT_DIR || :
 export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
 
 trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
-module purge
 module load python
 module load rocm/5.7.1
 module load cray-mpich-abi
@@ -308,6 +305,65 @@ export APPTAINERENV_OMP_NUM_THREADS=1
 
 
 cd {scratch}
+"""
+
+slurm_header["Polaris"] = """#!/bin/bash -l
+#PBS -l select={nnodes}:system=polaris
+#PBS -l walltime={time}
+#PBS -l filesystems=home:grand
+#PBS -q {partition}
+#PBS -N {jname}
+#PBS -A {account}
+#PBS -l place=scatter
+
+cleanup()
+{{
+cp *.xyz $PBS_O_WORKDIR || :
+cp *.log $PBS_O_WORKDIR || :
+cp *.txt $PBS_O_WORKDIR || :
+cp *.json $PBS_O_WORKDIR || :
+cp *.grid $PBS_O_WORKDIR || :
+cp *.qrs $PBS_O_WORKDIR || :
+cp *.pdb $PBS_O_WORKDIR || :
+cp *.rst $PBS_O_WORKDIR || :
+cp *.top $PBS_O_WORKDIR || :
+cp *.trj $PBS_O_WORKDIR || :
+cp *.out $PBS_O_WORKDIR || :
+}}
+
+trap cleanup SIGINT SIGTERM SIGKILL SIGSEGV SIGCONT
+
+export SCRATCH="/grand/TwinHostPath/${{USER}}/scratch"
+mkdir -p $SCRATCH
+
+# Load the appropriate environment
+source "/lus/grand/projects/TwinHostPath/software/nwchem/share/export.sh"
+module list
+module unload xalt
+echo $LD_LIBRARY_PATH
+
+export MPICH_GPU_SUPPORT_ENABLED=0
+export COMEX_MAX_NB_OUTSTANDING=1
+export MPICH_SMP_SINGLE_COPY_MODE=NONE
+export FI_CXI_RX_MATCH_MODE=hybrid
+export COMEX_EAGER_THRESHOLD=16384
+export FI_CXI_RDZV_THRESHOLD=16384
+export FI_CXI_OFLOW_BUF_COUNT=6
+
+export NWBIN=/grand/projects/TwinHostPath/dmejiar/nwchem/bin/LINUX64/nwchem
+
+NNODES=`wc -l < $PBS_NODEFILE`
+NRANKS_PER_NODE={ntasks}
+NDEPTH=1
+NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
+NTHREADS=1
+
+export OMP_NUM_THREADS=$NTHREADS
+
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+
+
+cd ${{SCRATCH}}
 """
 
 shotmdp = """integrator     = md
@@ -348,7 +404,7 @@ cd ptmpsi
 python -m pip install .
 cd ..
 
-export NWCHEM_COMMAND="{runsingularity_prefix[machine]}"
+export NWCHEM_COMMAND="{runsingularity_prefix_tahoma}"
 """
 
 slurm_torsiondrive = """
@@ -405,10 +461,10 @@ cp ${SLURM_SUBMIT_DIR}/beta.nw .
 cp ${SLURM_SUBMIT_DIR}/fit.py .
 
 echo "Running alpha-helix conformer"
-{runsingularity_prefix[machine]} alpha.nw > alpha.log
+{runsingularity_prefix_tahoma} alpha.nw > alpha.log
 
 echo "Running beta-strand conformer"
-{runsingularity_prefix[machine]} beta.nw > beta.log
+{runsingularity_prefix_tahoma} beta.nw > beta.log
 
 # Create a Virtual Environment
 if [ -d "venv" ]; then
@@ -432,10 +488,10 @@ cp ${SLURM_SUBMIT_DIR}/alpha_hess.nw .
 cp ${SLURM_SUBMIT_DIR}/beta_hess.nw .
 
 echo "\\n Running alpha-helix hessian"
-{runsingularity_prefix[machine]} alpha_hess.nw > alpha_hess.log
+{runsingularity_prefix_tahoma} alpha_hess.nw > alpha_hess.log
 
 echo "\\n Running beta-sheet hessian"
-{runsingularity_prefix[machine]} beta_hess.nw > beta_hess.log
+{runsingularity_prefix_tahoma} beta_hess.nw > beta_hess.log
 
 cp alpha_hess.log $SLURM_SUBMIT_DIR
 cp beta_hess.log $SLURM_SUBMIT_DIR
@@ -593,14 +649,75 @@ python -m pip install .
 cd ..
 """
 
+qmmm_slurm = {}
+
+qmmm_slurm["Tahoma"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /cluster/apps/nwchem/nwchem/src/data/amber_s/
+amber_2 /cluster/apps/nwchem/nwchem/src/data/amber_x/
+amber_3 /cluster/apps/nwchem/nwchem/src/data/amber_q/
+spce /cluster/apps/nwchem/nwchem/src/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/{complex} /big_scratch
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw /big_scratch
+
+srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch,$NWCHEM_BASIS_LIBRARY,/cluster/apps/nwchem/nwchem/src/data/ $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
+qmmm_slurm["Frontier"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /opt/nwchem/share/data/amber_s/
+amber_2 /opt/nwchem/share/data/amber_q/
+amber_3 /opt/nwchem/share/data/amber_x/
+amber_4 /opt/nwchem/share/data/amber_u/
+spce /opt/nwchem/share/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/{complex} ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw ${{SCRATCH}}
+
+srun -N $SLURM_NNODES -n $SLURM_NPROCS $NWBIN prepare.nw > prepare.log
+
+cleanup
+"""
+
+qmmm_slurm["Polaris"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_s/
+amber_2 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_q/
+amber_3 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_x/
+amber_4 /grand/projects/TwinHostPath/software/nwchem/share/data/amber_u/
+spce /grand/projects/TwinHostPath/software/nwchem/share/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/{complex} ${{SCRATCH}}
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw ${{SCRATCH}}
+
+mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind core apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
 nwconstraint = "constrain  {: 10.6f}  {:5d}\n "
 pyconstraint = "[{},{}],\n"
 coordinates = "{}   {: 14.8f}   {: 14.8f}   {: 14.8f}\n"
 pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
 runsingularity = {}
-runsingularity["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
-runsingularity["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['Tahoma'] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['Frontier'] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['Polaris'] = "mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind=core $NWBIN {name}.nw > {name}.log\n\n"
 runsingularity_prefix = {}
-runsingularity_prefix["Tahoma"] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
-runsingularity_prefix["Frontier"] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"
-slurm_copy = "cp ${{SLURM_SUBMIT_DIR}}/{filename} . \n"
+runsingularity_prefix_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
+runsingularity_prefix_frontier = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem"
+script_copy = {}
+script_copy['slurm'] = "cp ${{SLURM_SUBMIT_DIR}}/{filename} . \n"
+script_copy['pbs'] = "cp $PBS_O_WORKDIR/{filename} . \n"

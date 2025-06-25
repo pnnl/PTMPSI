@@ -1,7 +1,7 @@
 import pkgutil
 from datetime import datetime
 from os.path import isfile, isdir, join
-from ptmpsi.slurm import Slurm
+from ptmpsi.slurm import Slurm, default_machine
 from ptmpsi.alphafold.templates import slurm_body
 
 tahoma_datasets = "/tahoma/datasets/alphafold"
@@ -11,7 +11,8 @@ edo_singularity = "oras://ghcr.io/edoapra/alphafold_singularity/alphafold:latest
 singularity_231 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v231:latest"
 singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:latest"
 frontier_experimental_232 = "alphafold"
-frontier_experimental_datasets_232 = "/lustre/orion/stf243/world-shared/preview/datasets/"
+frontier_datasets_232 = "/lustre/orion/bip258/world-shared/datasets/alphafold"
+polaris_datasets_232 = "/grand/TwinHostPath/datasets/alphafold"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
@@ -33,12 +34,10 @@ class AlphaFoldOptions:
 
         if self.machine == "frontier":
             self.container = frontier_experimental_232
-            if self.dbs == "full_dbs":
-                self.data_dir = join(frontier_experimental_datasets_232, "af2_full")
-            elif self.dbs == "reduced_dbs":
-                self.data_dir = join(frontier_experimental_datasets_232, "af2_reduced")
-            else:
-                raise ValueError("Frontier only supports full_dbs and reduced_dbs")
+            if self.dbs != "full_dbs":
+                raise ValueError("Frontier only supports full_dbs")
+            if self.data_dir is None:
+                self.data_dir = frontier_datasets_232
         
         if self.container is None:
             if self.version == "2.3.2":
@@ -50,7 +49,16 @@ class AlphaFoldOptions:
 
         if self.data_dir is None:
             if self.version in ["2.3.1","2.3.2"]:
-                self.data_dir = tahoma_datasets_231
+                if self.machine == "polaris":
+                    if self.version == "2.3.2":
+                        if self.dbs == "full_dbs":
+                            self.data_dir = polaris_datasets_232
+                        else:
+                            raise ValueError("Polaris only supports full_dbs")
+                    else:
+                        raise ValueError("Polaris only supports alphafold database 2.3.2")
+                else:
+                    self.data_dir = tahoma_datasets_231
             else:
                 self.data_dir = tahoma_datasets
 
@@ -72,6 +80,11 @@ def gen_script(options):
         filename = "run_singularity_232.py"
     else:
         filename = "run_singularity.py"
+    if options.machine == "polaris":
+        # Assert file is run_singularity_232.py
+        # Assert version is 2.3.2
+        assert filename == "run_singularity_232.py"
+        assert options.version == "2.3.2"
     data = pkgutil.get_data(__name__,filename).decode('utf-8')
     with open("run_singularity.py","w") as fh:
         fh.write(data.format(options.unified_memory, options.xla_mem_fraction))
@@ -80,8 +93,8 @@ def gen_script(options):
 def gen_pull(options):
     # Check if Singularity container exists
     if options.machine == "frontier":
-        print ("\t Info: Frontier will use experimental container for alphafold 2.3.2 from /sw/frontier/preview/modulefiles/")
-        string = "module use /sw/frontier/preview/modulefiles/\nmodule load alphafold/2.3.2"
+        print ("\t Info: Frontier will use conda environment for alphafold 2.3.2 from /ccs/proj/bip258/apps/modulefiles\nPlease run 'sbatch alphafold.sbatch'")
+        string = "module use /ccs/proj/bip258/apps/modulefiles\nmodule load alphafold/2.3.2\n"
     if isfile(options.container):
         print("\t Info: run script will use '{}' container".format(container))
         string = "ln -sf {} $ALPHAFOLD_DIR/alphafold.sif\n".format(container)
@@ -89,7 +102,10 @@ def gen_pull(options):
         _split = options.container.split(":")
         if _split[0] in ["oras", "library", "docker", "shub", "http", "https"]:
             print("\t Info: run script will pull container from '{}'".format(options.container))
-            string = "/usr/bin/time -p singularity pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)
+            if options.machine == "polaris":
+                string = "/usr/bin/time -p singularity pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)    
+            else:
+                string = "/usr/bin/time -p apptainer pull -F --name $ALPHAFOLD_DIR/alphafold.sif {}\n".format(options.container)
     return string
             
 
@@ -140,6 +156,11 @@ def prediction(fasta,**kwargs):
     # Override default options with user's settings
     options = AlphaFoldOptions(fasta_paths, **kwargs)
     slurm   = Slurm("alphafold", **kwargs)
+    if options.machine == None:
+        options.machine = slurm.machine.name.lowercase()
+        print("\t Info: Using default machine '{}'".format(options.machine))
+    else:
+        print("\t Info: Using machine '{}'".format(options.machine))
     if options.use_gpu == "True":
         slurm.header += "#SBATCH --gres=gpu:1\n"
 
@@ -153,7 +174,7 @@ def prediction(fasta,**kwargs):
         relax = f"--run_relax={options.run_relax}"
 
     with open("alphafold.sbatch","w") as fh:
-        fh.write(slurm_body[options.machine.capitalize()].format(header=slurm.header,
+        fh.write(slurm_body[slurm.machine.name.capitalize()].format(header=slurm.header,
                  data_dir=options.data_dir, 
                  version=options.version,
                  pull=pull,
@@ -164,8 +185,11 @@ def prediction(fasta,**kwargs):
                  fasta_paths=",".join(options.fasta_paths),
                  date=options.date,
                  model=options.model))
-
+    if options.machine == 'polaris':
+        execution_command = "qsub alphafold.sbatch"
+    else:
+        execution_command = "sbatch alphafold.sbatch"
     print("\n\t Info: Make sure to copy alphafold.sbatch, run_singularity.py, your")
     print("\t       fasta files and all generated temp*.fasta files to a submission")
-    print("\t       directory and execute `sbatch alphafold.sbatch`")
+    print(f"\t       directory and execute `{execution_command}`")
     return

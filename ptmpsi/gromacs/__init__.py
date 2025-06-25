@@ -1,7 +1,8 @@
-from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg
+from ptmpsi.gromacs.templates import ions,minim,heating,npt,md,update_topology,minimcg,queue_estimated_runs,check_and_update_topology,submit_lambdas,write_estimated_runs,flux_node_header,parsl_worker_header,set_affinity_gpu_polaris
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.slurm import Slurm
 import numpy as np
+import subprocess
 
 _navogadro = 6.0221408E23
 _cm2nm = 1.0E7
@@ -41,6 +42,11 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs
     lennpt = kwargs.pop("lennpt", 500.0)
     lenmd  = kwargs.pop("lenmd",  100.0)
     timestep = kwargs.pop("timestep", 2.0)
+    nstxout_compressed = kwargs.pop("nstxout_compressed", 50000)
+    # If not specified, use the same sampling rate as the general argument.
+    nstxout_compressed_heating = kwargs.pop("nstxout_compressed_heating", nstxout_compressed)
+    nstxout_compressed_npt = kwargs.pop("nstxout_compressed_npt", nstxout_compressed)
+    nstxout_compressed_md = kwargs.pop("nstxout_compressed_md", nstxout_compressed)
 
 
     # Generate MDP file for ions addition
@@ -65,24 +71,24 @@ def generate_mdp(temp=300,posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],**kwargs
     # Generate MDP file restrained NVT equilibration 
     with open("heating.mdp","w") as fh:
         restraint = "define          = -DP1"
-        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=restraint))
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=restraint, nstxout_compressed=nstxout_compressed_heating))
 
     # Generate MDP file free NVT equilibration 
     with open("fheating.mdp","w") as fh:
-        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint=""))
+        fh.write(heating.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lennvt/timestep*1000), restraint="", nstxout_compressed=nstxout_compressed_heating))
 
     # Generate MDP files for NPT equilibration
     with open("npt.mdp", "w") as fh:
         restraint = "define          = -DP1"
-        fh.write(npt.format(temp=temp, restraint=restraint, timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
+        fh.write(npt.format(temp=temp, restraint=restraint, timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000), nstxout_compressed=nstxout_compressed_npt))
 
     # Generate MDP files for free NPT equilibration
     with open("fnpt.mdp", "w") as fh:
-        fh.write(npt.format(temp=temp, restraint="", timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000)))
+        fh.write(npt.format(temp=temp, restraint="", timestep=timestep/1000.0, nsteps=int(lennpt/timestep*1000), nstxout_compressed=nstxout_compressed_npt))
 
     # Generate MDP file for MD production
     with open("md.mdp","w") as fh:
-        fh.write(md.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lenmd*1000000/timestep)))
+        fh.write(md.format(temp=temp, timestep=timestep/1000.0, nsteps=int(lenmd*1000000/timestep), nstxout_compressed=nstxout_compressed_md))
 
     return
 
@@ -102,16 +108,52 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     slurm = Slurm("gromacs", jobname=jobname, **kwargs)
     gmx       = kwargs.pop("gmx", "gmx")
     container = kwargs.pop("container", "")
-    gpu_id    = kwargs.pop("gpu_id", "")
-    gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
+    bundling = kwargs.get("bundling", False)
+    if slurm.machine.name == "Polaris":
+        # gpu_id = kwargs.pop("gpu_tasks", "")
+        # gpu_id = f"-gputasks {gpu_id}" if len(gpu_id) > 0 else ""
+        gpu_id = "" # Auto GPU assignment
+    else:
+        if slurm.machine.name == "Frontier" and bundling:
+            gpu_id = f"-gputasks {kwargs.get('gputasks', '')}"
+        else:
+            gpu_id    = kwargs.pop("gpu_id", "")
+            gpu_id    = f"-gpu_id {gpu_id}" if len(gpu_id) > 0 else ""
     if slurm.machine.name == "Frontier":
-        mpirun    = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
+        if bundling:
+            mpirun = kwargs.pop("fluxrun", f"flux run -n {slurm.ncpus}")
+        else:
+            mpirun = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
+    elif slurm.machine.name == "Polaris":
+        mpirun    = kwargs.pop("mpirun", f"mpiexec -n {slurm.ncpus}")
     else:
         mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
     nstlist   = kwargs.pop("nstlist", 0)
     nstlist   = f"-nstlist {nstlist}" if nstlist > 0 else ""
     do_ti     = kwargs.get("thermo", True)
     subindex  = kwargs.pop("subindex", "")
+    checkpointing = kwargs.pop("checkpointing", True)
+
+    if bundling and slurm.machine.name != "Frontier" and slurm.machine.name != "Polaris":
+        raise NotImplementedError(f"Bundling is only supported on Frontier and Polaris, not {slurm.machine.name}.")
+
+    if slurm.machine.name == "Polaris":
+        submit_cmd = "qsub"
+        dependency = "-W depend"
+        sed=""
+        self_jobid = "$PBS_JOBID"
+        with open("set_affinity_gpu_polaris.sh", "w") as sa:
+            sa.write(set_affinity_gpu_polaris)
+        subprocess.run(["chmod", "+x", "set_affinity_gpu_polaris.sh"])
+        mpirun = mpirun + " ./set_affinity_gpu_polaris.sh"
+        if bundling:
+            mpirun = mpirun.replace("PBS_NODEFILE", "HOSTFILE")
+    else:
+        submit_cmd = "sbatch"
+        dependency = "--dependency"
+        sed="| sed 's/Submitted batch job //'"
+        self_jobid = "$SLURM_JOBID"
+    auto_submit_ti = kwargs.get("auto_submit_ti", True)
 
     if conc is None and (npos is None or nneg is None):
         raise KeyError("Specify total ion concentration or a number of positive and negative ions to add")
@@ -119,7 +161,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     addion = f"-np {npos} -nn {nneg}" if conc is None else "-neutral -conc {}".format(conc)
 
     if slurm.machine.name == "Frontier":
-        single_mpiexec = "srun -n 1"
+        single_mpiexec = "flux run -n 1" if bundling else "srun -n 1"
+    elif slurm.machine.name == "Polaris":
+        single_mpiexec = "mpiexec -n 1"
     else:
         single_mpiexec = "mpirun -np 1"
 
@@ -132,10 +176,22 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     if do_ti:
         with open(f"{path}/update_topology.py", "w") as fh:
             fh.write(update_topology)
+    
+    if bundling and slurm.machine.name == "Polaris":
+        run_script = f"{infile[:-4]}.sh"
+    else:
+        run_script = f"{infile[:-4]}_slurm.sbatch"
 
     # Write the slurm submission script
-    with open(f"{infile[:-4]}_slurm.sbatch","w") as fh:
-        fh.write(slurm.header)
+    with open(run_script,"w") as fh:
+        if bundling and slurm.machine.name == "Frontier":
+            fh.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
+            fh.write("flux resource list\n")
+            fh.write("module list\n")
+        elif bundling and slurm.machine.name == "Polaris":
+            fh.write(parsl_worker_header[slurm.machine.name].format(**slurm.options_dictionary, working_dir=cwd))
+        else:
+            fh.write(slurm.header)
 
         # PDB2GMX
         fh.write(f"""echo -e "1\\n1" | {single_mpiexec} {container} {gmx} pdb2gmx -f {infile} -o step1.gro -merge all -ignh \n""")
@@ -220,24 +276,65 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
         # PRODUCTION
         fh.write(f"{single_mpiexec} {container} {gmx} grompp -f md.mdp -c fnpt.gro -t fnpt.cpt -p topol.top -n index.ndx -o md.tpr\n")
-        if slurm.ngpus > 1:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n")
-        elif slurm.ngpus == 1:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm md \n")
-        else:
-            fh.write(f"{mpirun}{subindex} {container} {gmx} mdrun -deffnm md \n")
 
-        # GENERATE TOPOLOGY FOR TI
-        if do_ti:
-            fh.write("\n")
-            fh.write("cd dualti\n")
-            fh.write("python update_topology.py\n")
+        if checkpointing:
+            if not bundling:
+                fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
+                if auto_submit_ti:
+                    fh.write(submit_lambdas)
+            else:
+                fh.write(write_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
+            checkpoint_arg = "-cpi md.cpt"
+            # If the queue is preemptable, maxh won't work well.
+            if slurm.machine.name == "Polaris" and slurm.partition == "preemptable":
+                maxh = ""
+            else:
+                maxh = f"-maxh {slurm.get_time_hours() - 0.2}"
+        else:
+            checkpoint_arg = ""
+            maxh = ""
+
+        if slurm.ngpus > 1:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} {gpu_id} {nstlist} -nb gpu -pme gpu -npme 1 -bonded gpu -update gpu -deffnm md \n"
+        elif slurm.ngpus == 1:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} {gpu_id} {nstlist} -nb gpu -bonded gpu -deffnm md \n"
+        else:
+            md_cmd = f"{mpirun}{subindex} {container} {gmx} mdrun {checkpoint_arg} {maxh} -deffnm md \n"
+
+        if checkpointing:
+            with open("md.sbatch","w") as md_sbatch:
+                slurm.update_jobname(f"{jobname}_md")
+                if bundling and slurm.machine.name == "Frontier":
+                    md_sbatch.write(flux_node_header[slurm.machine.name].format(user="", account="bip258"))
+                    md_sbatch.write("flux resource list\n")
+                    md_sbatch.write("module list\n")
+                else:
+                    md_sbatch.write(slurm.header)
+                md_sbatch.write(md_cmd)
+                # GENERATE TOPOLOGY FOR TI
+                if do_ti:
+                    jobpath = "../../md" if bundling else "md"
+                    self_jobid = "$(cat ../../md_current.jobid)" if bundling else self_jobid
+                    md_sbatch.write(check_and_update_topology.format(job='md', jobpath=jobpath, self_jobid=self_jobid))
+            if bundling and slurm.machine.name == "Polaris":
+                subprocess.run(["chmod", "+x", "md.sbatch"])
+        else:
+            fh.write(md_cmd)
+            # GENERATE TOPOLOGY FOR TI
+            if do_ti:
+                fh.write("\n")
+                fh.write("cd dualti\n")
+                fh.write("python update_topology.py\n")
+    if bundling:
+        subprocess.run(["chmod", "+x", run_script])
 
     if do_ti:
         for i in range(13):
+            lam_filename = f"{infile[:-4]}_lam{i:02d}.sh" if slurm.machine.name == "Polaris" else f"{infile[:-4]}_lam{i:02d}_slurm.sbatch"
             ipath = os.path.join(path, f"lam-{i:02d}")
             os.chdir(ipath)
-            with open(f"{infile[:-4]}_lam{i:02d}_slurm.sbatch","w") as fh:
+            with open(lam_filename,"w") as fh:
+                slurm.update_jobname(f"{jobname}_lam{i:02d}")
                 fh.write(slurm.header)
                 fh.write(f"cd 01-q\n")
                 fh.write(f"ln -s ../rankfile1 rankfile1 \n")

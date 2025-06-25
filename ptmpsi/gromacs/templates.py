@@ -82,7 +82,7 @@ lincs-iter            = 1
 lincs-order           = 4
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 500
 nstlog                = 500
 nstdisreout           = 0
@@ -148,7 +148,7 @@ lincs-iter            = 1
 lincs-order           = 4
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 500
 nstlog                = 500
 nstdisreout           = 0
@@ -213,7 +213,7 @@ lincs-order           = 4
 comm-mode             = linear
 
 ; Output control
-nstxout-compressed    = 5000
+nstxout-compressed    = {nstxout_compressed}
 nstenergy             = 5000
 nstlog                = 5000
 nstxout               = 0
@@ -391,7 +391,7 @@ calc_lambda_neighbors   = 1
 vdw_lambdas             = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
 ; We are not transforming any bonded or restrained interactions
-bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 
+bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 # NEED TO BE MODIFIED LATER 
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
 mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
@@ -636,7 +636,6 @@ EOF
 slurm_header['Frontier'] = """#!/bin/bash
 #SBATCH --partition={partition}
 #SBATCH --account={account}
-#SBATCH --qos=debug
 #SBATCH --time={time}
 #SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
@@ -652,7 +651,7 @@ slurm_header['Frontier'] = """#!/bin/bash
 export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
 
 module use /ccs/proj/bip258/apps/modulefiles
-module load gromacs/2024.3
+module load gromacs
 
 NTASKS=$SLURM_NTASKS
 CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
@@ -674,6 +673,173 @@ export SYCL_CACHE_PERSISTENT=1
 
 """
 
+slurm_header['Polaris'] = """#!/bin/bash
+#PBS -l select={nnodes}:system=polaris
+#PBS -l walltime={time}
+#PBS -l filesystems=home:grand
+#PBS -q {partition}
+#PBS -N {jname}
+#PBS -A {account}
+#PBS -l place=scatter
+#PBS -r y
+
+module load gromacs/2024.4
+
+# From the user
+{user}
+
+export SCRATCH="/local/scratch"
+
+cd ${{PBS_O_WORKDIR}}
+
+export MPICH_GPU_SUPPORT_ENABLED=1
+export OMP_STACKSIZE=4G
+export OMP_NUM_THREADS={nthreads}
+export TMPDIR={scratch}
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+
+NNODES=`wc -l < $PBS_NODEFILE`
+NRANKS_PER_NODE={ntasks}
+NDEPTH=1
+NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
+NTHREADS={nthreads}
+
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+
+"""
+
+flux_header = {}
+
+flux_header['Frontier'] = """#!/bin/bash
+#SBATCH --partition={partition}
+#SBATCH --account={account}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+module use /ccs/proj/bip258/apps/modulefiles
+module load gromacs/2024.4
+module load hwloc/2.9.1-gpu # Flux requires a GPU-enabled hwloc to see the GPUs
+module load flux
+
+"""
+flux_node_header = {}
+flux_node_header['Frontier'] = """#!/bin/bash
+# From the user
+{user}
+
+export SCRATCH="/lustre/orion/{account}/scratch/${{USER}}"
+
+module use /ccs/proj/bip258/apps/modulefiles
+module load gromacs/2024.4
+
+export OMP_STACKSIZE=4G
+export OMP_NUM_THREADS=7
+export TMPDIR=${{SCRATCH}}
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+export SYCL_CACHE_PERSISTENT=1
+
+"""
+
+parsl_header = {}
+
+parsl_header['Polaris'] = """#!/bin/bash
+#PBS -l select={nnodes}:system=polaris
+#PBS -l walltime={time}
+#PBS -l filesystems=home:grand
+#PBS -q {partition}
+#PBS -N {jname}
+#PBS -A {account}
+#PBS -l place=scatter
+
+module use /grand/TwinHostPath/apps/modulefiles
+module load parsl/2025.01.20
+module load gromacs/2024.4
+
+cd ${{PBS_O_WORKDIR}}
+
+python {script}
+
+"""
+
+parsl_worker_init = {}
+
+# TODO: Ensure that the cwd is specified properly when executing the app
+
+parsl_worker_init['Polaris'] = """module use /grand/TwinHostPath/apps/modulefiles
+module load parsl/2025.01.20
+module load gromacs/2024.4
+
+module list
+
+export SCRATCH="/local/scratch"
+
+export MPICH_GPU_SUPPORT_ENABLED=1
+export OMP_STACKSIZE=4G
+export TMPDIR=$SCRATCH
+export GMX_ENABLE_DIRECT_GPU_COMM=1
+export GMX_GPU_PME_DECOMPOSITION=1
+export GMX_MAXBACKUP=-1
+export UCX_POSIX_USE_PROC_LINK=n
+export UCX_TLS=^cma
+export UCX_LOG_LEVEL=ERROR
+export UCX_LOG_LEVEL_TRIGGER=ERROR
+export UCX_RNDV_THRESH=8192
+export HWLOC_HIDE_ERRORS=1
+
+"""
+
+parsl_worker_header = {}
+
+parsl_worker_header['Polaris'] = """cd {working_dir}
+
+set -e
+export CORES=$(getconf _NPROCESSORS_ONLN)
+echo "Found cores : $CORES"
+
+HOSTFILE="hostfile"
+
+NNODES={nnodes}
+NRANKS_PER_NODE={ntasks}
+NDEPTH=8
+NTOTRANKS=$(($NNODES * $NRANKS_PER_NODE))
+NTHREADS={nthreads}
+
+export OMP_NUM_THREADS=$NTHREADS
+export OMP_PLACES=cores
+
+echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
+"""
+
+# From https://docs.alcf.anl.gov/polaris/running-jobs/#binding-mpi-ranks-to-gpus
+set_affinity_gpu_polaris = """#!/bin/bash -l
+num_gpus=4
+# need to assign GPUs in reverse order due to topology
+# See Polaris Device Affinity Information:
+# https://www.alcf.anl.gov/support/user-guides/polaris/hardware-overview/machine-overview/index.html
+gpu=$((${num_gpus} - 1 - ${PMI_LOCAL_RANK} % ${num_gpus}))
+export CUDA_VISIBLE_DEVICES=$gpu
+echo "RANK= ${PMI_RANK} LOCAL_RANK= ${PMI_LOCAL_RANK} gpu= ${gpu}"
+exec "$@"
+"""
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008
@@ -1063,4 +1229,120 @@ with open("TItop.top", "w") as topo:
       _ptmline = ptm[jline].strip("\\n")
       topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
+"""
+
+check_and_queue_estimated_runs_flux = """
+maxestruns=0
+while IFS= read -r line; do
+  dir=$(dirname $line)
+  estruns=$(cat ${{dir}}/estruns.txt)
+  if [ $estruns -gt $maxestruns ]; then
+    maxestruns=$estruns
+  fi
+done < {prefix}{jobname}_fluxjobs.txt
+echo $maxestruns > {prefix}maxestruns.txt
+echo "Number of additional runs needed: $maxestruns"
+
+# Obtain the jobid of the first run
+jobid=$(cat {jobname}.jobid)
+
+for i in $(seq 1 $maxestruns); do
+  sleep 1s
+  echo "Batching run $i"
+  jobid=$({submit_cmd} {dependency}=afterok:$jobid {jobname}_bundle.sbatch {sed})
+  echo "Submitted job $jobid"
+done
+
+echo $jobid > ${jobname}.jobid
+"""
+write_estimated_runs = """
+
+# Extract performance value from log file
+hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
+
+# Extract dt and nsteps from mdp file
+dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
+nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
+
+total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
+
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
+
+echo "Estimated number of hours: $estimated_hours"
+
+# Calculate number of runs needed
+num_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
+num_runs=$(printf "%.0f" "$num_runs")
+
+# Subtract num_runs by 1 to account for the first run aging in the queue
+if [ "$num_runs" -gt 0 ]; then
+  num_runs=$(echo "$num_runs - 1" | bc)
+fi
+
+file=$(basename "{mdp_file}" .mdp)
+
+echo "Number of additional runs needed for $file: $num_runs"
+
+echo $num_runs > estruns.txt
+"""
+queue_estimated_runs = """
+
+# Extract performance value from log file
+hours_per_ns=$(grep "Performance:" "{log_file}" | awk '{{print $3}}')
+
+# Extract dt and nsteps from mdp file
+dt=$(grep "^dt" "{mdp_file}" | awk '{{print $3}}')
+nsteps=$(grep "^nsteps" "{mdp_file}" | awk '{{print $3}}')
+
+total_ns=$(echo "$dt * $nsteps / 1000" | bc -l)
+
+estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
+
+echo "Estimated number of hours: $estimated_hours"
+
+# Calculate number of runs needed
+num_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
+num_runs=$(printf "%.0f" "$num_runs")
+
+# Subtract num_runs by 1 to account for the first run aging in the queue
+if [ "$num_runs" -gt 0 ]; then
+  num_runs=$(echo "$num_runs - 1" | bc)
+fi
+
+file=$(basename "{mdp_file}" .mdp)
+
+echo "Number of additional runs needed for $file: $num_runs"
+
+# Obtain the jobid of the first run
+jobid=$(cat ${{file}}.jobid)
+
+for i in $(seq 1 $num_runs); do
+  sleep 1s
+  echo "Batching run $i"
+  jobid=$({submit_cmd} {dependency}=afterok:$jobid ${{file}}.sbatch {sed})
+  echo "Submitted job $jobid"
+done
+
+echo $jobid > ${{file}}.jobid
+"""
+submit_lambdas = """
+echo "Submitting lambdas"
+./submit_lambdas.sh $jobid
+"""
+check_and_update_topology = """
+file_jobid=$(cat {jobpath}.jobid)
+self_jobid={self_jobid}
+if [ $file_jobid -eq $self_jobid ]; then
+  echo "This is the last {job} job. Checking to see if requested steps match completed steps."
+  requested_nsteps=$(grep nsteps {job}.mdp | awk '{{print $3}}')
+  completed_nsteps=$(grep "Writing checkpoint, step" {job}.log | tail -1 | awk '{{print $4}}')
+  if [ $requested_nsteps -eq $completed_nsteps ]; then
+    echo "nsteps completed match the requested nsteps! $completed_nsteps steps completed."
+  else
+    echo "WARNING: nsteps completed ($completed_nsteps) do not match the requested nsteps ($requested_nsteps)."
+  fi
+  echo "Updating topology whether nsteps was achieved or not."
+  cd dualti
+  python update_topology.py
+fi
 """
