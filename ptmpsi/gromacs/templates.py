@@ -310,7 +310,6 @@ gen_temp            = 300                      ; initial temperature
 free_energy              = yes
 delta_lambda             = 0
 ;
-;couple-moltype          = ATC-A
 couple-intramol         = no
 couple-lambda0          = vdw-q
 couple-lambda1          = vdw-q
@@ -319,16 +318,16 @@ calc_lambda_neighbors   = 1
 ;                            0    1    2    3    4    5    6    7    8    9   10   11   12
 vdw_lambdas             = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 coul_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
-; We are not transforming any bonded or restrained interactions
+; We are not transforming any bonded or restrained interactions during Q decoupling
 bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
-; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
+; Masses are not changing during Q decoupling (particle identities are the same at lambda = 0 and lambda = 1)
 mass_lambdas            = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
-; Not doing simulated temperting here
+; Not doing simulated tempering here
 temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Options for the decoupling
 sc-alpha                 = 0.5
-sc-coul                  = yes       ; yes for vdw??? linear interpolation of Coulomb (none in this case)
+sc-coul                  = yes       
 sc-power                 = 1
 sc-sigma                 = 0.3
 nstdhdl                  = 10
@@ -381,7 +380,6 @@ gen_temp            = 300                      ; initial temperature
 free_energy              = yes
 delta_lambda             = 0
 ;
-;couple-moltype          = ATC-A
 couple-intramol         = no ;it was vdw-q which is incorrect, Edited by Hoshin (102824)
 couple-lambda0          = vdw ;it must be vdw, not vdw-q during vdw step, Edited by Hoshin (102824)
 couple-lambda1          = none
@@ -390,12 +388,12 @@ calc_lambda_neighbors   = 1
 ;                            0    1    2    3    4    5    6    7    8    9   10   11   12
 vdw_lambdas             = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
 coul_lambdas            = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
-; We are not transforming any bonded or restrained interactions
-bonded_lambdas          = 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 # NEED TO BE MODIFIED LATER 
+; We are transforming any bonded interactions but not restrained interactions
+bonded_lambdas          = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00 ; Updated (062525)
 restraint_lambdas       = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
-; Masses are not changing (particle identities are the same at lambda = 0 and lambda = 1)
+; Masses are changing PTMed CYS to CYS (particle identities are not the same at lambda = 0 and lambda = 1)
 mass_lambdas            = 0.00 0.05 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 0.95 1.00
-; Not doing simulated temperting here
+; Not doing simulated tempering here
 temperature_lambdas     = 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
 ; Options for the decoupling
 sc-alpha                 = 0.5
