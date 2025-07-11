@@ -838,14 +838,26 @@ export CUDA_VISIBLE_DEVICES=$gpu
 echo "RANK= ${PMI_RANK} LOCAL_RANK= ${PMI_LOCAL_RANK} gpu= ${gpu}"
 exec "$@"
 """
+#BELOW: H1 must be 0.1112 not 0.1122
+CYZ = """ N      -0.4157       14.01
+ H       0.2719       1.008
+CT       0.0213       12.01
+H1       0.1124       1.008
+CT      -0.1231       12.01
+H1       0.1112       1.008
+H1       0.1112       1.008
+SH      -0.3119       32.06
+HS       0.1933       1.008
+ C       0.5973       12.01
+ O      -0.5679          16"""
 
 SNC = """ N      -0.4157      14.01
  H       0.2719      1.008
 CT       0.0213      12.01
 H1       0.1124      1.008
 CT      -0.1231      12.01
-H1       0.1122      1.008
-H1       0.1122      1.008
+H1       0.1112      1.008
+H1       0.1112      1.008
 SH      -0.3119      32.06
 HS       0.1933      1.008
 DU       0.0000         16
@@ -857,8 +869,8 @@ CSO = """ N      -0.4157       14.01
 CT       0.0213       12.01
 H1       0.1124       1.008
 CT      -0.1231       12.01
-H1       0.1122       1.008
-H1       0.1122       1.008
+H1       0.1112       1.008
+H1       0.1112       1.008
 SH      -0.3119       32.06
 HS       0.1933       1.008
 DU       0.0000       1.008
@@ -870,8 +882,8 @@ CGL = """ N      -0.4157       14.01
 CT      -0.0351       12.01
 H1       0.0508       1.008
 CT      -0.2413       12.01
-H1       0.1122       1.008
-H1       0.1122       1.008
+H1       0.1112       1.008
+H1       0.1112       1.008
 SH      -0.8844       32.06
 DU       0.0000       14.01
 DU       0.0000       1.008
@@ -916,8 +928,8 @@ IYY = """ N      -0.4157       14.01
 CT       0.02130     12.01
 H1       0.11240     1.008
 CT      -0.12310     12.01
-H1       0.11220     1.008
-H1       0.11220     1.008
+H1       0.11120     1.008
+H1       0.11120     1.008
 SH      -0.31190     32.06
 HS       0.19330     1.008
 DU       0.00000     12.01
@@ -937,16 +949,24 @@ DU       0.00000     1.008
 
 
 update_topology = f"""#!/usr/bin/env python3
+import re
 import os
 
 with open("topol.top", "r") as topo:
   oldtopo = topo.readlines()
 
+CYZ = '''{CYZ}'''
 SNC = '''{SNC}'''
 CSO = '''{CSO}'''
 CGL = '''{CGL}'''
 IYY = '''{IYY}'''
 
+CYZ_list = [
+ [[2, 4, 7, 8],
+   ["   0.0  1.39467   3     0.0   1.04600   3"]]
+]
+
+]
 IYY_list = [
  [[2, 4, 7, 8],
    ["   0.0   1.39467   3     0.0   1.04600   3"]],
@@ -1167,7 +1187,7 @@ CGL_list = [
 ]
 
 substitutions = []
-with open("TItop.top", "w") as topo:
+with open("modified.top", "w") as topo:
   dihedrals = False
   iline = 0
   while iline < len(oldtopo):
@@ -1227,6 +1247,94 @@ with open("TItop.top", "w") as topo:
       _ptmline = ptm[jline].strip("\\n")
       topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
+#Second Script: Analyze CYZ residues and Modify Dihedrals across S-S (Hoshin 071125)#
+
+topol_file = "modified.top"
+output_file = "TItop.top"
+
+cyz_info = []  # for CB, SG, DU
+with open(topol_file, 'r') as f:
+    lines = f.readlines()
+
+cb, sg, du = None, None, None
+for line in lines:
+    if re.match(r"\s*\d+\s+\S+\s+\d+\s+CYZ", line):
+        fields = line.split()
+        atom_name = fields[4]
+        atom_index = int(fields[0])
+        if atom_name == 'CB':
+            cb = atom_index
+        elif atom_name == 'SG':
+            sg = atom_index
+        elif atom_name == 'DU':
+            du = atom_index
+
+        if cb and sg and du:
+            cyz_info.append((cb, sg, du))
+            cb, sg, du = None, None, None
+
+# Create dihedral types
+from itertools import combinations
+
+type_A = []  # CT–SG–SG–CT
+type_B = []  # DU–SG–SG–DU
+type_C = []  # DU–SG–SG–CT or CT–SG–SG–DU
+
+for (cb1, sg1, du1), (cb2, sg2, du2) in combinations(cyz_info, 2):
+    type_A.extend([(cb1, sg1, sg2, cb2), (cb2, sg2, sg1, cb1)])
+    type_B.extend([(du1, sg1, sg2, du2), (du2, sg2, sg1, du1)])
+    type_C.extend([(du1, sg1, sg2, cb2), (cb1, sg1, sg2, du2),
+                   (du2, sg2, sg1, cb1), (cb2, sg2, sg1, du1)])
+
+in_dihedrals = False
+modified_lines = []
+dihedral_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)')
+
+for line in lines:
+    if line.strip().startswith('[ dihedrals ]'):
+        in_dihedrals = True
+        modified_lines.append(line)
+        continue
+
+    if in_dihedrals and line.strip().startswith('['):
+        in_dihedrals = False
+
+    if in_dihedrals:
+        match = dihedral_pattern.match(line)
+        if match:
+            atoms = tuple(map(int, match.groups()))
+            i1, i2, i3, i4 = atoms
+            new_lines = None
+
+#IF you find a better parameters for these  torsions, directly edit them below
+#IF you find a better parameters for bonds and angles involving DU atom, edit them in ffbonded.itp file
+
+            if atoms in type_A: #CT-SG-SG-CT
+                new_lines = [
+                    line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\n', # From FFbonded.itp (FF99SB)
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   2.51040  3  0.0   0.00000  3\n' #From FFbonded.itp (FF99SB)
+                ]
+            elif atoms in type_B: #DU-SG-SG-DU
+                new_lines = [
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU related - BOTH should be zero
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complainted
+                ]
+            elif atoms in type_C: #DU-SG-SG-CT
+                new_lines = [
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU realted - BOTH should be zero
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complained
+                ]
+
+            if new_lines:
+                modified_lines.extend(new_lines)
+                continue
+
+    modified_lines.append(line)
+
+with open(output_file, 'w') as f:
+    f.writelines(modified_lines)
+
+print(f"Modified topology saved to {output_file}")
 """
 
 check_and_queue_estimated_runs_flux = """
