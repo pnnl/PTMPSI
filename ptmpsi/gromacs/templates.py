@@ -1248,11 +1248,12 @@ with open("modified.top", "w") as topo:
       topo.write(f"{{_oldtopo}}     {{_ptmline}} \\n")
       iline += 1
 #Second Script: Analyze CYZ residues and Modify Dihedrals across S-S (Hoshin 071125)#
+from itertools import combinations
 
 topol_file = "modified.top"
 output_file = "TItop.top"
 
-cyz_info = []  # for CB, SG, DU
+cyz_info = []  # [(CB, SG, DU)]
 with open(topol_file, 'r') as f:
     lines = f.readlines()
 
@@ -1273,32 +1274,55 @@ for line in lines:
             cyz_info.append((cb, sg, du))
             cb, sg, du = None, None, None
 
-# Create dihedral types
-from itertools import combinations
-
 type_A = []  # CT–SG–SG–CT
 type_B = []  # DU–SG–SG–DU
 type_C = []  # DU–SG–SG–CT or CT–SG–SG–DU
+type_D = []  # SG-SG Disulfide bonds
 
 for (cb1, sg1, du1), (cb2, sg2, du2) in combinations(cyz_info, 2):
-    type_A.extend([(cb1, sg1, sg2, cb2), (cb2, sg2, sg1, cb1)])
-    type_B.extend([(du1, sg1, sg2, du2), (du2, sg2, sg1, du1)])
-    type_C.extend([(du1, sg1, sg2, cb2), (cb1, sg1, sg2, du2),
-                   (du2, sg2, sg1, cb1), (cb2, sg2, sg1, du1)])
+    # Type A
+    type_A.append((cb1, sg1, sg2, cb2))
+    type_A.append((cb2, sg2, sg1, cb1))
 
-in_dihedrals = False
+    # Type B
+    type_B.append((du1, sg1, sg2, du2))
+    type_B.append((du2, sg2, sg1, du1))
+
+    # Type C
+    type_C.append((du1, sg1, sg2, cb2))
+    type_C.append((cb1, sg1, sg2, du2))
+    type_C.append((du2, sg2, sg1, cb1))
+    type_C.append((cb2, sg2, sg1, du1))
+
+    # Type D
+    type_D.append((sg1, sg2))
+    type_D.append((sg2, sg1))
+
+in_dihedrals = in_bonds = False
 modified_lines = []
 dihedral_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)')
+bond_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
 
 for line in lines:
-    if line.strip().startswith('[ dihedrals ]'):
+    stripped = line.strip()
+    if stripped.startswith('[ dihedrals ]'):
         in_dihedrals = True
+        in_bonds = False
+        modified_lines.append(line)
+        continue
+    elif stripped.startswith('[ bonds ]'):
+        in_dihedrals = False
+        in_bonds = True
+        modified_lines.append(line)
+        continue
+    elif stripped.startswith('['):
+        in_dihedrals = in_bonds = False
         modified_lines.append(line)
         continue
 
-    if in_dihedrals and line.strip().startswith('['):
-        in_dihedrals = False
-
+#IF you find a better parameters for these  torsions, directly edit them below
+#IF you find a better parameter for SG-SG bonds for 2 CYS (StateB), directly edit them below
+#IF you find a better parameters for bonds and angles involving DU atom, edit them in ffbonded.itp file
     if in_dihedrals:
         match = dihedral_pattern.match(line)
         if match:
@@ -1306,35 +1330,43 @@ for line in lines:
             i1, i2, i3, i4 = atoms
             new_lines = None
 
-#IF you find a better parameters for these  torsions, directly edit them below
-#IF you find a better parameters for bonds and angles involving DU atom, edit them in ffbonded.itp file
-
-            if atoms in type_A: #CT-SG-SG-CT
+            if atoms in type_A:
                 new_lines = [
                     line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\n', # From FFbonded.itp (FF99SB)
-                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   2.51040  3  0.0   0.00000  3\n' #From FFbonded.itp (FF99SB)
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   2.51040  3  0.0   0.00000  3\n' # From FFbonded.itp (FF99SB)
                 ]
-            elif atoms in type_B: #DU-SG-SG-DU
+            elif atoms in type_B:
                 new_lines = [
                     line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU related - BOTH should be zero
                     f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complainted
+
                 ]
-            elif atoms in type_C: #DU-SG-SG-CT
+            elif atoms in type_C:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU realted - BOTH should be zero
-                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complained
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU related - BOTH should be zero
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complainted
+
                 ]
 
             if new_lines:
                 modified_lines.extend(new_lines)
                 continue
+        modified_lines.append(line)
 
-    modified_lines.append(line)
+    elif in_bonds:
+        match = bond_pattern.match(line)
+        if match:
+            a1, a2 = int(match.group(1)), int(match.group(2))
+            if (a1, a2) in type_D:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  0.20380   138908.8   0.50000   0.00000 \n' #From ffbonded.itp + just guess (5A) with zero Kb
+        modified_lines.append(line)
+
+    else:
+        modified_lines.append(line)
 
 with open(output_file, 'w') as f:
     f.writelines(modified_lines)
-
-print(f"Modified topology saved to {output_file}")
 """
 
 check_and_queue_estimated_runs_flux = """
