@@ -32,6 +32,34 @@ cd PTMPSI
 pip install -e .
 ```
 
+### Navigate to ptmpsi–PCA analysis module
+This module provides scripts and workflows for performing Principal Component Analysis (PCA) on molecular dynamics (MD) simulations within the PTMPSI framework. It supports feature extraction, PCA computation, clustering, scoring, and figure generation, producing both per-system and combined results.
+```
+cd PTMPSI/ptmpsi-PCA
+   ```
+**Run the setup script** to prepare the environment and required directories:
+```bash
+bash setup.sh
+conda activate gppenv
+```
+**Generate MD pipelines** using your configuration:
+```bash
+python generate_pipelines.py
+```
+**Navigate to the generated workflow directory** and run the MD jobs:
+```bash
+cd <generated_workflow_dir>
+bash md_bundle_flux.sh
+```
+---
+
+## 📂 Output
+
+- **Per-system results** in respective system directories
+- **Combined PCA results** in `PC_score_ranking.csv` and `combined_score_ranking.csv`
+- **Figures**: RMSD, Rg, RMSF, contact maps, PCA scatter plots
+
+---
 ## Citation
 
 ## License
