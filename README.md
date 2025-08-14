@@ -45,6 +45,7 @@ conda activate gppenv
 **Generate MD pipelines** using your configuration:
 ```bash
 python generate_pipelines.py
+# CLI options—enter the path to <RAWsimulations_DIR>, <REFerence_DIR>, <POSTprocess_dir>
 ```
 **Navigate to the generated workflow directory** and run the MD jobs:
 ```bash
