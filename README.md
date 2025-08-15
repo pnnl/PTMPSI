@@ -52,6 +52,12 @@ python generate_pipelines.py
 cd <generated_workflow_dir>
 bash md_bundle_flux.sh
 ```
+**If restart is require**
+```bash
+First remove ".done" from each system directory to re-run, 
+find . -maxdepth 2 -type f -name ".done" -regex '\./[0-9]+/\.done' -delete
+Re-run, bash md_bundle_flux.sh
+```
 ---
 
 ## 📂 Output
