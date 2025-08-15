@@ -40,14 +40,14 @@ from rmsf_secstruct import GAP_SEGIDS, PRK_SEGIDS, CP12_SEGIDS
 from collections import defaultdict
 
 # ─── Global styling ──────────────────────────────────────────────────────────
-mpl.rcParams["font.size"]   = 18
+mpl.rcParams["font.size"]   = 16
 mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.weight"] = "bold"
-mpl.rcParams["legend.fontsize"] = 18
-mpl.rcParams["axes.titlesize"]  = 18
-mpl.rcParams["axes.labelsize"]  = 18
-mpl.rcParams["xtick.labelsize"] = 18
-mpl.rcParams["ytick.labelsize"] = 18
+mpl.rcParams["legend.fontsize"] = 16
+mpl.rcParams["axes.titlesize"]  = 16
+mpl.rcParams["axes.labelsize"]  = 16
+mpl.rcParams["xtick.labelsize"] = 16
+mpl.rcParams["ytick.labelsize"] = 16
 mpl.rcParams["axes.labelpad"] = 12
 mpl.rcParams["xtick.major.pad"] = 6
 mpl.rcParams["ytick.major.pad"] = 6
@@ -213,11 +213,11 @@ def plot_rmsf(base, systems, skip, mode, cutoff, topo, traj, blk, outdir):
 
     # 6) Y-axis labels
     ax0.set_yticks([0])
-    ax0.set_yticklabels(["REF"], fontsize=18)
+    ax0.set_yticklabels(["REF"], fontsize=16)
     yt = list(range(len(systems)-1))
     yl = [str(int(s)) for s in systems[1:]]
     ax1.set_yticks(yt)
-    ax1.set_yticklabels(yl, fontsize=18)
+    ax1.set_yticklabels(yl, fontsize=16)
     ax1.invert_yaxis()
 
     # 7) Suppress x-ticks on REF panel
@@ -248,7 +248,7 @@ def plot_rmsf(base, systems, skip, mode, cutoff, topo, traj, blk, outdir):
         bottom_labels.append(f"{ch}\n{grp}({occ})")
 
     ax1.set_xticks(mids)
-    ax1.set_xticklabels(bottom_labels, rotation=0, fontsize=18)
+    ax1.set_xticklabels(bottom_labels, rotation=0, fontsize=16)
     for lbl in ax1.get_xticklabels():
         lbl.set_bbox(dict(facecolor='none', edgecolor='none', pad=3))
     ax1.set_xlim(0, len(labs0)-1)
@@ -261,7 +261,7 @@ def plot_rmsf(base, systems, skip, mode, cutoff, topo, traj, blk, outdir):
 
     ax0_top = ax0.twiny()
     ax0_top.set_xticks(ticks)
-    ax0_top.set_xticklabels(labs, fontsize=18, rotation=0)
+    ax0_top.set_xticklabels(labs, fontsize=16, rotation=0)
     ax0_top.set_xlim(0, len(labs0)-1)
     ax0_top.set_xlabel("Residue index", labelpad=4)
 
@@ -300,7 +300,7 @@ def plot_secstruct(base, systems, skip, mode, cutoff, topo, traj, blk, outdir):
 
     labels = ["REF"] + [str(int(s)) for s in systems[1:]]
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=0, fontsize=18)
+    ax.set_xticklabels(labels, rotation=0, fontsize=16)
     ax.set_ylabel("Fraction of Contacts")
     ax.set_title("SecStruct")
     ax.legend(bbox_to_anchor=(1.02,1), loc="upper left")

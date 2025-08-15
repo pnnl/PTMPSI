@@ -62,12 +62,12 @@ def plot_cluster_feature_ranges(cluster_feature_ranges, feat_names, system_name,
             color = cmap(j)
             m, e = means[j], errors[j]
             ax.errorbar(xvals[j], m, yerr=e, fmt='o', capsize=3, color=color)
-        ax.tick_params(labelsize=18)
+        ax.tick_params(labelsize=16)
         ax.set_xticks(xvals)
         ax.set_xticklabels([str(c) for c in cluster_ids])
-        ax.set_title(feat, fontsize=18)
+        ax.set_title(feat, fontsize=16)
         unit_str = units_dict.get(feat, "")
-        ax.set_ylabel(unit_str, fontsize=18)
+        ax.set_ylabel(unit_str, fontsize=16)
         # ─── PTM‑contact features get their own xlabel ───
         if feat.startswith("PTM_"):
             label = feat[len("PTM_"):]
@@ -106,9 +106,9 @@ def plot_top_pcs(pca_data, explained_variance, system_name, outdir="figures_pca"
     # Big PC1 panel
     ax_big = fig.add_subplot(gs[:,0])
     ax_big.hist(pca_data[:, 0], bins=30, alpha=0.7, color=colors[0])
-    ax_big.set_title(f"PC1 ({explained_variance[0]*100:.1f}% var)", fontsize=18)
-    ax_big.set_xlabel("PC1 Score", fontsize=18)
-    ax_big.set_ylabel("Frequency", fontsize=18)
+    ax_big.set_title(f"PC1 ({explained_variance[0]*100:.1f}% var)", fontsize=16)
+    ax_big.set_xlabel("PC1 Score", fontsize=16)
+    ax_big.set_ylabel("Frequency", fontsize=16)
 
     # The smaller four PCs
     subaxes = [fig.add_subplot(gs[0,1]), fig.add_subplot(gs[0,2]),
@@ -116,9 +116,9 @@ def plot_top_pcs(pca_data, explained_variance, system_name, outdir="figures_pca"
     for i, ax in enumerate(subaxes, start=1):
         if i < top5:
             ax.hist(pca_data[:, i], bins=30, alpha=0.7, color=colors[i])
-            ax.set_title(f"PC{i+1} ({explained_variance[i]*100:.1f}% var)", fontsize=18)
-            ax.set_xlabel(f"PC{i+1} Score", fontsize=18)
-            ax.set_ylabel("Frequency", fontsize=18)
+            ax.set_title(f"PC{i+1} ({explained_variance[i]*100:.1f}% var)", fontsize=16)
+            ax.set_xlabel(f"PC{i+1} Score", fontsize=16)
+            ax.set_ylabel("Frequency", fontsize=16)
         else:
             ax.set_visible(False)
 
@@ -156,14 +156,14 @@ def plot_clusters_pca(pca_data, cluster_labels, centroids, system_name, outdir="
             linewidth=1.5
         )
 
-    plt.xlabel("PC1", fontsize=18)
-    plt.ylabel("PC2", fontsize=18)
+    plt.xlabel("PC1", fontsize=16)
+    plt.ylabel("PC2", fontsize=16)
     # legend
     plt.legend(
         loc='upper center',
         bbox_to_anchor=(0.5, 1.10),
         ncol=min(n_clusters, 4),
-        fontsize=18,
+        fontsize=16,
         frameon=False
     )
 
@@ -289,12 +289,12 @@ def plot_cluster_frequency_3d(cluster_labels, overall_scores, system_name, outdi
 
     fig = plt.figure(figsize=(8,6))
     ax = fig.add_subplot(111, projection='3d')
-    ax.tick_params(labelsize=18)
+    ax.tick_params(labelsize=16)
     for i, cval in enumerate(uc):
         ax.bar([cval], [counts[i]], zs=[avg_scores[i]], zdir='y', alpha=0.8, color=cmap(i))
-    ax.set_xlabel("Cluster ID", fontsize=18)
-    ax.set_ylabel("Avg Score", fontsize=18)
-    ax.set_zlabel("Frequency", fontsize=18)
+    ax.set_xlabel("Cluster ID", fontsize=16)
+    ax.set_ylabel("Avg Score", fontsize=16)
+    ax.set_zlabel("Frequency", fontsize=16)
     outfile = os.path.join(outdir, f"{system_name}_cluster_frequency_3d.pdf")
     os.makedirs(outdir, exist_ok=True)
     plt.savefig(outfile, dpi=300)
@@ -343,9 +343,9 @@ def plot_ptm_importance(ptm_site_labels, ptm_matrix, system_name, outdir="figure
     
     plt.figure(figsize=(8,5))
     plt.bar(labeled_sites, site_means, color=bar_colors, alpha=0.8)
-    plt.xlabel("PTM Residue (resname-chainID-resid) [domain]", fontsize=18)
-    plt.ylabel("Mean Residue Contacts", fontsize=18)
-    plt.xticks(rotation=70, fontsize=18)
+    plt.xlabel("PTM Residue (resname-chainID-resid) [domain]", fontsize=16)
+    plt.ylabel("Mean Residue Contacts", fontsize=16)
+    plt.xticks(rotation=70, fontsize=16)
     outfile = os.path.join(outdir, f"{system_name}_ptm_importance.pdf")
     plt.tight_layout()
     plt.savefig(outfile, dpi=300)
@@ -368,9 +368,9 @@ def plot_top5_pcs_all_systems(pca_data_dict, outdir="figures_pca", filename="all
         for j in range(n_pcs):
             ax = axes[i, j]
             ax.hist(pca_data[:, j], bins=30, alpha=0.7, color=cmap(j))
-            ax.set_title(f"{sys_name} PC{j+1}\n({explained_variance[j]*100:.1f}% var)", fontsize=18)
-            ax.set_xlabel(f"PC{j+1} Score", fontsize=18)
-            ax.set_ylabel("Frequency", fontsize=18)
+            ax.set_title(f"{sys_name} PC{j+1}\n({explained_variance[j]*100:.1f}% var)", fontsize=16)
+            ax.set_xlabel(f"PC{j+1} Score", fontsize=16)
+            ax.set_ylabel("Frequency", fontsize=16)
 
         # hide any unused subplots
         for j in range(n_pcs, max_pcs):
@@ -429,9 +429,9 @@ def plot_pairwise_top5_pcs(pca_data_dict, cluster_labels_dict=None, outdir="figu
                 if subplot_index == 0:
                     scatter_handles.append(sc)
                     scatter_labels.append(f"Cluster {cluster_id}")
-            ax.set_xlabel(f"PC{i+1} ({explained_variance[i]*100:.1f}% var)", fontsize=18)
-            ax.set_ylabel(f"PC{j+1} ({explained_variance[j]*100:.1f}% var)", fontsize=18)
-            ax.set_title(f"{sys_name}: PC{i+1} vs PC{j+1}", fontsize=18)
+            ax.set_xlabel(f"PC{i+1} ({explained_variance[i]*100:.1f}% var)", fontsize=16)
+            ax.set_ylabel(f"PC{j+1} ({explained_variance[j]*100:.1f}% var)", fontsize=16)
+            ax.set_title(f"{sys_name}: PC{i+1} vs PC{j+1}", fontsize=16)
         
         # Hide any extra axes (if pairs < nrows*ncols)
         for ax in axes[n_pairs:]:
@@ -442,7 +442,7 @@ def plot_pairwise_top5_pcs(pca_data_dict, cluster_labels_dict=None, outdir="figu
         handles = scatter_handles  
         labels  = scatter_labels  
         ncol = len(handles)  
-        fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=ncol,frameon=False, fontsize=18)   
+        fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=ncol,frameon=False, fontsize=16)   
         os.makedirs(outdir, exist_ok=True)
         outfile = os.path.join(outdir, filename)
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -618,7 +618,7 @@ def build_and_plot_residue_network(
             ha = "right"; ang += 180
         plt.text(x,y,node,rotation=ang,rotation_mode="anchor",
                  horizontalalignment=ha,verticalalignment="center",
-                 fontsize=18)
+                 fontsize=16)
 
                
     plt.axis("off")
@@ -643,7 +643,7 @@ def build_and_plot_residue_network(
         all_labels,
         loc='upper center',
         bbox_to_anchor=(0.5, 1.10),
-        fontsize=18,
+        fontsize=16,
         ncol=ncol,
         frameon=False
     )

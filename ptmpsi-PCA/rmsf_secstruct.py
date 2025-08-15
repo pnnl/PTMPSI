@@ -35,14 +35,14 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
 # ─── Global styling ──────────────────────────────────────────────────────────
-mpl.rcParams["font.size"]   = 18
+mpl.rcParams["font.size"]   = 16
 mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.weight"] = "bold"
-mpl.rcParams["legend.fontsize"] = 18
-mpl.rcParams["axes.titlesize"]  = 18
-mpl.rcParams["axes.labelsize"]  = 18
-mpl.rcParams["xtick.labelsize"] = 18
-mpl.rcParams["ytick.labelsize"] = 18
+mpl.rcParams["legend.fontsize"] = 16
+mpl.rcParams["axes.titlesize"]  = 16
+mpl.rcParams["axes.labelsize"]  = 16
+mpl.rcParams["xtick.labelsize"] = 16
+mpl.rcParams["ytick.labelsize"] = 16
 mpl.rcParams["axes.labelpad"] = 12
 mpl.rcParams["xtick.major.pad"] = 6
 mpl.rcParams["ytick.major.pad"] = 6
@@ -301,7 +301,7 @@ def main():
         ax1.axvline(end+0.5, color='black', linestyle=':', linewidth=2)
 
     ax1.set_xticks(mids);
-    ax1.set_xticklabels(xtlabs, fontsize=18)
+    ax1.set_xticklabels(xtlabs, fontsize=16)
     ax1.set_yticks([0,1]);
     ax1.set_yticklabels(["REF", args.name])
     ax1.set_ylabel("Ref #")
@@ -314,7 +314,7 @@ def main():
     num_labels = (num_ticks + 1).tolist()  # convert to 1‐based
 
     ax1_top.set_xticks(num_ticks)
-    ax1_top.set_xticklabels(num_labels, fontsize=18, rotation=0)
+    ax1_top.set_xticklabels(num_labels, fontsize=16, rotation=0)
     ax1_top.set_xlim(ax1.get_xlim())
     ax1_top.set_xlabel("Residue #")
     

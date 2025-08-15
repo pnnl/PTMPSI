@@ -19,14 +19,14 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 # ─── Global styling ──────────────────────────────────────────────────────────
-mpl.rcParams["font.size"]   = 18
+mpl.rcParams["font.size"]   = 16
 mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.weight"] = "bold"
-mpl.rcParams["legend.fontsize"] = 18
-mpl.rcParams["axes.titlesize"]  = 18
-mpl.rcParams["axes.labelsize"]  = 18
-mpl.rcParams["xtick.labelsize"] = 18
-mpl.rcParams["ytick.labelsize"] = 18
+mpl.rcParams["legend.fontsize"] = 16
+mpl.rcParams["axes.titlesize"]  = 16
+mpl.rcParams["axes.labelsize"]  = 16
+mpl.rcParams["xtick.labelsize"] = 16
+mpl.rcParams["ytick.labelsize"] = 16
 mpl.rcParams["axes.labelpad"] = 12
 mpl.rcParams["xtick.major.pad"] = 6
 mpl.rcParams["ytick.major.pad"] = 6
