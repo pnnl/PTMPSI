@@ -312,7 +312,7 @@ for rel in "${{JOBS[@]}}"; do
         --output_dir   "$sys_pca_dir" \
         --topology     solute_fixed.pdb \
         --trajectories solute_fit.xtc \
-        --step 10 --n_comp 5 --dt_ns 1.0
+        --step 10 --n_comp 5 --dt_ns 0.1
     fi
 
     cd - >/dev/null
