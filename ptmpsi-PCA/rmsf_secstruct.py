@@ -301,7 +301,7 @@ def main():
         ax1.axvline(end+0.5, color='black', linestyle=':', linewidth=2)
 
     ax1.set_xticks(mids);
-    ax1.set_xticklabels(xtlabs, fontsize=14)
+    ax1.set_xticklabels(xtlabs, fontsize=12)
     ax1.set_yticks([0,1]);
     ax1.set_yticklabels(["REF", args.name])
     ax1.set_ylabel("Ref #")
