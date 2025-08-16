@@ -32,41 +32,93 @@ cd PTMPSI
 pip install -e .
 ```
 
-### Navigate to ptmpsi–PCA analysis module
-This module provides scripts and workflows for performing Principal Component Analysis (PCA) on molecular dynamics (MD) simulations within the PTMPSI framework. It supports feature extraction, PCA computation, clustering, scoring, and figure generation, producing both per-system and combined results.
+### ptmpsi-PCA Analysis Module
+This module is designed for performing Principal Component Analysis (PCA) on molecular dynamics (MD) simulations within the PTMPSI framework. It provides a comprehensive workflow covering feature extraction, PCA computation, conformational clustering, scoring, and figure generation. The analysis produces both per-system and combined results, enabling in-depth insights into MD trajectories.
+
+## 🚀 Getting Started
+### Navigate to the Module Directory
+Begin by changing into the `ptmpsi-PCA` directory:
 ```
 cd PTMPSI/ptmpsi-PCA
-   ```
-**Run the setup script** to prepare the environment and required directories:
-```bash
-bash setup.sh
-conda activate gppenv
 ```
-**Generate MD pipelines** using your configuration:
+
+### Set Up the Environment
+Run the setup script to prepare the necessary environment and directories. This step establishes a Conda environment named `gppenv` and only needs to be executed once.
 ```bash
-python generate_pipelines.py
-# CLI options—enter the path to <RAWsimulations_DIR>, <REFerence_DIR>, <POSTprocess_dir>
+bash setup.sh  # The "setup.sh" is ran just once to establish the conda environment named "gppenv"
+conda activate gppenv 
 ```
+
+### Generate MD Analysis Pipelines
+Execute the driver script to create post-processing directories for your MD systems from the raw simulation data. You will be prompted to provide the following paths and values:
+```bash
+python generate_pipelines.py 
+```
+-   `<path_to_RAWsimulations_DIR>`: Path to your raw MD simulation directories.
+-   `<numeric_value_of_REFerence_DIR>`: Numeric identifier for the reference directory.
+-   `<path_to_POSTprocess_dir>`: Desired path for the generated post-processing directories.
+
+### Run MD Job Analysis
+Navigate to the generated workflow directory for your specific system and execute the `md_bundle_flux.sh` script. This script orchestrates the entire MD analysis workflow:
 **Navigate to the generated workflow directory** and run the MD jobs:
 ```bash
 cd <generated_workflow_dir>
 bash md_bundle_flux.sh
 ```
+
+#### About `md_bundle_flux.sh`:
+This script performs a series of sequential analyses:
+
+-   **Solute Extraction**: Extracts the solute from MD `<.xtc>` trajectory files.
+-   **Chain ID Assignment**: Adds chain IDs to the respective reference `<.pdb>` file for each system.
+-   **Feature Extraction**: Performs initial feature extraction from the MD data.
+-   **PCA & Clustering**: Computes Principal Component Analysis and conducts conformational clustering.
+-   **Kinetic Network Generation**: Draws kinetic transition networks based on Mean First Passage Time (MFPT) and cluster residence time.
+-   **System Scoring**: Assigns a score to each system based on its PC value. A combined score is also calculated, incorporating MFPT and cluster residence time.
+-   **Representative PDBs**: Generates representative PDB files for identified clusters.
+-   **Result Generation**: Produces both per-system and combined results, referenced against a combined standard.
+
+### Restarting Analysis (If Required)
+If you need to re-run the analysis for any reason, first remove the `.done` flags from the system directories, then re-execute the `md_bundle_flux.sh` script:
 **If restart is require**
 ```bash
-First remove ".done" from each system directory to re-run, 
-find . -maxdepth 2 -type f -name ".done" -regex '\./[0-9]+/\.done' -delete
-Re-run, bash md_bundle_flux.sh
+find . -maxdepth 2 -type f -name ".done" -regex '\./[0-9]+/\.done'
 ```
----
+### Optional: Clean up and Re-run MD Analysis
+To clean up previous analysis figures and re-run the MD jobs, follow these steps:
 
+### Check which MD analysis figure directories exist (Optional)
+
+This command lists all `figures` or `figures_*` directories within the system subdirectories (up to two levels deep), helping you verify what will be deleted.
+```bash
+find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) -regex '\./[0-9]+/figures.*' -print 
+```
+### Remove MD analysis figures (Optional)
+This command deletes all identified `figures` or `figures_*` directories and their contents. Use with caution.
+```bash
+find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) -regex '\./[0-9]+/figures.*' -exec rm -rf {} + 
+```
+## Re-run MD jobs
+After cleaning up, re-execute the main analysis script.
+```bash
+bash md_bundle_flux.sh
+```
+
+---
 ## 📂 Output
-
-- **Per-system results** in respective system directories
-- **Combined PCA results** in `PC_score_ranking.csv` and `combined_score_ranking.csv`
-- **Figures**: RMSD, Rg, RMSF, contact maps, PCA scatter plots
-
+-   **Per-system results**: Located within their respective system directories.
+-   **Combined PCA results**:
+    -   `PC_score_ranking.csv`
+    -   `combined_score_ranking.csv`
+-   **Generated Figures**: Visualizations of key MD properties:
+    -   RMSD (Root Mean Square Deviation)
+    -   Rg (Radius of Gyration)
+    -   RMSF (Root Mean Square Fluctuation)
+    -   Fraction of Secondary Structure Formation
+    -   Contact maps
+    -   PCA scatter plots
 ---
+
 ## Citation
 
 ## License
