@@ -18,14 +18,14 @@ from MDAnalysis.analysis.rms import rmsd as mda_rmsd
 import argparse
 
 # ─── Global styling ──────────────────────────────────────────────────────────
-mpl.rcParams["font.size"]   = 16
+mpl.rcParams["font.size"]   = 14
 mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.weight"] = "bold"
-mpl.rcParams["legend.fontsize"] = 16
-mpl.rcParams["axes.titlesize"]  = 16
-mpl.rcParams["axes.labelsize"]  = 16
-mpl.rcParams["xtick.labelsize"] = 16
-mpl.rcParams["ytick.labelsize"] = 16
+mpl.rcParams["legend.fontsize"] = 14
+mpl.rcParams["axes.titlesize"]  = 14
+mpl.rcParams["axes.labelsize"]  = 14
+mpl.rcParams["xtick.labelsize"] = 14
+mpl.rcParams["ytick.labelsize"] = 14
 mpl.rcParams["axes.labelpad"] = 12
 mpl.rcParams["xtick.major.pad"] = 6
 mpl.rcParams["ytick.major.pad"] = 6

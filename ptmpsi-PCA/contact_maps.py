@@ -25,14 +25,14 @@ import matplotlib.pyplot as plt
 import argparse
 
 # ─── Global styling ──────────────────────────────────────────────────────────
-mpl.rcParams["font.size"]   = 16
+mpl.rcParams["font.size"]   = 14
 mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.weight"] = "bold"
-mpl.rcParams["legend.fontsize"] = 16
-mpl.rcParams["axes.titlesize"]  = 16
-mpl.rcParams["axes.labelsize"]  = 16
-mpl.rcParams["xtick.labelsize"] = 16
-mpl.rcParams["ytick.labelsize"] = 16
+mpl.rcParams["legend.fontsize"] = 14
+mpl.rcParams["axes.titlesize"]  = 14
+mpl.rcParams["axes.labelsize"]  = 14
+mpl.rcParams["xtick.labelsize"] = 14
+mpl.rcParams["ytick.labelsize"] = 14
 mpl.rcParams["axes.labelpad"] = 12
 mpl.rcParams["xtick.major.pad"] = 6
 mpl.rcParams["ytick.major.pad"] = 6
@@ -122,10 +122,10 @@ def plot_maps(maps, groups, titles, name, outpath):
         # residue tick labels
         N1, N2 = mat.shape
         ax.set_yticks(np.arange(N1))
-        ax.set_yticklabels([f"{r.resname}-{r.resid}" for r in grp1], fontsize=16)
+        ax.set_yticklabels([f"{r.resname}-{r.resid}" for r in grp1], fontsize=14)
         ax.set_xticks(np.arange(N2))
         ax.set_xticklabels([f"{r.resname}-{r.resid}" for r in grp2],
-                           rotation=90, fontsize=16)
+                           rotation=90, fontsize=14)
 
         # segment boundaries & centred region labels (segname–segid)
         # Y axis
@@ -149,7 +149,7 @@ def plot_maps(maps, groups, titles, name, outpath):
                       color='black', linewidth=1, linestyle=':')
         for m, l in zip(mids1, labs1):
             ax.text(1.01, m, l, ha='left', va='center', rotation=90, 
-                    fontsize=16, transform=ax.get_yaxis_transform())
+                    fontsize=14, transform=ax.get_yaxis_transform())
 
         # X axis
         segids2 = [r.segid for r in grp2]
@@ -172,15 +172,15 @@ def plot_maps(maps, groups, titles, name, outpath):
                       color='black', linewidth=1, linestyle=':')
         for m, l in zip(mids2, labs2):
             ax.text(m, 1.02, l, ha='center', va='bottom',
-                    rotation=0, fontsize=16,
+                    rotation=0, fontsize=14,
                     transform=ax.get_xaxis_transform())
 
-        ax.set_title(titles[idx], pad=16)
+        ax.set_title(titles[idx], pad=14)
 
     cbar = fig.colorbar(im, ax=axes, orientation='horizontal',
                         fraction=0.05, pad=0.02)
     cbar.set_label("Contact probability")
-    fig.suptitle(f"Contact Maps", fontsize=16)
+    fig.suptitle(f"Contact Maps", fontsize=14)
     fig.savefig(outpath, dpi=300)
     plt.close(fig)
     print(f"Saved contact maps → {outpath}")

@@ -41,14 +41,14 @@ from matplotlib.lines import Line2D
 
 # ─── Global matplotlib styling ───────────────────────────────────────────────
 mpl.rcParams.update({
-    "font.size":      16,
+    "font.size":      14,
     "font.family":    "sans-serif",
     "font.weight":    "bold",
-    "legend.fontsize":16,
-    "axes.titlesize": 16,
-    "axes.labelsize": 16,
-    "xtick.labelsize":16,
-    "ytick.labelsize":16,
+    "legend.fontsize":14,
+    "axes.titlesize": 14,
+    "axes.labelsize": 14,
+    "xtick.labelsize":14,
+    "ytick.labelsize":14,
     "axes.labelpad":  12,
     "xtick.major.pad":6,
     "ytick.major.pad":6

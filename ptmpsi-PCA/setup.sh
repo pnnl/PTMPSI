@@ -23,6 +23,7 @@ fi
 
 # Activate for interactive use / sanity checks
 conda activate gppenv
+exec python "$@"
 which python
 python -V
 
