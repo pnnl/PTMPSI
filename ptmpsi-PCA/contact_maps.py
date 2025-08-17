@@ -122,10 +122,10 @@ def plot_maps(maps, groups, titles, name, outpath):
         # residue tick labels
         N1, N2 = mat.shape
         ax.set_yticks(np.arange(N1))
-        ax.set_yticklabels([f"{r.resname}-{r.resid}" for r in grp1], fontsize=6)
+        ax.set_yticklabels([f"{r.resname}-{r.resid}" for r in grp1], fontsize=7)
         ax.set_xticks(np.arange(N2))
         ax.set_xticklabels([f"{r.resname}-{r.resid}" for r in grp2],
-                           rotation=90, fontsize=6)
+                           rotation=90, fontsize=7)
 
         # segment boundaries & centred region labels (segname–segid)
         # Y axis
@@ -149,7 +149,7 @@ def plot_maps(maps, groups, titles, name, outpath):
                       color='black', linewidth=1, linestyle=':')
         for m, l in zip(mids1, labs1):
             ax.text(1.01, m, l, ha='left', va='center', rotation=90, 
-                    fontsize=14, transform=ax.get_yaxis_transform())
+                    fontsize=7, transform=ax.get_yaxis_transform())
 
         # X axis
         segids2 = [r.segid for r in grp2]
@@ -172,7 +172,7 @@ def plot_maps(maps, groups, titles, name, outpath):
                       color='black', linewidth=1, linestyle=':')
         for m, l in zip(mids2, labs2):
             ax.text(m, 1.02, l, ha='center', va='bottom',
-                    rotation=0, fontsize=6,
+                    rotation=0, fontsize=7,
                     transform=ax.get_xaxis_transform())
 
         ax.set_title(titles[idx], pad=14)
