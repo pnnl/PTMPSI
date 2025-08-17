@@ -82,7 +82,7 @@ This script performs a series of sequential analyses:
 If you need to re-run the analysis for any reason, first remove the `.done` flags from the system directories, then re-execute the `md_bundle_flux.sh` script:
 **If restart is require**
 ```bash
-find . -maxdepth 2 -type f -name ".done" -regex '\./[0-9]+/\.done'
+find . -maxdepth 2 -type f -name ".done" \( -regex '\./[0-9]+/\.done' -o -regex '\./REF/\.done' \) -delete
 ```
 ### Optional: Clean up and Re-run MD Analysis
 To clean up previous analysis figures and re-run the MD jobs, follow these steps:
@@ -91,12 +91,12 @@ To clean up previous analysis figures and re-run the MD jobs, follow these steps
 
 This command lists all `figures` or `figures_*` directories within the system subdirectories (up to two levels deep), helping you verify what will be deleted.
 ```bash
-find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) -regex '\./[0-9]+/figures.*' -print 
+find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) \( -regex '\./[0-9]+/figures.*' -o -regex '\./REF/figures.*' \) -print 
 ```
 ### Remove MD analysis figures (Optional)
 This command deletes all identified `figures` or `figures_*` directories and their contents. Use with caution.
 ```bash
-find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) -regex '\./[0-9]+/figures.*' -exec rm -rf {} + 
+find . -maxdepth 2 -type d \( -name "figures" -o -name "figures_*" \) \( -regex '\./[0-9]+/figures.*' -o -regex '\./REF/figures.*' \) -exec rm -rf {} +
 ```
 ## Re-run MD jobs
 After cleaning up, re-execute the main analysis script.
