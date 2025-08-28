@@ -46,7 +46,8 @@ cd PTMPSI/ptmpsi-PCA
 Run the setup script to prepare the necessary environment and directories. This step establishes a Conda environment named `gppenv` and only needs to be executed once.
 ```bash
 bash setup.sh  # The "setup.sh" is ran just once to establish the conda environment named "gppenv"
-conda activate gppenv 
+conda activate gppenv
+# Also make sure the path to the Gromacs compilation is correct
 ```
 
 ### Generate MD Analysis Pipelines
