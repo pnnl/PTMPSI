@@ -4,11 +4,11 @@ import numpy as np
 import subprocess
 from shutil import which
 from ..exceptions import FeatureError
-from ptmpsi.residues import resdict, one2three, Residue
+from ptmpsi.residues import resdict, one2three, Residue, three2one
 from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
 from ptmpsi.protein.tools import get_residue, ptm_combination
-from ptmpsi.io import digestpdb, writepdb, writexyz
+from ptmpsi.io import digestpdb, writepdb, writexyz, writefasta
 from ptmpsi.docking import Dock, dock_ligand
 from ptmpsi.gromacs.utils import amber_to_gromacs_names
 from ptmpsi.gromacs import generate as generate_gromacs
@@ -38,6 +38,7 @@ class Protein:
         self.nssbonds = 0
         self.ssbonds = None
         self.charge = None
+        self.original_sequence = None
         self.docking = Dock()
         
         # Download file from the PDB
@@ -78,6 +79,8 @@ class Protein:
             self.chains[0].natoms = 0
             self.chains[0].nresidues = 0
 
+        self.original_sequence = {chain.name: "".join([three2one.get(residue.name, "@"+residue.name+"@") for residue in chain.residues]) for chain in self.chains}
+
         return
 
 
@@ -86,6 +89,9 @@ class Protein:
 
     def write_xyz(self,xyzfile):
         writexyz(self,xyzfile)
+
+    def write_fasta(self, fastafile):
+        writefasta(self, fastafile)
 
     def update(self):
         self.nresidues = 0
@@ -135,6 +141,15 @@ class Protein:
         _chain.nresidues = resid
         chains.append(_chain)
         return [], 0 ,0 ,0
+
+
+    @property
+    def sequence(self):
+        return {chain.name: "".join([three2one.get(residue.name, "@"+residue.name+"@") for residue in chain.residues]) for chain in self.chains}
+
+    @property
+    def length(self):
+        return {k: len(v)-v.count("@")*2 for k,v in self.sequence.items()}
 
 
     def savessbond(self,ssbonds,residue,resid,nmissing,chain):

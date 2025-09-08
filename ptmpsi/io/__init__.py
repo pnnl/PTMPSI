@@ -2,6 +2,19 @@ import numpy as np
 from copy import deepcopy as copy
 from ptmpsi.math import resdist
 
+def writefasta(protein, fastafile):
+    with open(fastafile, "w") as fh:
+        for chain, sequence in protein.sequence.items():
+            fh.write(f"> Chain {chain}, length {len(sequence)-sequence.count('@')*2}\n")
+            limit = len(sequence)//75
+            mod   = len(sequence)%75
+            for i in range(limit):
+                fh.write(sequence[i*75:i*75+75]+"\n")
+            if mod != 0:
+                fh.write(sequence[limit*75:]+"\n")
+    return
+
+
 def writexyz(protein,xyzfile):
     with open(xyzfile,'w') as fh:
         fh.write(f"{protein.natoms}\n\n")
@@ -59,6 +72,11 @@ def digestpdb(protein, interactive=False, delwat=True, delhet=True):
     nmissing = 0
     natoms = 0
     alternate = False
+    # atomid = -1
+    # names = []
+    # elements = []
+    # coordinates = []
+    # backbone = np.empty(3,dtype=int)
     _chains = []
     _residues = []
     protein.nssbonds = nssbonds

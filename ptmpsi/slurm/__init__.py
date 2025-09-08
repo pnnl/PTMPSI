@@ -108,6 +108,24 @@ aqe_ldrd = Machine(
                       }
                     }
                   ),
+    "prm80c2g":  Partition(
+                  name="prm80c2g", 
+                  memory=672, 
+                  ncpus=80, 
+                  ngpus=2, 
+                  maxtime=0, 
+                  maxnode=75,
+                  options = {
+                    "gromacs": {
+                      "mpirun": "mpirun -np 2 ",
+                      "gmx": "gmx_mpi",
+                      "gpu_id": "01",
+                      "ntasks": 2,
+                      "nthreads": 40,
+                      "nstlist": 200
+                      }
+                    }
+                  ),
     },
     scratchdir="/mnt/scratch"
   )

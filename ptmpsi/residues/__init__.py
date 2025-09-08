@@ -53,6 +53,7 @@ three2one = {
         "HID": "H",
         "HIE": "H",
         "HIP": "H",
+        "HIS": "H",
         "ILE": "I",
         "LEU": "L",
         "LYN": "K",
