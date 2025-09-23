@@ -41,7 +41,7 @@ aminolist = [
 def norm(vec):
     return math.sqrt( vec[0]**2 + vec[1]**2 + vec[2]**2 )
 
-def resdist(residue1,residue2):
+def resdist(residue1, residue2):
     """
     Computes the minimum distance between two residues
     """
@@ -57,7 +57,7 @@ def resdist(residue1,residue2):
 
 ####
 
-def nerf(atoma,atomb,atomc,bond,angle,torsion):
+def nerf(atoma, atomb, atomc, bond, angle, torsion):
     """
     Obtain cartesian coordinates for a fourth atom
     based on the bond length CD, angle BCD, and
