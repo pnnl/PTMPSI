@@ -4,6 +4,21 @@ from . import nonstandard
 from . import ptms
 from ptmpsi.exceptions import MyDockingError
 
+class Atom:
+    def __init__(self, name=None, coord=None, bfactor=0.0, occupancy=1.0, altloc=None, element=None):
+        if coord is None:
+            raise MyDockingError(f"Invalid coord specification '{coord}'. Failed to initialize Atom instance")
+        elif isinstance(coord, (list, np.ndarray)):
+            if len(coord) != 3:
+                raise MyDockingError(f"Invalid coord specification '{coord}'. Failed to initialize Atom instance")
+        self.name = name if name is not None else "DU"
+        self.element = element if element is not None else "H"
+        self.bfactor = bfactor
+        self.occupancy = occupancy
+        self.altloc = altloc
+        self.coords = coords
+            
+
 class Residue:
     def __init__(self, resname, natoms):
         self.name = resname
@@ -31,8 +46,26 @@ class Residue:
             raise MyDockingError("Atom '{}' was not found in Residue '{}:{}{}'".format(atom,self.chain,self.name,self.resid))
         return pos[0]
 
-    def find_coord(self,atom):
+    def find_coord(self, atom):
         return self.coordinates[self.find(atom)]
+
+    def add(self, atom):
+        if not isinstance(atom, Atom):
+            raise MyDockingError("atom argument must be of Atom class")
+        self.natoms += 1
+        names = np.empty(self.natoms, dtype='U4')
+        elements = np.empty(self.natoms, dtype='U4')
+        coordinates = np.empty((self.natoms, 3), dtype=float)
+        for i in range(self.natoms-1):
+            names[i] = self.names[i]
+            elements[i] = self.elements[i]
+            coordinates[i] = self.coordinates[i]
+        names[-1] = atom.name
+        elements[-1] = atom.element
+        coordinates[-1] = atom.coords
+        self.names = copy.deepcopy(names)
+        self.elements = copy.deepcopy(elements)
+        self.coordinates = copy.deepcopy(coordinates)
 
 
 

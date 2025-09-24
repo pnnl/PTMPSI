@@ -10,7 +10,7 @@ from math import ceil
 from shutil import which
 from ..exceptions import FeatureError
 from ptmpsi.residues import resdict, one2three, Residue, three2one
-from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn
+from ptmpsi.math import find_clashes, find_clashes_residue, appendc, prependn, norm, find_hud_pos
 from ptmpsi.protein.mutate import point_mutation, post_translational_modification
 from ptmpsi.protein.tools import get_residue, ptm_combination
 from ptmpsi.io import digestpdb, writepdb, writexyz, writefasta
@@ -170,6 +170,41 @@ class Protein:
                         self.ssbonds[issbond][2] = resid
                         self.ssbonds[issbond][3] = chain
         return residue
+
+    def save_cyz_modified_pdb(self, threshold=2.2, output="output.pdb"):
+        new_protein = copy.deepcopy(self)
+
+        sg_atoms = []
+        for chain in new_protein.chains:
+            for residue in chain.residues:
+                if residue.name in ["CYS", "CYX", "CYM"]:
+                    sg_atoms.append((residue, residue.find_coord("SG")))
+        #
+        used = set()
+        disulfide_pairs = []
+        for i, (res1, sg1) in enumerate(sg_atoms):
+            if res1 in used: continue
+            for j in range(i+1, len(sg_atoms)):
+                res2, sg2 = sg_atoms[j]
+                if res2 in used: continue
+                if norm(sg1-sg2) < threshold:
+                    disulfide_pairs.append((res1, res2))
+                    used.add((res1))
+                    used.add((res2))
+                    break
+        #
+        for res1, res2 in disulfide_pairs:
+            hud1 = find_hud_pos(res1, new_protein, hud1=None)
+            hud2 = find_hud_pos(res2, new_protein, hud1=hud1)
+            res1.name = "CYZ"
+            res2.name = "CYZ"
+            res1.add(name="DU", element="H", coords=hud1)
+            res2.add(name="DU", element="H", coords=hud2)
+            print(f"DUs added to {res1.chain}:{res1.resid} and {res2.chain}:{res2.resid}, distance = {norm(hud1-hud2}:.3f} Angstrom")
+        #
+        new_protein.update()
+        new_protein.write_pdb("output.pdb")
+        return
 
 
     def mutate(self,original,new):

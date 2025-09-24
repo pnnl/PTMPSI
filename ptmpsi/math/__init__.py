@@ -454,6 +454,35 @@ def rotate_chi2(residue,atoms,chi2):
     return internal
 
 
+def find_hud_pos(residue, protein, hud1, radius=5.0):
+    ca = residue.find_coords("CA")
+    cb = residue.find_coords("CB")
+    sg = residue.find_coords("SG")
+    nearby = [] if hud1 is None else nearby = [hud1]
+    for chain in protein.chains:
+        for residue in chain.residues:
+            for atom in residue.coordinates:
+                if norm(atom-sg) < radius:
+                    nearby.append(atom)
+
+    best_nclashes = 1000
+    best_angle = 0
+    for dihedral in range(0, 360, 30):
+        hud = nerf(ca, cb, sg, 1.3360, 96.0, dihedral)
+        nclashes = 0
+        for atom in nearby:
+            if norm(hud-atom) < 2.0:
+                nclashes += 1
+        if nclashes == 0:
+            return hud
+        if nclashes < best_nclashes:
+            best_nclashes = nclashes
+            best_angle = dihedral
+
+    return nerf(ca, cb, sg, 1.3360, 96.0, best_angle)
+
+    
+
 def find_clashes(proteins):
     _all = []
     nclashes = 0

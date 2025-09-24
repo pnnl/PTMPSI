@@ -9,6 +9,7 @@ ASP    ASP   NASP  CASP  -
 ASPH   ASH   -     -     -
 CYS    CYS   NCYS  CCYS  -
 CYS2   CYX   NCYX  CCYX  -
+CYS2   CYZ   NCYZ  CCYZ  -
 GLN    GLN   NGLN  CGLN  -
 QLN    -     -     -     -
 GLU    GLU   NGLU  CGLU  -

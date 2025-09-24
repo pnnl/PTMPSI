@@ -1414,6 +1414,36 @@
     -C    CA     N     H
     CA    +N     C     O
 
+[ CYZ ] ; Hoshin made CYZ with a Dummy atom for further TI calculations!
+ [ atoms ]
+     N    N           -0.41570     1
+     H    H            0.27190     2
+    CA    CT           0.04290     3
+    HA    H1           0.07660     4
+    CB    CT          -0.07900     5
+   HB1    H1           0.09100     6
+   HB2    H1           0.09100     7
+    SG    S           -0.10810     8
+    DU    DU           0.00000     9
+     C    C            0.59730    10
+     O    O           -0.56790    11
+ [ bonds ]
+     N     H
+     N    CA
+    CA    HA
+    CA    CB
+    CA     C
+    CB   HB1
+    CB   HB2
+    CB    SG
+    SG    DU
+     C     O
+    -C     N
+ [ impropers ]
+    -C    CA     N     H
+    CA    +N     C     O
+
+
 [ SNC ]
  [ atoms ]
      N    N        -0.41570      1
@@ -2738,6 +2768,37 @@
  [ impropers ]
     -C    CA     N     H    
     CA   OC1     C   OC2    
+
+[ CCYZ ]
+ [ atoms ]
+     N    N           -0.38210     1
+     H    H            0.26810     2
+    CA    CT          -0.13180     3
+    HA    H1           0.09380     4
+    CB    CT          -0.19430     5
+   HB1    H1           0.12280     6
+   HB2    H1           0.12280     7
+    SG    S           -0.05290     8
+    DU    DU           0.00000     9
+     C    C            0.76180    10
+   OC1    O2          -0.80410    11
+   OC2    O2          -0.80410    12
+ [ bonds ]
+     N     H
+     N    CA
+    CA    HA
+    CA    CB
+    CA     C
+    CB   HB1
+    CB   HB2
+    CB    SG
+    SG    DU
+     C   OC1
+     C   OC2
+    -C     N
+ [ impropers ]
+    -C    CA     N     H    
+    CA   OC1     C   OC2    
                         
 [ CMET ]
  [ atoms ]
@@ -3758,7 +3819,40 @@
      C    +N
  [ impropers ]
     CA    +N     C     O
-                        
+   
+
+[ NCYZ ]
+ [ atoms ]
+     N    N3           0.20690     1
+    H1    H            0.18150     2
+    H2    H            0.18150     3
+    H3    H            0.18150     4
+    CA    CT           0.10550     5
+    HA    HP           0.09220     6
+    CB    CT          -0.02770     7
+   HB1    H1           0.06800     8
+   HB2    H1           0.06800     9
+    SG    S           -0.09840    10
+    DU    DU           0.00000    11
+     C    C            0.61230    12
+     O    O           -0.57130    13
+ [ bonds ]
+     N    H1
+     N    H2
+     N    H3
+     N    CA
+    CA    HA
+    CA    CB
+    CA     C
+    CB   HB2
+    CB   HB1
+    CB    SG
+    SG    DU
+     C     O
+     C    +N
+ [ impropers ]
+    CA    +N     C     O
+                     
 [ NMET ]
  [ atoms ]
      N    N3           0.15920     1

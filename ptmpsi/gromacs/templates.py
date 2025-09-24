@@ -963,7 +963,7 @@ IYY = '''{IYY}'''
 
 CYZ_list = [
  [[2, 4, 7, 8],
-   ["   0.0  1.39467   3     0.0   1.04600   3"]]
+   [""]]
 ]
 
 ]
@@ -1226,7 +1226,7 @@ with open("modified.top", "w") as topo:
       topo.write(oldtopo[iline])
       iline += 1
       continue
-    elif fields[3] not in ["SNC", "CSO", "CGL", "IYY"]: 
+    elif fields[3] not in ["SNC", "CSO", "CGL", "IYY", "CYZ"]: 
       topo.write(oldtopo[iline])
       iline += 1
       continue
@@ -1269,17 +1269,85 @@ for line in lines:
             sg = atom_index
         elif atom_name == 'DU':
             du = atom_index
+        elif atom_name == "CA":
+            ca = atom_index
+        elif atom_name == "HB1":
+            ho = atom_index
+        elif atom_name == "HB2":
+            hp = atom_index
 
         if cb and sg and du:
-            cyz_info.append((cb, sg, du))
-            cb, sg, du = None, None, None
+            cyz_info.append((ca, cb, ho, hp, sg, du))
+            ca, cb, ho, hp, sg, du = None, None, None, None, None, None
 
 type_A = []  # CT–SG–SG–CT
 type_B = []  # DU–SG–SG–DU
 type_C = []  # DU–SG–SG–CT or CT–SG–SG–DU
+type_G = []  # CT-CT-SG-SG or SG-SG-CT-CT
+type_H = []  # H1-CT-SG-SG or SG-SG-CT-H1
+type_L = []  # H1-CT-SG-DU or CT-CT-SG-DU
+type_I = []  # Same as above for HB2
 type_D = []  # SG-SG Disulfide bonds
+type_J = []  # SG-DU
+type_N = []  # CT-S
+type_E = []  # DU-SG-SG
+type_F = []  # CT-SG-SG
+type_K = []  # DU-CT-SG
+type_M = []  # CT-CT-S
 
-for (cb1, sg1, du1), (cb2, sg2, du2) in combinations(cyz_info, 2):
+pair_A = []  # S-S 1-2
+pair_B = []  # S-CB 1-3
+pair_C = []  # S-DU 1-3
+pair_D = []  # DU-CA  1-4
+pair_E = []  # DU-HB 1-4
+pair_F = []  # CA-S 1-4
+pair_G = []  # CB-CB 1-4
+pair_H = []  # HB-S 1-4
+pair_I = []  # DU-DU 1-4
+pair_J = []  # DU-CB 1-4
+
+for (ca1, cb1, ho1, hp1, sg1, du1), (ca2, cb2, ho2, hp2, sg2, du2) in combinations(cyz_info, 2):
+    # pair A
+    pair_A.append((sg1, sg2))
+
+    # pair B
+    pair_B.append((cb1, sg2))
+    pair_B.append((sg1, cb2))
+
+    # pair C
+    pair_C.append((sg1, du2))
+    pair_C.append((du1, sg2))
+
+    # pair D
+    pair_D.append((ca1, du1))
+    pair_D.append((ca2, du2))
+
+    # pair _J
+    pair_J.append((cb1, du2))
+    pair_J.append((du1, cb2))
+
+    # pair E
+    pair_E.append((ho1, du1))
+    pair_E.append((hp1, du1))
+    pair_E.append((ho2, du2))
+    pair_E.append((hp2, du2))
+
+    # pair F
+    pair_F.append((ca1, sg2))
+    pair_F.append((sg1, ca2))
+
+    # pair G
+    pair_G.append((cb1, cb2))
+
+    # pair H
+    pair_H.append((ho1, sg2))
+    pair_H.append((hp1, sg2))
+    pair_H.append((sg1, ho2))
+    pair_H.append((sg1, hp2))
+
+    # pair_I
+    pair_I.append((du1, du2))
+
     # Type A
     type_A.append((cb1, sg1, sg2, cb2))
     type_A.append((cb2, sg2, sg1, cb1))
@@ -1294,35 +1362,109 @@ for (cb1, sg1, du1), (cb2, sg2, du2) in combinations(cyz_info, 2):
     type_C.append((du2, sg2, sg1, cb1))
     type_C.append((cb2, sg2, sg1, du1))
 
+    #type_L
+    type_L.append((ho1, cb1, sg1, du1))
+    type_L.append((hp1, cb1, sg1, du1))
+    type_L.append((ho2, cb2, sg2, du2))
+    type_L.append((hp2, cb2, sg2, du2))
+    type_L.append((ca1, cb1, sg1, du1))
+    type_L.append((ca2, cb2, sg2, du2))
+
+    #type_G
+    type_G.append((ca1, cb1, sg1, sg2))
+    type_G.append((ca2, cb2, sg2, sg1))
+
+    #type_H
+    type_H.append((ho1, cb1, sg1, sg2))
+    type_H.append((ho2, cb2, sg2, sg1))
+
+    #type_I
+    type_H.append((hp1, cb1, sg1, sg2))
+    type_H.append((hp2, cb2, sg2, sg1))
+
     # Type D
     type_D.append((sg1, sg2))
-    type_D.append((sg2, sg1))
+#    type_D.append((sg2, sg1))
 
-in_dihedrals = in_bonds = False
+    # Type_J
+    type_J.append((sg1, du1))
+    type_J.append((sg2, du2))
+    type_J.append((du1, sg1))
+    type_J.append((du2, sg2))
+
+    # Type_N
+    type_N.append((cb1, sg1))
+    type_N.append((cb2, sg2))
+
+    # Type E
+    type_E.append((cb1, sg1, sg2))
+    type_E.append((cb2, sg2, sg1))
+    type_E.append((sg2, sg1, cb1))
+    type_E.append((sg1, sg2, cb2))
+    type_E.append((sg1, cb2, sg2))
+    type_E.append((sg1, sg2, cb2))
+
+    # Type F
+    type_F.append((du1, sg1, sg2))
+    type_F.append((du2, sg2, sg1))
+    type_F.append((sg2, sg1, du1))
+    type_F.append((sg1, sg2, du2))
+    type_F.append((sg1, du2, sg2))
+
+    # Type_K
+    type_K.append((du1, sg1, cb1))
+    type_K.append((cb1, sg1, du1))
+    type_K.append((du2, sg2, cb2))
+    type_K.append((cb2, sg2, du2))
+
+    # Type_M
+    type_M.append((ca1, cb1, sg1))
+    type_M.append((ca2, cb2, sg2))
+
+
+in_dihedrals = in_bonds = in_angles = in_pairs = False
 modified_lines = []
 dihedral_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)')
 bond_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
+pair_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
+angle_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)')
 
 for line in lines:
     stripped = line.strip()
     if stripped.startswith('[ dihedrals ]'):
         in_dihedrals = True
         in_bonds = False
+        in_angles = False
+        in_pairs = False
         modified_lines.append(line)
         continue
     elif stripped.startswith('[ bonds ]'):
         in_dihedrals = False
         in_bonds = True
+        in_angles = False
+        in_pairs = False
+        modified_lines.append(line)
+        continue
+    elif stripped.startswith('[ angles ]'):
+        in_dihedrals = False
+        in_bonds = False
+        in_angles = True
+        in_pairs = False
+        modified_lines.append(line)
+        continue
+    elif stripped.startswith('[ pairs ]'):
+        in_dihedrals = False
+        in_bonds = False
+        in_angles = False
+        in_pairs = True
         modified_lines.append(line)
         continue
     elif stripped.startswith('['):
-        in_dihedrals = in_bonds = False
+        in_dihedrals = in_bonds = in_angles = in_pairs = False
         modified_lines.append(line)
         continue
 
-#IF you find a better parameters for these  torsions, directly edit them below
-#IF you find a better parameter for SG-SG bonds for 2 CYS (StateB), directly edit them below
-#IF you find a better parameters for bonds and angles involving DU atom, edit them in ffbonded.itp file
+
     if in_dihedrals:
         match = dihedral_pattern.match(line)
         if match:
@@ -1332,26 +1474,89 @@ for line in lines:
 
             if atoms in type_A:
                 new_lines = [
-                    line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\n', # From FFbonded.itp (FF99SB)
-                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   2.51040  3  0.0   0.00000  3\n' # From FFbonded.itp (FF99SB)
+                    line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\n',
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   2.51040  3  0.0   0.00000  3\n'
                 ]
             elif atoms in type_B:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU related - BOTH should be zero
-                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complainted
-
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n',
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   B2   B3\n'
                 ]
             elif atoms in type_C:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n', #DU related - BOTH should be zero
-                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n' # Added this as grompp complainted
-
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n',
+                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   C2   C3\n'
                 ]
-
+            elif atoms in type_G:
+                new_lines = [
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
+#                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   C2   C3\n'
+                ]
+            elif atoms in type_H:
+                new_lines = [
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
+#                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   C2   C3\n'
+                ]
+            elif atoms in type_I:
+                new_lines = [
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
+#                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   C2   C3\n'
+                ]
+            elif atoms in type_L:
+                new_lines = [
+                    line.strip() + '   0.0   0.00000  3  0.0   1.04600  3\n' #!!!from X-CT-SH-X JCC(1986)
+#                    f'{i1}   {i2}   {i3}   {i4}     9   0.0   0.00000  3  0.0   0.00000  3\n'
+#                    f'{i1}   {i2}   {i3}   {i4}   9   C2   C3\n'
+                ]
             if new_lines:
                 modified_lines.extend(new_lines)
                 continue
         modified_lines.append(line)
+
+    elif in_pairs:
+        modified_lines.append(line)
+   #     match = pair_pattern.match(line)
+   #     if match:
+   #         a1, a2 = int(match.group(1)), int(match.group(2))
+   #         new_lines = None
+        if pair_A:
+            for atom1, atom2 in pair_A:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     3.56E-01     1.05E+00 \n') #S-S
+        if pair_B:
+            for atom1, atom2 in pair_B:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     3.48E-01     6.92E-01 \n') #S1-CB2 | S2-CB1
+        if pair_C:
+            for atom1, atom2 in pair_C:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     2.32E-01     2.62E-01 \n') #DU1-S2 | S1-DU2
+        if pair_D: #1-4 Interaction, considered FudgeLJ = 0.5
+            for atom1, atom2 in pair_D:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     1.12E-01     8.67E-02 \n') #DU1-CA1 | DU2-CA2 (SH - CA)
+        if pair_E:
+            for atom1, atom2 in pair_E:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     8.85E-02     3.28E-02 \n') #HB12-DU1 | HB12-DU2 (HB-HS)
+        if pair_F:
+            for atom1, atom2 in pair_F:
+                modified_lines.append(f' {atom1} {atom2}  1  1.74E-01 3.46E-01 3.48E-01  6.92E-01 \n') #CA1-S2 | CA2-S1
+        if pair_G:
+            for atom1, atom2 in pair_G:
+                modified_lines.append(f' {atom1} {atom2}  1  1.70E-01 2.29E-01 3.40E-01  4.58E-01 \n') #CB-CB 
+        if pair_H:
+            for atom1, atom2 in pair_H:
+                modified_lines.append(f' {atom1} {atom2}  1  1.51E-01 1.31E-01 3.02E-01  2.62E-01 \n') #H1-S
+        if pair_I:
+            for atom1, atom2 in pair_I:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     1.07E-01     6.57E-02 \n') #DU-DU (HS-HS)
+        if pair_J:
+            for atom1, atom2 in pair_J:
+                modified_lines.append(f' {atom1} {atom2}  1 0.0     0.0     2.23E-01     1.73E-01 \n') #DU1-CB2 DU2-CB1 (SH-CB)
+
+            in_pairs = False
+#        modified_lines.append(line)
 
     elif in_bonds:
         match = bond_pattern.match(line)
@@ -1359,9 +1564,32 @@ for line in lines:
             a1, a2 = int(match.group(1)), int(match.group(2))
             if (a1, a2) in type_D:
 #                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
-                line = line.strip() + '  0.20380   138908.8   0.50000   0.00000 \n' #From ffbonded.itp + just guess (5A) with zero Kb
-        modified_lines.append(line)
+                line = line.strip() + '  0.20380   138908.8   0.45000   0.000000 \n'
+            if (a1, a2) in type_J:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  0.13360   229283.2   0.13360   229283.2 \n'
+            if (a1, a2) in type_N:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  0.18100   189953.6   0.18100   198321.6 \n'
 
+        modified_lines.append(line)
+    elif in_angles:
+        match = angle_pattern.match(line)
+        if match:
+            a1, a2, a3 = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            if (a1, a2, a3) in type_E:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  103.700    569.024   103.700   0.00000 \n'
+            if (a1, a2, a3) in type_F:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  103.700    282.880   103.700   0.00000 \n'
+            if (a1, a2, a3) in type_K:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '   96.000    000.000    96.000   359.824 \n'
+            if (a1, a2, a3) in type_M:
+#                print(f"Matched SG-SG bond: {a1}-{a2}") #for Test
+                line = line.strip() + '  114.700    418.400   108.600   418.400 \n'
+        modified_lines.append(line)
     else:
         modified_lines.append(line)
 

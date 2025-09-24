@@ -94,6 +94,7 @@
   H  N          1    0.10100   363171.2 ; 7,(1986),230; AA
   H  N3         1    0.10100   363171.2 ; 7,(1986),230; LYS    
   HS SH         1    0.13360   229283.2 ; 7,(1986),230; CYS
+  DU S          1    0.13360   229283.2 ; CYZ
   S  S          1    0.20380   138908.8 ; 7,(1986),230; CYX   (SCHERAGA)
   CT F          1    0.13800   307105.6 ; 13,(1992),963;CF4; R0=1.332 FOR CHF3
   SNO NC        1    0.19178    79743.2 ; SNC
@@ -137,6 +138,7 @@
   CA    HO      2    0.195074
   CT    HO      2    0.194132
   CT    HS      2    0.235935
+  CT    DU      2    0.235935
 
 
 
@@ -367,8 +369,10 @@ OH  P   OS           1   102.600    376.560 ;
 OS  P   OS           1   102.600    376.560 ; 
 CT  S   CT           1    98.900    518.816 ; AA met
 CT  S   S            1   103.700    569.024 ; AA cyx             (SCHERAGA  JPC 79,1428)
+DU  S   S            1   103.700    282.880 ; AA CYZ
 CT  SH  HS           1    96.000    359.824 ; changed from 44.0 based on methanethiol nmodes
 HS  SH  HS           1    92.070    292.880 ; AA cys
+CT  S   DU           1    96.000    359.824 ; AA CYZ
 F   CT  F            1   109.100    644.336 ; JCC,13,(1992),963;
 F   CT  H1           1   109.500    418.400 ; new99
 N   C   N            1   120.000    585.760 ; Added for Urea (same as N2-CA-N2) - EJS
@@ -556,6 +560,8 @@ X   X   CA  H5       4      180.00     4.60240     2    ; bsd.on C6H6 nmodes
  CT  S   SH  HS    9       0.0      4.19096     1  ; CSS
  CT  S   SH  HS    9       0.0     14.17438     2  ; CSS
  CT  S   SH  HS    9       0.0      2.52497     3  ; CSS
+ CT  S   S   DU    9       0.0      0.00000     0  ; Dummy
+ DU  S   S   DU    9       0.0      0.00000     0  ; Dummy
  HE  NE  CE  OE    9     180.0     10.46000     2  ; NAD+/NADH
  CF  CE  NE  HE    9     180.0     10.46000     2  ; NAD+/NADH
  HI  CF  CI  HI    9     180.0      8.36800     2  ; NAD+/NADH
