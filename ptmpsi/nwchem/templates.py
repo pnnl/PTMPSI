@@ -246,7 +246,7 @@ export NWCHEM_IMAGE="ghcr.io/edoapra/nwchem-singularity/nwchem-dev.mpi3.ompi5x:l
 
 srun -N $SLURM_NNODES -n $SLURM_NNODES apptainer pull -F --name $NWBIN --disable-cache oras://$NWCHEM_IMAGE
 export APPTAINERENV_SCRATCH_DIR={scratch}
-export APPTAINERENV_OMP_NUM_THREADS=${OMP_NUM_THREADS}
+export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 #export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
 cd {scratch}
