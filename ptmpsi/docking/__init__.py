@@ -22,6 +22,7 @@ class Dock:
         self.boxcenter = None
         self.boxsize = None
         self.exhaustiveness = 32
+        self.spacinf = 0.375
 
 def dock_ligand(cls):
     receptorpdbqt = cls.receptor[:-4]+".pdbqt"
@@ -84,6 +85,7 @@ center_z = {zcenter}""")
         f"--exhaustiveness={cls.exhaustiveness}",
         "--cpu=8",
         "--num_modes=9",
+        f"--spacing={cls.spacing}",                
         "--out",cls.output])
     else:
         subprocess.run(["vina",
@@ -94,6 +96,7 @@ center_z = {zcenter}""")
         f"--exhaustiveness={cls.exhaustiveness}",
         "--cpu=8",
         "--num_modes=9",
+        f"--spacing={cls.spacing}",                
         "--out",cls.output])
 
     # We got a docked structure

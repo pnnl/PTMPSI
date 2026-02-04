@@ -660,7 +660,7 @@ class Protein:
 
         return uid
 
-    def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None):
+    def dock(self, ligand=None, receptor=None, boxcenter=None, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None, spacing=None):
         if ligand is None:
             raise KeyError("No ligand was specified")
         if receptor is None:
@@ -677,6 +677,13 @@ class Protein:
             self.docking.exhaustiveness = exhaustiveness
         elif exhaustiveness is not None:
             raise KeyError("Exhaustiveness should be an integer value")
+
+        if isinstance(spacing, float):
+            if spacing <= 0.0:
+                raise KeyError("Spacing should be > 0.0")
+            self.docking.spacing = spacing
+        elif spacing is not None:
+            raise KeyError("Spacing should be a float > 0.0")
 
         if output is None:
             if self.docking.engine == 'vina':

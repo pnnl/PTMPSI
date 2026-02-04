@@ -705,10 +705,18 @@ def qmmm_optimize(filename, qmres=None, counter=False, center=False, orient=Fals
     fh.close()
 
     # Convert AMBER to NWChem format
-    with open("amber2nwchem.sh","w") as fh:
-        fh.write(amber2nwchem)
+    import sys
+    if sys.platform == "darwin":
+        with open("amber2nwchem.sh","w") as fh:
+            fh.write(amber2nwchem.replace("sed","gsed"))
+        subprocess.run(["zsh","amber2nwchem.sh",_pdb])
+    elif sys.platform.startswith("linux"):
+        with open("amber2nwchem.sh","w") as fh:
+            fh.write(amber2nwchem)
+        subprocess.run(["bash","amber2nwchem.sh",_pdb])
+    else:
+        pass
 
-    subprocess.run(["bash","amber2nwchem.sh",_pdb])
 
     modify = ""
     for res in qmres:
