@@ -458,7 +458,7 @@ def find_hud_pos(residue, protein, hud1, radius=5.0):
     ca = residue.find_coords("CA")
     cb = residue.find_coords("CB")
     sg = residue.find_coords("SG")
-    nearby = [] if hud1 is None else nearby = [hud1]
+    nearby = [] if hud1 is None else [hud1]
     for chain in protein.chains:
         for residue in chain.residues:
             for atom in residue.coordinates:

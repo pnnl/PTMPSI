@@ -200,7 +200,7 @@ class Protein:
             res2.name = "CYZ"
             res1.add(name="DU", element="H", coords=hud1)
             res2.add(name="DU", element="H", coords=hud2)
-            print(f"DUs added to {res1.chain}:{res1.resid} and {res2.chain}:{res2.resid}, distance = {norm(hud1-hud2}:.3f} Angstrom")
+            print(f"DUs added to {res1.chain}:{res1.resid} and {res2.chain}:{res2.resid}, distance = {norm(hud1-hud2):.3f} Angstrom")
         #
         new_protein.update()
         new_protein.write_pdb("output.pdb")
