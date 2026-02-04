@@ -35,7 +35,7 @@ def writepdb(protein,pdbfile) :
             for residue in chain.residues:
                 for iatom in range(len(residue.names)):
                     i += 1
-                    fh.write("ATOM  {:5d} {: >4s} {:3s} {:1s}{:4d}    {:8.3f}{:8.3f}{:8.3f}{: >24s}\n".format(i,residue.names[iatom],residue.name,residue.chain,residue.resid,*residue.coordinates[iatom],residue.elements[iatom]))
+                    fh.write("ATOM  {:5d} {: >4s} {:3s} {:1s}{:4d}    {:8.3f}{:8.3f}{:8.3f}  1.00  0.00{: >12s}\n".format(i,residue.names[iatom],residue.name,residue.chain,residue.resid,*residue.coordinates[iatom],residue.elements[iatom]))
             fh.write("TER\n")
         fh.write("END")
     return
