@@ -37,18 +37,70 @@ deception = Machine(
         memory  = 256,
         ncpus   = 64,
         ngpus   = 0,
-        maxtime = 0,
-        maxnode = 200
+        maxtime = 168,
+        maxnode = 200,
+        options = {
+            "gromacs": {
+                "mpirun": "mpirun -np 32",
+                "container": "",
+                "gmx": "gmx_mpi",
+                "ntasks": 32,
+                "nthreads": 2
+                }
+            }
         ),
     "short": Partition(
         name = "short",
         memory = 256,
         ncpus  = 64,
         ngpus  = 0,
-        maxtime = 200
-        )
-  }
-
+        maxtime = 3,
+        options = {
+            "gromacs": {
+                "mpirun": "mpirun -np 32",
+                "container": "",
+                "gmx": "gmx_mpi",
+                "ntasks": 32,
+                "nthreads": 2
+                }
+            }
+        ),
+    "a100": Partition(
+        name = "a100",
+        memory = 512,
+        ncpus = 64,
+        ngpus = 8,
+        maxtime = 168,
+        options = {
+            "gromacs": {
+                "mpirun": "mpirun -np 8",
+                "container": "",
+                "gmx": "gmx_mpi",
+                "ntasks": 8,
+                "nthreads": 8,
+                "nstlist": 300
+                }
+            }
+        ),
+    "h100": Partition(
+        name = 'h100',
+        memory = 204,
+        ncpus = 96,
+        ngpus = 8,
+        maxtime = 168,
+        options = {
+            "gromacs": {
+                "mpirun": "mpirun -np 8",
+                "container": "",
+                "gmx": "gmx_mpi",
+                "ntasks": 8,
+                "nthreads": 12,
+                "nstlist": 300
+                }
+            }
+        ),
+    },
+    scratchdir="/scratch"
 )
 
 aqe_ldrd = Machine(
@@ -165,18 +217,18 @@ tahoma = Machine(name="Tahoma",
 tahoma.partitions["normal"].default = True
 
 
-deception = Machine(name="Deception",
-        partitions={
-            "slurm": Partition(name="slurm", memory=0, ncpus=64,
-                              ngpus=0, maxtime=168, maxnode=10),
-            "short": Partition(name="short", memory=0, ncpus=64,
-                              ngpus=0, maxtime=3, maxnode=7)
-            },
-        modules={"apptainer": "apptainer/1.2.5",
-                 "gcc": "gcc/11.2.0",
-                 "python": "python/3.11.5",
-                 "openmpi": "openmpi/4.1.0"},
-        scratchdir="/scratch")
+#deception = Machine(name="Deception",
+#        partitions={
+#            "slurm": Partition(name="slurm", memory=0, ncpus=64,
+#                              ngpus=0, maxtime=168, maxnode=10),
+#            "short": Partition(name="short", memory=0, ncpus=64,
+#                              ngpus=0, maxtime=3, maxnode=7)
+#            },
+#        modules={"apptainer": "apptainer/1.2.5",
+#                 "gcc": "gcc/11.2.0",
+#                 "python": "python/3.11.5",
+#                 "openmpi": "openmpi/4.1.0"},
+#        scratchdir="/scratch")
 deception.partitions["slurm"].default = True
 
 perlmutter = Machine(name="Perlmutter",
