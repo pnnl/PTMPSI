@@ -494,7 +494,7 @@ class Protein:
         checkpointing = kwargs.get("checkpointing", True)
 
         bundling = kwargs.get("bundling", False)
-        jobtime_hours = kwargs.get("time", "12") - 0.2
+        jobtime_hours = kwargs.get("time", 12) - 0.2
         # jobtime = convert_time_hours(jobtime_hours)
 
         ff = ff.lower()
@@ -630,7 +630,7 @@ class Protein:
                     if do_ti and not checkpointing and auto_submit_ti:
                         submit.write(f"./submit_lambdas.sh $jobid\n")
                 if not bundling:
-                    submit.write(f"cd {os.path.relpath(path, jpath)} \n")
+                    submit.write(f"cd {path} \n")
                     submit.write(f"sleep 1s \n")
                     submit.write(f"\n\n")
         subprocess.run(["chmod", "+x", f"{path}/submit.sh"])   
