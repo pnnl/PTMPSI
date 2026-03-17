@@ -157,7 +157,7 @@ def prediction(fasta,**kwargs):
     options = AlphaFoldOptions(fasta_paths, **kwargs)
     slurm   = Slurm("alphafold", **kwargs)
     if options.machine == None:
-        options.machine = slurm.machine.name.lowercase()
+        options.machine = slurm.machine.name.lower()
         print("\t Info: Using default machine '{}'".format(options.machine))
     else:
         print("\t Info: Using machine '{}'".format(options.machine))
