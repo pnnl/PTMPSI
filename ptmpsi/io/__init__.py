@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from copy import deepcopy as copy
 from ptmpsi.math import resdist
 
@@ -141,6 +142,21 @@ def digestpdb(protein, interactive=False, delwat=True, delhet=True):
             # Read atom information
             atom    = line[12:16].strip()
             element = line[76:78].strip()
+            if element.isspace() or len(element) == 0:
+                if re.search(r"C[A,B,G,D,E,Z,H]|^C$", atom):
+                    element = "C "
+                elif re.search(r"O[G,D,E,H,X,1,2]|^O$|OC[1,2]|OXT", atom):
+                    element = "O "
+                elif re.search(r"N[H,Z,E,D]|^N$", atom):
+                    element = "N "
+                elif re.search(r"S[G,D,H]|^S$", atom):
+                    element = "S "
+                elif re.search(r"H[H,A,B,G,Z,E,D,O,1,2,3]|^H$", atom):
+                    element = "H "
+                elif re.search(r"P[O]|^P$", atom):
+                    element = "P "
+                else:
+                    element = "X "
 
             # Check for alternate locations
             altcode = line[16:17]
