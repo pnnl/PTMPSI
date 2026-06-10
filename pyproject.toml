@@ -24,7 +24,7 @@ dependencies = [
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
             'forcebalance @ git+https://github.com/dmejiar/forcebalance.git@ptmflow ',
 ]
-requires-python = ">=3.6,<3.12"
+requires-python = ">=3.6,<3.13"
 authors = [
  {name = "Daniel Mejia-Rodriguez", email="daniel.mejia@pnnl.gov"},
  {name = "Hoshin Kim", email="hoshin.kim@pnnl.gov"},
