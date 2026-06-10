@@ -22,7 +22,7 @@ class Dock:
         self.boxcenter = None
         self.boxsize = None
         self.exhaustiveness = 32
-        self.spacinf = 0.375
+        self.spacing = 0.375
 
 def dock_ligand(cls):
     receptorpdbqt = cls.receptor[:-4]+".pdbqt"

@@ -98,7 +98,8 @@ def addchain(label,idatom,coords,pdbfile):
             else:
                 residue = "EAC"
             
-            pdb.write("ATOM   {0:>4} {1:>4} {7} {2}{8:>4}    {3:8.3f}{4:8.3f}{5:8.3f}                      {6:>2}\n".format(idatom,atom[0],label,float(atom[1]),float(atom[2]),float(atom[3]),elem,residue,seqid))
+#            pdb.write(f"ATOM  {idatom:>5} {atom[0]:>4} {residue:>3} {label:>1}{seqid:>4}    {atom[1]:8.3f}{atom[2]:8.3f}{atom[3]:8.3f}{1.0:6.2f}{0.0:6.2f}           {elem:>2}\n")
+            pdb.write("ATOM  {0:>5} {1:>4} {7} {2}{8:>4}    {3:8.3f}{4:8.3f}{5:8.3f}                      {6:>2}\n".format(idatom,atom[0],label,float(atom[1]),float(atom[2]),float(atom[3]),elem,residue,seqid))
         pdb.write("TER\n")
         return idatom
         
