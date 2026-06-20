@@ -62,7 +62,7 @@ class Protein:
         # Download file from AlphaFold Database
         elif self.uniprotid is not None:
             print("\t Downloading file from the AlphaFold Protein Structure Database")
-            response = requests.get("https://alphafold.ebi.ac.uk/files/AF-"+self.uniprotid.upper()+"-F1-model_v4.pdb")
+            response = requests.get("https://alphafold.ebi.ac.uk/files/AF-"+self.uniprotid.upper()+"-F1-model_v6.pdb")
             response.raise_for_status()
             self.pdbfile = response.text.splitlines()
             with open(self.uniprotid+".pdb","w") as fh:
