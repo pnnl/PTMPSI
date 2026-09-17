@@ -1,0 +1,64 @@
+; heating.mdp - used as input to grompp to generate heating.tpr
+title           = Heating
+
+
+integrator      = md
+dt              = 0.002
+nsteps          = 250000
+
+; Bond parameters
+continuation          = no
+constraints           = h-bonds
+constraint-algorithm  = lincs
+lincs-iter            = 1
+lincs-order           = 4
+
+; Output control
+nstxout-compressed    = 5000
+nstenergy             = 500
+nstlog                = 500
+nstdisreout           = 0
+
+; Neighbor searching
+cutoff-scheme         = Verlet
+ns_type               = grid
+rlist                 = 1.2
+vdwtype               = cutoff
+vdw-modifier          = force-switch
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
+
+; Electrostatics
+coulombtype           = PME
+pme_order             = 4
+fourierspacing        = 0.16
+
+; Temperature coupling
+Tcoupl                = V-rescale
+tc_grps               = Protein Non-Protein
+tau-t                 = 1.0 1.0
+ref-t                 = 300 300
+
+; Pressure coupling
+Pcoupl                = no
+
+; Periodic Boundary conditions
+pbc                   = xyz
+
+; Velocity generation
+gen-vel               = yes
+gen-temp              = 300
+gen-seed              = -1
+
+; Dispersion Correction
+DispCorr              = EnerPres
+
+disre                 = simple
+disre-weighting       = conservative
+disre-fc              = 1000
+disre-mixed           = yes
+
+nstcomm               = 100
+comm-mode             = Linear
+comm-grps             = Protein Water_and_ions

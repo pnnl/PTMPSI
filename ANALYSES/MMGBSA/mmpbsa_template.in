@@ -1,0 +1,20 @@
+&general
+  startframe = 201                    # skip first 20ns
+  endframe   = 1001
+  interval   = 4                      # 200 frames
+  temperature = 300                   # same as production MD GROMACS
+  PBRadii    = 4                      # mbondi3 - REQUIRED for igb=8
+  gmx_path   = "/global/homes/w/widm288/gromacs_local/gromacs-2025.0-install/bin"    # 2025 version
+/
+
+&gb
+  igb     = 8                         # 
+  saltcon = 0.150
+/
+
+&decomp
+  idecomp     = 2
+  dec_verbose = 2
+  print_res   = "all"
+  csv_format  = 1
+/

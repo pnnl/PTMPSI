@@ -1,0 +1,23 @@
+; minim.mdp - used as input into grompp to generate minim.tpr
+title           = Minimization
+define          = -DP100
+
+; Parameters describing what to do, when to stop and what to save
+integrator      = steep
+emtol           = 10.0
+emstep          = 0.01
+nsteps          = 50000
+
+; Parameters describing how to find the neighbors of each atom and how to calculate the interactions
+nstlist         = 10
+cutoff-scheme   = Verlet
+ns_type         = grid
+rlist           = 1.2
+coulombtype     = PME
+rcoulomb        = 1.2
+vdwtype         = cutoff
+rvdw            = 1.2
+rvdw-switch     = 1.0
+vdw-modifier    = force-switch
+pbc             = xyz
+DispCorr        = no

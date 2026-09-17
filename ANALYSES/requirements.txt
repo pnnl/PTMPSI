@@ -1,0 +1,9 @@
+# Shared Python baseline for the ANALYSES workflows.
+# Some subfolders document additional package or tool requirements in their own READMEs.
+numpy
+pandas
+matplotlib
+scipy
+MDAnalysis
+biopython
+scikit-learn

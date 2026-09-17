@@ -1,0 +1,63 @@
+; npt.mdp - used as input to grompp to generate npt.tpr
+title           = NPT equilibration
+define          = -DP1
+
+integrator      = md
+dt              = 0.002
+nsteps          = 250000
+
+; Bond parameters
+continuation          = yes
+constraints           = h-bonds
+constraint-algorithm  = lincs
+lincs-iter            = 1
+lincs-order           = 4
+
+; Output control
+nstxout-compressed    = 5000
+nstenergy             = 500
+nstlog                = 500
+nstdisreout           = 0
+
+; Neighbor searching
+cutoff-scheme         = Verlet
+ns-type               = grid
+rlist                 = 1.2
+vdw-modifier          = force-switch
+vdwtype               = cutoff
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
+
+; Electrostatics
+coulombtype           = PME
+pme-order             = 4
+fourierspacing        = 0.16
+
+; Temperature coupling
+Tcoupl                = V-rescale
+tc-grps               = Protein Non-Protein
+tau-t                 = 1.0 1.0
+ref-t                 = 300 300
+
+; Pressure coupling
+Pcoupl                = C-rescale
+pcoupltype            = isotropic
+tau-p                 = 5.0
+ref-p                 = 1.0
+compressibility       = 4.5e-5
+refcoord-scaling      = com
+
+; Periodic Boundary conditions
+pbc                   = xyz
+
+; Velocity generation
+gen-vel               = no
+
+; Dispersion Correction
+DispCorr              = EnerPres
+
+; Distance Restraint
+disre                 = simple
+disre-weighting       = conservative
+disre-fc              = 1000
