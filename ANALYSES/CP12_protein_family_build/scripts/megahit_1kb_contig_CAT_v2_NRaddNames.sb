@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+#SBATCH --account emsl61054
+#SBATCH --time 23:00:00
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node 1
+#SBATCH --cpus-per-task 8
+#SBATCH --job-name New_cat_dualdb
+#SBATCH --output /tahoma/emsl61054/AMG_eco-evo_dir/renamed_1kb_contig_CAT_dir/logs/New_cat_%A_%a.out
+#SBATCH --error  /tahoma/emsl61054/AMG_eco-evo_dir/renamed_1kb_contig_CAT_dir/logs/New_cat_%A_%a.err
+#SBATCH --mail-user=ruonan.wu@pnnl.gov
+#SBATCH --mail-type BEGIN,END,FAIL
+
+set -euo pipefail
+
+BASE_DIR="/tahoma/emsl61054/AMG_eco-evo_dir/renamed_1kb_contig_CAT_dir"
+LIST_FILE="$BASE_DIR/filesnames_megahit_contigs_filtered_1kb_contigs"
+
+CAT_BIN="/home/wuru978/Kristin_EarlyCareer_dir/BigLeafCutterAnt_dataAnalysis_dir/fig1_dir/missing_taxid_check_dir/contig_based_method_dir/CAT_pack/CAT_pack/CAT_pack"
+
+GTDB_DB="/home/wuru978/Kristin_EarlyCareer_dir/BigLeafCutterAnt_dataAnalysis_dir/fig1_dir/missing_taxid_check_dir/contig_based_method_dir/20231120_CAT_gtdb/db/"
+GTDB_TAX="/home/wuru978/Kristin_EarlyCareer_dir/BigLeafCutterAnt_dataAnalysis_dir/fig1_dir/missing_taxid_check_dir/contig_based_method_dir/20231120_CAT_gtdb/tax/"
+
+NR_DB="/home/wuru978/Kristin_EarlyCareer_dir/BigLeafCutterAnt_dataAnalysis_dir/fig1_dir/missing_taxid_check_dir/contig_based_method_dir/20240422_CAT_nr/db/"
+NR_TAX="/home/wuru978/Kristin_EarlyCareer_dir/BigLeafCutterAnt_dataAnalysis_dir/fig1_dir/missing_taxid_check_dir/contig_based_method_dir/20240422_CAT_nr/tax/"
+
+CPU="${SLURM_CPUS_PER_TASK:-8}"
+SKIP_IF_DONE=true
+
+mkdir -p "$BASE_DIR/logs"
+cd "$BASE_DIR"
+
+if [[ ! -f "$LIST_FILE" ]]; then
+	echo "[FATAL] List file not found: $LIST_FILE" >&2
+	exit 1
+fi
+
+# Helper, resolve to absolute path if needed
+_resolve_input() {
+	local line="$1"
+	if [[ -z "$line" ]]; then
+		printf ""
+		return 0
+	fi
+	if [[ "$line" = /* ]]; then
+		printf "%s" "$line"
+	else
+		printf "%s/%s" "$BASE_DIR" "$line"
+	fi
+}
+
+process_one() {
+	local input_file="$1"
+
+	if [[ -z "$input_file" ]]; then
+		echo "[WARN] Empty line, skip"
+		return 0
+	fi
+	if [[ ! -f "$input_file" ]]; then
+		echo "[WARN] Input not found, $input_file, continue"
+		return 0
+	fi
+
+	local base stem GTDB_PREFIX NR_PREFIX GTDB_CLASS NR_CLASS
+	base="$(basename "$input_file")"
+	stem="${base%.*}"
+
+	GTDB_PREFIX="gtdb_${stem}"
+	NR_PREFIX="nr_${stem}"
+
+	GTDB_CLASS="$BASE_DIR/${GTDB_PREFIX}.contig2classification.txt"
+	NR_CLASS="$BASE_DIR/${NR_PREFIX}.contig2classification.txt"
+
+	# GTDB branch
+	if $SKIP_IF_DONE && [[ -s "$GTDB_CLASS" ]]; then
+		echo "[SKIP] GTDB exists, $GTDB_CLASS"
+	else
+		echo "[INFO] GTDB run, $GTDB_PREFIX"
+		CMD1=( "$CAT_BIN" contigs
+			-c "$input_file"
+			-d "$GTDB_DB"
+			-t "$GTDB_TAX"
+			--out_prefix "$GTDB_PREFIX"
+		)
+		echo "[RUN ] ${CMD1[*]}"
+		# Do not exit the whole script if CAT fails on this file
+		if ! "${CMD1[@]}"; then
+			echo "[ERR ] GTDB run failed for $input_file, continue"
+		fi
+	fi
+
+	# NR branch
+	if $SKIP_IF_DONE && [[ -s "$NR_CLASS" ]]; then
+		echo "[SKIP] nr exists, $NR_CLASS"
+	else
+		echo "[INFO] nr run, $NR_PREFIX"
+		CMD2=( "$CAT_BIN" contigs
+			-c "$input_file"
+			-d "$NR_DB"
+			-t "$NR_TAX"
+			--out_prefix "$NR_PREFIX"
+		)
+		echo "[RUN ] ${CMD2[*]}"
+		if ! "${CMD2[@]}"; then
+			echo "[ERR ] nr run failed for $input_file, continue"
+		fi
+	fi
+	# Add names to taxids for NR classification
+	if [[ -s "$NR_CLASS" ]]; then
+		NR_WITHNAMES="${NR_CLASS%.txt}_withNames.txt"
+		if $SKIP_IF_DONE && [[ -s "$NR_WITHNAMES" ]]; then
+			echo "[SKIP] add_names exists, $NR_WITHNAMES"
+		else
+			echo "[INFO] add_names on $NR_CLASS"
+			CATPACK_BIN="${CAT_pack:-CAT_pack}"
+			CMD_ADD=( "$CATPACK_BIN" add_names -i "$NR_CLASS" -o "$NR_WITHNAMES" -t "$NR_TAX" )
+			echo "[RUN ] ${CMD_ADD[*]}"
+			if ! "${CMD_ADD[@]}"; then
+				echo "[ERR ] add_names failed for $NR_CLASS, continue"
+			fi
+		fi
+	fi
+
+
+	echo "[DONE] $input_file -> ${GTDB_PREFIX}.*, ${NR_PREFIX}.*"
+}
+
+# Mode A, array task, keep one line behavior
+if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+	line="$(
+		grep -v '^[[:space:]]*$' "$LIST_FILE" | grep -v '^[[:space:]]*#' | sed -n "${SLURM_ARRAY_TASK_ID}p" || true
+	)"
+	if [[ -z "$line" ]]; then
+		echo "[WARN] No input at index $SLURM_ARRAY_TASK_ID, exiting"
+		exit 0
+	fi
+	input="$(_resolve_input "$line")"
+	process_one "$input"
+	exit 0
+fi
+
+# Mode B, no array, iterate all lines and continue on skips or errors
+echo "[INFO] No SLURM_ARRAY_TASK_ID, iterating all inputs"
+while IFS= read -r line; do
+	# skip empty and comment lines
+	[[ -z "${line//[[:space:]]/}" ]] && continue
+	[[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+	input="$(_resolve_input "$line")"
+	process_one "$input"
+done < "$LIST_FILE"

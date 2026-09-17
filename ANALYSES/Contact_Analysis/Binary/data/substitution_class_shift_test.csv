@@ -1,0 +1,7 @@
+test,partner,redox,n_substituted,n_conserved,median_abs_log_dwell_substituted,median_abs_log_dwell_conserved,U_stat,p_one_sided,categories_tested,n_substituted_with_data,K_stat,p_two_sided,n_substitutions_with_prediction,n_matching_prediction,fraction_matching,predicted_winners
+MWU_substituted_vs_conserved_abs_log_dwell,prk,ox,30.0,21.0,0.14093969924389443,0.1339038076896317,347.0,0.27329502122750327,,,,,,,,
+MWU_substituted_vs_conserved_abs_log_dwell,prk,red,29.0,23.0,0.1544321984668171,0.1651985350182436,358.0,0.3291787723735847,,,,,,,,
+Kruskal_across_shift_categories_within_substituted,prk,ox,,,,,,,"hydrophobic↔charged(4),hydrophobic↔polar(3),polar↔charged(8),within-class(11)",26.0,1.2348484848484844,0.7446589072857219,,,,
+Kruskal_across_shift_categories_within_substituted,prk,red,,,,,,,"hydrophobic↔charged(4),hydrophobic↔polar(3),polar↔charged(8),within-class(10)",25.0,0.671999999999997,0.8797692224615532,,,,
+Binomial_directional_predicted_winner_match,prk,ox,,,,,,0.61279296875,,,,,12.0,6.0,0.5,"col6:Q>E→hm2(✗),col8:D>H→med4(✓),col10:S>E→hm2(✓),col12:I>D→hm2(✗),col16:K>L→med4(✓),col25:K>A→med4(✓),col26:V>R→hm2(✓),col30:T>K→hm2(✓),col34:K>H→med4(✗),col40:K>H→med4(✗),col41:D>N→med4(✗),col47:K>H→med4(✗)"
+Binomial_directional_predicted_winner_match,prk,red,,,,,,0.980712890625,,,,,12.0,3.0,0.25,"col6:Q>E→hm2(✗),col8:D>H→med4(✗),col10:S>E→hm2(✗),col12:I>D→hm2(✗),col16:K>L→med4(✓),col25:K>A→med4(✗),col26:V>R→hm2(✓),col30:T>K→hm2(✓),col34:K>H→med4(✗),col40:K>H→med4(✗),col41:D>N→med4(✗),col47:K>H→med4(✗)"

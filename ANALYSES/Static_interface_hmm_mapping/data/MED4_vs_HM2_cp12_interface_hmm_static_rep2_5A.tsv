@@ -1,0 +1,68 @@
+System_x	HMM_col	MED4_0003_Interface	MED4_0003_Type	MED4_0003_Chains	MED4_0003_NumChains	System_y	HM2_0003_Interface	HM2_0003_Type	HM2_0003_Chains	HM2_0003_NumChains	ChangeClass
+MED4_0003	2.0	1.0	PRK_only	C	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	3.0	1.0	PRK_only	C	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	4.0	1.0	PRK_only	C,H,P	3.0	HM2_0003	1.0	PRK_only	C	1.0	Conserved
+MED4_0003	5.0	1.0	PRK_only	H,P	2.0	HM2_0003	1.0	PRK_only	C,M,P	3.0	Conserved
+MED4_0003	6.0	1.0	PRK_only	C	1.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	7.0	1.0	PRK_only	C,P	2.0	HM2_0003	1.0	PRK_only	C,H,M	3.0	Conserved
+MED4_0003	8.0	1.0	PRK_only	H	1.0	HM2_0003	1.0	PRK_only	C,M	2.0	Conserved
+MED4_0003	9.0	1.0	PRK_only	C,H	2.0	HM2_0003	1.0	PRK_only	C,M	2.0	Conserved
+MED4_0003	10.0	1.0	PRK_only	H,P	2.0	HM2_0003	1.0	PRK_only	C,M	2.0	Conserved
+MED4_0003	11.0	1.0	PRK_only	H,P	2.0	HM2_0003	1.0	PRK_only	C,H,M	3.0	Conserved
+MED4_0003	12.0	1.0	PRK_only	C	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	13.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H	2.0	Conserved
+MED4_0003	14.0	1.0	PRK_only	C,H,P	3.0	HM2_0003	1.0	PRK_only	C,H,M	3.0	Conserved
+	15.0	0.0	NA		0.0	HM2_0003	1.0	PRK_only	H,M	2.0	Gained_in_HM2_0003
+MED4_0003	16.0	1.0	PRK_only	H	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	17.0	1.0	PRK_only	C,H,M,P	4.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	18.0	1.0	PRK_only	H	1.0	HM2_0003	1.0	PRK_only	M	1.0	Conserved
+	19.0	0.0	NA		0.0	HM2_0003	1.0	PRK_only	H,M	2.0	Gained_in_HM2_0003
+MED4_0003	22.0	1.0	PRK_only	M	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	23.0	1.0	PRK_only	M,P	2.0	HM2_0003	1.0	PRK_only	C,P	2.0	Conserved
+	24.0	0.0	NA		0.0	HM2_0003	1.0	PRK_only	M,P	2.0	Gained_in_HM2_0003
+	25.0	0.0	NA		0.0	HM2_0003	1.0	PRK_only	M,P	2.0	Gained_in_HM2_0003
+MED4_0003	26.0	1.0	PRK_only	M,P	2.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	27.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	28.0	1.0	PRK_only	C,H	2.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	29.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	30.0	1.0	PRK_only	C,H,P	3.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	31.0	1.0	PRK_only	C,H,P	3.0	HM2_0003	1.0	PRK_only	C,M,P	3.0	Conserved
+MED4_0003	32.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	33.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	34.0	1.0	PRK_only	C,H,M	3.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	35.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H	2.0	Conserved
+MED4_0003	36.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	37.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	38.0	1.0	PRK_only	C,H,P	3.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	39.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	40.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	41.0	1.0	PRK_only	C	1.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	42.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H	2.0	Conserved
+MED4_0003	43.0	1.0	PRK_only	C,H	2.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	44.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	C,H,M,P	4.0	Conserved
+MED4_0003	45.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	P	1.0	Conserved
+MED4_0003	46.0	1.0	PRK_only	C,H,M,P	4.0	HM2_0003	1.0	PRK_only	P	1.0	Conserved
+MED4_0003	47.0	1.0	PRK_only	H,P	2.0	HM2_0003	1.0	PRK_only	C,H,P	3.0	Conserved
+MED4_0003	48.0	1.0	PRK_only	P	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	49.0	1.0	PRK_only	P	1.0	HM2_0003	1.0	GAPDH_only	H	1.0	Type_shift
+MED4_0003	50.0	1.0	PRK_only	C,H,M	3.0	HM2_0003	1.0	PRK_only	P	1.0	Conserved
+	51.0	0.0	NA		0.0	HM2_0003	1.0	GAPDH_only	H	1.0	Gained_in_HM2_0003
+MED4_0003	52.0	1.0	GAPDH_only	M,P	2.0	HM2_0003	1.0	GAPDH_only	H	1.0	Conserved
+MED4_0003	53.0	1.0	PRK_only	C,M	2.0	HM2_0003	1.0	GAPDH_only	C,H,M	3.0	Type_shift
+MED4_0003	54.0	1.0	GAPDH_only	P	1.0	HM2_0003	1.0	GAPDH_only	H,M	2.0	Conserved
+MED4_0003	55.0	1.0	GAPDH_only	P	1.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved
+MED4_0003	56.0	1.0	GAPDH_only	H,M,P	3.0	HM2_0003	1.0	GAPDH_only	C,M,P	3.0	Conserved
+MED4_0003	57.0	1.0	GAPDH_only	H,M,P	3.0	HM2_0003	1.0	GAPDH_only	M	1.0	Conserved
+MED4_0003	58.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved
+MED4_0003	59.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,M,P	3.0	Conserved
+MED4_0003	60.0	1.0	GAPDH_only	P	1.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	61.0	1.0	GAPDH_only	C,H,M,P	4.0		0.0	NA		0.0	Lost_in_HM2_0003
+MED4_0003	62.0	1.0	GAPDH_only	C,H,M	3.0	HM2_0003	1.0	GAPDH_only	H,M	2.0	Conserved
+	63.0	0.0	NA		0.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Gained_in_HM2_0003
+	64.0	0.0	NA		0.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Gained_in_HM2_0003
+MED4_0003	65.0	1.0	GAPDH_only	H	1.0	HM2_0003	1.0	GAPDH_only	C,M,P	3.0	Conserved
+MED4_0003	66.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved
+MED4_0003	67.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved
+	68.0	0.0	NA		0.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Gained_in_HM2_0003
+MED4_0003	69.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved
+MED4_0003	70.0	1.0	GAPDH_only	C,H,M,P	4.0	HM2_0003	1.0	GAPDH_only	C,H,M,P	4.0	Conserved

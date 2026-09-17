@@ -1,0 +1,1 @@
+/tmp contains AI-generated scripts

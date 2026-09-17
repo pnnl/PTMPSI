@@ -1,0 +1,79 @@
+title           = MD production (velocity replicate)
+
+; Matches parameters extracted from existing rep2/md.tpr files:
+;   integrator=md, dt=0.002, nsteps=50000000 (= 100 ns)
+;   T=300 K (V-rescale, tau-t=1.0)
+;   P=1 bar (Parrinello-Rahman, tau-p=5.0, compressibility=4.5e-5)
+;   PME (rcoulomb=1.2), Force-switch VDW (rvdw=1.2), fourierspacing=0.16
+;   LINCS (order=4, iter=1), comm-mode=Linear, DispCorr=EnerPres
+;
+; Differences from the original mdp:
+;   continuation = yes (velocities from fnpt checkpoint)
+;   gen-vel      = no  (velocities inherited from the equilibration chain)
+
+integrator      = md
+dt              = 0.002
+nsteps          = 50000000
+
+; Bond parameters
+continuation          = yes
+constraints           = h-bonds
+constraint-algorithm  = lincs
+lincs-iter            = 1
+lincs-order           = 4
+comm-mode             = linear
+
+; Output control
+nstxout-compressed    = 50000
+nstenergy             = 5000
+nstlog                = 5000
+nstxout               = 0
+nstvout               = 0
+
+; Neighbor searching
+cutoff-scheme         = Verlet
+ns-type               = grid
+rlist                 = 1.0
+vdw-modifier          = force-switch
+vdwtype               = cutoff
+rcoulomb              = 1.2
+rvdw                  = 1.2
+rvdw-switch           = 1.0
+verlet-buffer-tolerance = 2.0e-3
+
+; Electrostatics
+coulombtype           = PME
+pme-order             = 4
+fourierspacing        = 0.16
+
+; Temperature coupling
+; Uses a custom index file (passed to grompp via -n) that bundles NAD into
+; the Protein bath, matching rep2's T-coupling group structure exactly.
+; Without this, grompp's auto-Protein excludes NAD and puts it in Non-Protein,
+; which would make the new tprs parametrically inequivalent to rep2.
+Tcoupl                = V-rescale
+tc-grps               = Protein_NAD non_Protein_NAD
+tau-t                 = 1.0 1.0
+ref-t                 = 300 300
+
+; Pressure coupling
+Pcoupl                = Parrinello-Rahman
+pcoupltype            = isotropic
+tau-p                 = 5.0
+ref-p                 = 1.0
+compressibility       = 4.5e-5
+
+; Periodic Boundary conditions
+pbc                   = xyz
+
+; Velocity generation - the whole point of this template
+gen-vel               = no
+
+; Dispersion Correction
+DispCorr              = EnerPres
+
+; Distance Restraint
+nstdisreout           = 0
+disre                 = simple
+disre-weighting       = conservative
+disre-fc              = 1000

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#SBATCH --account emsl61054
+#SBATCH --time 23:00:00
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node 1
+#SBATCH --cpus-per-task 8
+#SBATCH --mem 16G
+#SBATCH --job-name pfam_annot
+#SBATCH --output /tahoma/emsl61054/AMG_eco-evo_dir/renamed_sample_pfam_kofam_dir/logs/pfam_%A_%a.out
+#SBATCH --error  /tahoma/emsl61054/AMG_eco-evo_dir/renamed_sample_pfam_kofam_dir/logs/pfam_%A_%a.err
+#SBATCH --mail-user=ruonan.wu@pnnl.gov
+#SBATCH --mail-type BEGIN,END,FAIL
+
+set -euo pipefail
+
+BASE_DIR="/tahoma/emsl61054/AMG_eco-evo_dir/renamed_sample_pfam_kofam_dir"
+LIST_FILE="$BASE_DIR/filenames_megahit_contigs_1kb_prot"
+PFAM_HMM="/home/wuru978/pfam-A_downloaded_10152024_dir/Pfam-A.hmm"
+
+mkdir -p "$BASE_DIR/logs"
+
+INPUT_LINE="$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$LIST_FILE")"
+[[ "$INPUT_LINE" = /* ]] && INPUT_FILE="$INPUT_LINE" || INPUT_FILE="$BASE_DIR/$INPUT_LINE"
+
+base="$(basename "$INPUT_FILE")"
+stem="${base%.*}"
+TBL_OUT="$BASE_DIR/${stem}_pfam_out"
+RAW_OUT="$BASE_DIR/${stem}_pfam_out2"
+
+[[ -s "$TBL_OUT" && -s "$RAW_OUT" ]] && exit 0
+
+hmmscan --tblout "$TBL_OUT" -o "$RAW_OUT" --cut_tc --cpu "$SLURM_CPUS_PER_TASK" "$PFAM_HMM" "$INPUT_FILE"
