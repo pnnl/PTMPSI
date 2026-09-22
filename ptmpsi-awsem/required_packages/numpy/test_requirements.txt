@@ -3,7 +3,7 @@ wheel==0.38.1
 setuptools==59.2.0 ; python_version < '3.12'
 setuptools         ; python_version >= '3.12'
 hypothesis==6.81.1
-pytest==7.4.0
+pytest==9.0.3
 pytz==2023.3
 pytest-cov==4.1.0
 meson
