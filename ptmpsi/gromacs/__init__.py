@@ -212,7 +212,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         # INCLUDE POSRES DEFINITIONS
         for force in posres:
             fh.write(f"echo Protein | {single_mpiexec} {container} {gmx} genrestr -f step4.gro -n index.ndx -o {int(force)}p.itp -fc {force} {force} {force}\n")
-            fh.write("""sed -i '/; Include water topology/i #ifdef P{force}\\n  #include "{force}p.itp"\\n#endif' topol.top\n""".format(force=int(force)))
+            # perl instead of "sed -i": BSD sed (macOS) rejects both "-i" without a suffix and "\n" in the "i" command
+            fh.write("""perl -0pi -e 's/; Include water topology/#ifdef P{force}\\n  #include "{force}p.itp"\\n#endif\\n; Include water topology/' topol.top\n""".format(force=int(force)))
 
 
         # RUN ALL RESTRAINED MINIMIZATIONS

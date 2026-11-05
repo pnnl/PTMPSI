@@ -57,11 +57,15 @@ Where each is placed: `Protein.gen_ptm_files` copies the force field folder, `re
   <ff>.ff/  residuetypes.dat  specbond.dat
   protonated.pdb  protonated.pqr
   <N>tuples/<NNNN>/
-      <NNNN>.pdb, topol.top (after the run), index.ndx
-      *.mdp  (ions, minim*, heating, npt, fheating, fnpt, md)
-      *_slurm.sbatch, md.sbatch, submit_lambdas.sh
-      <ff>.ff -> symlink
-      dualti/lam-00 ... lam-12/{01-q,02-vdw}/grompp.mdp
+      <NNNN>.pdb  <NNNN>_slurm.sbatch  md.sbatch  submit_lambdas.sh  process_combination.log
+      ions.mdp  minim.mdp  minim{1000,500,100,50,10,5,1}.mdp  heating.mdp  npt.mdp  fheating.mdp  fnpt.mdp  md.mdp
+      <ff>.ff  residuetypes.dat  specbond.dat      symlinks up to <uid>/
+      dualti/topol.top  dualti/update_topology.py
+      dualti/lam-00 ... lam-12/
+          <NNNN>_lamNN_slurm.sbatch
+          01-q/   grompp.mdp  + symlinks (topol.top, index.ndx, md.gro, md.cpt)
+          02-vdw/ grompp.mdp  + symlinks (topol.top, index.ndx, md.gro)
+      (topol.top, index.ndx, md.gro, md.cpt do not exist until the run; the symlinks dangle until then)
 ```
 
 `.tpr` files appear only after the sbatch scripts run `gmx grompp` (`ptmpsi/gromacs/__init__.py`, lines 206-345).
@@ -80,6 +84,19 @@ Where each is placed: `Protein.gen_ptm_files` copies the force field folder, `re
 ## C. Chimera plugin templates
 
 `plugins/v4.0/CysPTM/src/templates/*.idatmres` (and a `v3.0` copy) are UCSF Chimera atom-type templates for CYS, SNC, CSO, CSD, OCS, CSS, CGL, SMC, QCS, XCN. They are separate from the Python workflow.
+
+## Bundled examples (`assets/`)
+
+Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise:
+
+- `assets/mdp/{ions,minim,minim1000,minim1,heating,npt,fheating,fnpt,md}.mdp`: the non-TI stages. `minim1000.mdp` and `minim1.mdp` are the strongest and weakest position-restraint steps.
+- `assets/mdp/ti/lam00_01-q.mdp`: charge-decoupling window 0 (`couple-lambda0 = vdw-q`, `init_lambda_state = 0`).
+- `assets/mdp/ti/lam06_02-vdw.mdp`: vdW-decoupling window 6 (`couple-lambda0 = vdw`, `couple-lambda1 = none`). Its inline comments say an earlier `vdw-q` setting there was wrong; keep `vdw`.
+- `assets/example_run/README`: the combination-to-folder index `gen_ptm_files` writes.
+- `assets/example_run/specbond.dat`: SG-SG pairs are defined for `CYX-CYX` (0.2 and 0.25 nm), `CYM-CYM` and `CYZ-CYZ`. There is no `CYS-CYS` line, which is what keeps nearby CYS residues from bonding.
+- `assets/example_run/forcefield.itp`: entry point of `amber99sb.ff`. The other `.itp` files are in `ptmpsi/gromacs/forcefield/` and are too large to copy.
+
+Every stage runs the same way in the macOS check: `ions.tpr`, seven `minim*.tpr`, `heating.tpr`, `npt.tpr`, `minim.tpr`, `fheating.tpr`, `fnpt.tpr` and `md.tpr` were all produced by `gmx grompp` 2026.4.
 
 ## Rules
 
