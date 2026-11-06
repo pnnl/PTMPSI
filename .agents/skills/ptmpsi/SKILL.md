@@ -132,6 +132,14 @@ bash smoke.sh                                                                   
 
 Drop `--smoke 10` for the full-length stages. The localized script ends at `grompp ... -o md.tpr`; run production yourself with `gmx mdrun -deffnm md`.
 
+Sizing a local run (measured on the 6gve CP12 reduction, 776,653 atoms, 15-core M-series Mac, 8 threads):
+
+- Setup before the first `mdrun` (`pdb2gmx`, `solvate`, `genion`, first `grompp`) takes about 2 minutes. Each of the 12 `mdrun` launches adds 30 to 50 seconds of its own start-up and output cost, even at 100 steps, because every stage writes 35 to 55 MB structure files.
+- Production speed was 0.74 to 0.88 ns/day (about 0.2 s per step). A 100-step probe of `md.tpr` gives the per-step cost only, not the total.
+- Total wall time = about 2 min setup + 12 stages x (30 to 50 s + steps x 0.2 s). The measured total for 100 steps per stage plus 1,400 production steps was 14 min 38 s. To fit a time budget, time `--smoke 10` first, subtract that from the budget, then spend the rest on steps.
+- Overriding `nsteps` to 100 in every `.mdp` (or `--smoke 100`) does not let steepest-descent minimization converge. Expect `Steepest Descents did not converge to Fmax < 10` with Fmax in the thousands. The potential energy from such a run is not a minimized energy; report it as unconverged. Converging a system this size takes the full 50,000 steps per minimization stage.
+- Edit a copy of the run folder, not the original, when changing `nsteps`; the original is the record of what `gen_ptm_files` produced.
+
 ## Step 1: AlphaFold prediction (writes job files, does not run AlphaFold)
 
 ```python
@@ -255,7 +263,7 @@ ptmpsi.nwchem.qmmm_optimize(filename="test2.pdb",
 
 ## Step 9: PTM combinations and GROMACS run directories
 
-This is the part that produces `.mdp`, `.itp` and `.tpr` inputs. Read `references/templates.md` before touching its output. A runnable version is `scripts/ptm_combinations.py`.
+This is the part that produces `.mdp`, `.itp` and `.tpr` inputs. Read `references/templates.md` before touching its output. A runnable version is `scripts/ptm_combinations.py`: run it with `--generate` to write the run directory for the chain M reduction (the 4-tuple) without writing your own script. Run it from a scratch directory with the venv active.
 
 ```python
 import ptmpsi
