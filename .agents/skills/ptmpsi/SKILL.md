@@ -50,6 +50,7 @@ A Mac therefore runs everything on CPU. That is enough for the smoke test in "Pl
 6. Run `scripts/check_env.sh` before anything else. It reports what is missing.
 7. Any script that calls `gen_ptm_files` must put its code under `if __name__ == "__main__":`. On macOS and Windows, Python starts worker processes by re-importing the script, and without the guard the run dies with `RuntimeError: An attempt has been made to start a new process before the current process has finished its bootstrapping phase`, followed by `BrokenProcessPool`. `scripts/ptm_combinations.py` shows the pattern.
 8. On macOS, read "Platform notes: macOS (Apple Silicon)" below before running any GROMACS command.
+9. Do the work yourself. Do not start subagents unless the user has explicitly said you may. If the user has approved subagents, use your harness's built-in subagent tool and no other mechanism (not a CLIO run, a cognitive engine, or a separate agent framework) unless the user names a different one.
 
 ## Step 0: environment
 
