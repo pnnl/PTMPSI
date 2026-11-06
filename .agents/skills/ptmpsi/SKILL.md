@@ -183,7 +183,7 @@ Other residues:
 | PTM | Residues |
 |---|---|
 | acetylation | LYS, LYN |
-| methylation | GLU, GLH, LYS, LYN, ARG, HIS, HIP, HID, HIE (GLU and GLH are listed by `check_ptm` but fail with `KeyError` in `modify`: they have no entry in `ptmsite`, `ptmpsi/residues/ptms.py` line 84) |
+| methylation | GLU, GLH, LYS, LYN, ARG, HIS, HIP, HID, HIE |
 | dimethylation | LYS, LYN, ARG |
 | trimethylation | LYS, LYN |
 | symmetric / asymmetric dimethylation | ARG |
@@ -277,7 +277,7 @@ After step 9, list `<uid>/` and compare it with the layout in `references/templa
 - The tutorial's last cell is empty.
 - `Tutorial_lcf.ipynb` and `Tutorial_frontier.ipynb` in the same folder are the same workflow for the LCF and Frontier machines. Use them for those clusters.
 - Run on macOS arm64 (outputs inspected): step 1 (`prediction` writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta`); step 2 (`pdbid=`, `filename=`, `uniprotid=`); step 3 (the trimer with `phi`/`psi`, and `"alpha"`/`"beta"` strings); step 3b (both `gen_surface` calls wrote `*_333.pdb` and `*_models_333.pdb`); step 5 (`get_qm_data` wrote `conf0.nw`, `conf1.nw`, the two `*_hess.nw`, `espfit.py`, `modseminario.py`, `torsions.dat`, `get_qm_data.sbatch`); step 6 (every CYS PTM, plus acetylation, methylation, dimethylation, trimethylation of LYS/LYN, ARG methylation and dimethylations, HIS/HIP/HID/HIE methylation, and phosphorylation of SER, THR, TYR, ARG, HIS, LYS, ASP, ASH, CYS, CYM, plus CYS reduction and oxidation); step 7 (docking, 9 poses); step 8 (`dock_cutinase.py --qmmm` exit 0; `prepare.nw` and `qmmm_optimization.sbatch` written; the cleaned PDB has 1174 lines with the renamed-hydrogen pattern and none with `HB2`/`HB3`); step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
-- Failing as shipped: `modify` methylation of GLU and GLH (`KeyError`).
+- GLU and GLH methylation work after the `ptmsite` fix in `ptmpsi/residues/ptms.py` (the residue becomes `PTM`; geometry mirrors ASP/ASH and was not chemically validated).
 - Not run: executing any generated NWChem input, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
-- Not tested: production MD, the 13 TI windows, and the generated scripts on a cluster. The smoke run only shows that every `grompp` accepts the files and every `mdrun` takes steps.
+- Known gaps (not tested): production MD, Linux and Intel Mac, the `--install-system-tools` install itself (only detection and the hint were run), `qmmm_optimize` run to completion, the `vina` pip path, and the 13 TI windows, and the generated scripts on a cluster. The smoke run only shows that every `grompp` accepts the files and every `mdrun` takes steps.
 - The local GROMACS is 2026.4; the cluster image is 2023.4.
