@@ -87,14 +87,18 @@ Where each is placed: `Protein.gen_ptm_files` copies the force field folder, `re
 
 ## Bundled examples (`assets/`)
 
-Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise:
+Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise. The other non-TI `.mdp` files come from `generate_mdp()` in `ptmpsi/gromacs/__init__.py`; run it in an empty folder to get them.
 
-- `assets/mdp/{ions,minim,minim1000,minim1,heating,npt,fheating,fnpt,md}.mdp`: the non-TI stages. `minim1000.mdp` and `minim1.mdp` are the strongest and weakest position-restraint steps.
+- `assets/mdp/md.mdp`: the production stage.
 - `assets/mdp/ti/lam00_01-q.mdp`: charge-decoupling window 0 (`couple-lambda0 = vdw-q`, `init_lambda_state = 0`).
 - `assets/mdp/ti/lam06_02-vdw.mdp`: vdW-decoupling window 6 (`couple-lambda0 = vdw`, `couple-lambda1 = none`). Its inline comments say an earlier `vdw-q` setting there was wrong; keep `vdw`.
-- `assets/example_run/README`: the combination-to-folder index `gen_ptm_files` writes.
-- `assets/example_run/specbond.dat`: SG-SG pairs are defined for `CYX-CYX` (0.2 and 0.25 nm), `CYM-CYM` and `CYZ-CYZ`. There is no `CYS-CYS` line, which is what keeps nearby CYS residues from bonding.
-- `assets/example_run/forcefield.itp`: entry point of `amber99sb.ff`. The other `.itp` files are in `ptmpsi/gromacs/forcefield/` and are too large to copy.
+
+Two files that every run needs are in the repo, so no copy is bundled:
+
+- `ptmpsi/gromacs/forcefield/specbond.dat`: SG-SG pairs are defined for `CYX-CYX` (0.2 and 0.25 nm), `CYM-CYM` and `CYZ-CYZ`. There is no `CYS-CYS` line, which is what keeps nearby CYS residues from bonding.
+- `ptmpsi/gromacs/forcefield/amber99sb.ff/forcefield.itp`: entry point of the force field. The other `.itp` files are in the same folder.
+
+The run index `README` that `gen_ptm_files` writes lists each combination and its folder.
 
 Every stage runs the same way in the macOS check: `ions.tpr`, seven `minim*.tpr`, `heating.tpr`, `npt.tpr`, `minim.tpr`, `fheating.tpr`, `fnpt.tpr` and `md.tpr` were all produced by `gmx grompp` 2026.4.
 
