@@ -27,11 +27,13 @@ Read this file first. Open the references only when a step tells you to:
 
 ```bash
 # From the repository root. Creates the venv (Python 3.9 to 3.12), installs ptmpsi, downloads Vina, runs check_env.sh
-bash .agents/skills/ptmpsi/scripts/setup_env.sh ~/ptmpsi-venv
+bash .agents/skills/ptmpsi/scripts/setup_env.sh ~/ptmpsi-venv --install-system-tools
 source ~/ptmpsi-venv/bin/activate     # puts pdb2pqr30 and vina on PATH; do this in every new shell
 ```
 
-The script does not install GROMACS or NWChem. Manual equivalent: `python3.12 -m venv ~/ptmpsi-venv`, `source ~/ptmpsi-venv/bin/activate`, `pip install -e <repo root>`, then `bash .agents/skills/ptmpsi/scripts/check_env.sh`.
+`--install-system-tools` runs `brew install gromacs nwchem gnu-sed` for whichever of those is missing (macOS only). Without the flag the script lists what is missing and prints the command. On Linux, install GROMACS and NWChem with the system package manager; that path was not tested.
+
+Manual equivalent: `python3.12 -m venv ~/ptmpsi-venv`, `source ~/ptmpsi-venv/bin/activate`, `pip install -e <repo root>`, `brew install gromacs nwchem gnu-sed`, then `bash .agents/skills/ptmpsi/scripts/check_env.sh`.
 
 `Protein.protonate` (`ptmpsi/protein/__init__.py`, line 725) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
 
@@ -42,8 +44,41 @@ External programs by step:
 | 1-4, 6 (AlphaFold scripts, structures, chains, mutation, PTMs) | `ptmpsi` only |
 | 5 get_qm_data | `ptmpsi`; the generated NWChem inputs are run later with NWChem |
 | 7 docking | AutoDock Vina (`vina`) |
-| 8 QM/MM | `pdb2pqr30`, NWChem |
+| 8 QM/MM | `pdb2pqr30`, NWChem input generation needs `gsed` on macOS (`brew install gnu-sed`); running the input needs NWChem |
 | 9 PTM combinations | `pdb2pqr30`, internet for the example PDB; GROMACS only to run the output |
+
+## Where things are
+
+All paths are relative to the repository root. Do not search for these; open them directly.
+
+| To do this | Open |
+|---|---|
+| Load, build, mutate, modify, dock, protonate | `ptmpsi/protein/__init__.py` (`Protein`) |
+| Combination logic | `ptmpsi/protein/tools.py` (`ptm_combination`, line 138) |
+| Point mutation and PTM geometry | `ptmpsi/protein/mutate.py`, `ptmpsi/residues/ptms.py` |
+| Valid residue and PTM names | `ptmpsi/residues/__init__.py` (`resdict`, `ptmdict`, `ptm2nonstandard`) |
+| GROMACS run folders and `.mdp` files | `ptmpsi/gromacs/__init__.py`, `ptmpsi/gromacs/templates.py` |
+| Force fields, `specbond.dat` | `ptmpsi/gromacs/forcefield/` |
+| Cluster and partition definitions | `ptmpsi/slurm/__init__.py` |
+| NWChem inputs (`get_qm_data`, `qmmm_optimize`) | `ptmpsi/nwchem/__init__.py`, `ptmpsi/nwchem/templates.py`, `ptmpsi/nwchem/qmmm.py` |
+| Docking | `ptmpsi/docking/__init__.py` |
+| Nylon surfaces | `ptmpsi/polymers/nylon6.py`, `nylon4.py` |
+| AlphaFold scripts | `ptmpsi/alphafold/__init__.py` |
+| The tutorial | `tutorials/Tutorial.ipynb` (`Tutorial_lcf.ipynb`, `Tutorial_frontier.ipynb` for those clusters) |
+
+Machines and partitions (names are what `machine=` and `partition=` accept):
+
+| Machine object | Partitions (CPUs / GPUs per node, max nodes) |
+|---|---|
+| `ptmpsi.slurm.aqe_ldrd` | `basic` (120/0, 200), `standard` (120/0, 10), `premium` (40/8, 8), `prm96c4g` (96/4, 3) |
+| `ptmpsi.slurm.aqe_h100` | `premium` / `prm96c8g` (96/8, 28) |
+| `ptmpsi.slurm.tahoma` | `normal` (36/0, 10, 72 h), `analysis` (36/1, 1, 3 h) |
+| `ptmpsi.slurm.perlmutter` | `regular` (64/0, 10, 48 h), `preempt`, `shared` |
+| `ptmpsi.slurm.frontier` | `batch` (56/8, 12 h), `extended` (56/8, 24 h, 64 nodes) |
+| `ptmpsi.slurm.polaris` | `debug` (32/4, 1 h), `prod` (32/4, 24 h, 476 nodes), `preemptable` (32/4, 72 h) |
+| `ptmpsi.slurm.deception` | `slurm` (64/0, 200 nodes, 168 h; default) |
+
+The default machine is `tahoma`. Requests beyond a partition's limits raise `KeyError`.
 
 ## Platform notes: macOS (Apple Silicon)
 
@@ -241,8 +276,8 @@ After step 9, list `<uid>/` and compare it with the layout in `references/templa
 
 - The tutorial's last cell is empty.
 - `Tutorial_lcf.ipynb` and `Tutorial_frontier.ipynb` in the same folder are the same workflow for the LCF and Frontier machines. Use them for those clusters.
-- Run on macOS arm64 (outputs inspected): step 1 (`prediction` writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta`); step 2 (`pdbid=`, `filename=`, `uniprotid=`); step 3 (the trimer with `phi`/`psi`, and `"alpha"`/`"beta"` strings); step 3b (both `gen_surface` calls wrote `*_333.pdb` and `*_models_333.pdb`); step 5 (`get_qm_data` wrote `conf0.nw`, `conf1.nw`, the two `*_hess.nw`, `espfit.py`, `modseminario.py`, `torsions.dat`, `get_qm_data.sbatch`); step 6 (every CYS PTM, plus acetylation, methylation, dimethylation, trimethylation of LYS/LYN, ARG methylation and dimethylations, HIS/HIP/HID/HIE methylation, and phosphorylation of SER, THR, TYR, ARG, HIS, LYS, ASP, ASH, CYS, CYM, plus CYS reduction and oxidation); step 7 (docking, 9 poses); step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
+- Run on macOS arm64 (outputs inspected): step 1 (`prediction` writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta`); step 2 (`pdbid=`, `filename=`, `uniprotid=`); step 3 (the trimer with `phi`/`psi`, and `"alpha"`/`"beta"` strings); step 3b (both `gen_surface` calls wrote `*_333.pdb` and `*_models_333.pdb`); step 5 (`get_qm_data` wrote `conf0.nw`, `conf1.nw`, the two `*_hess.nw`, `espfit.py`, `modseminario.py`, `torsions.dat`, `get_qm_data.sbatch`); step 6 (every CYS PTM, plus acetylation, methylation, dimethylation, trimethylation of LYS/LYN, ARG methylation and dimethylations, HIS/HIP/HID/HIE methylation, and phosphorylation of SER, THR, TYR, ARG, HIS, LYS, ASP, ASH, CYS, CYM, plus CYS reduction and oxidation); step 7 (docking, 9 poses); step 8 (`dock_cutinase.py --qmmm` exit 0; `prepare.nw` and `qmmm_optimization.sbatch` written; 1174 hydrogen names rewritten by `gsed`); step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
 - Failing as shipped: `modify` methylation of GLU and GLH (`KeyError`).
-- Not run: step 8 (`qmmm_optimize`), the NWChem inputs themselves, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
+- Not run: executing any generated NWChem input, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
 - Not tested: production MD, the 13 TI windows, and the generated scripts on a cluster. The smoke run only shows that every `grompp` accepts the files and every `mdrun` takes steps.
 - The local GROMACS is 2026.4; the cluster image is 2023.4.
