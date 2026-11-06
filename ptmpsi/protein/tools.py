@@ -20,21 +20,23 @@ def get_residue(protein,residue):
     elif isinstance(residue,str):
         # Check if chain was given
         chain = None
-        if ":" in residue[1]:
-            chain = residue[0]
-            residue = residue[2:].upper()
-        # 3-letter aminoacid code
-        if residue[1].isalpha():
-            if len(residue) < 4:
-                raise KeyError("'{}' is not a 3-letter code + residue number".format(residue))
-            lower = 3
-        else:
-            lower = 1
-        # Check that the rest of the characters are digits
-        for digit in residue[lower:]:
-            if not digit.isdigit():
-                raise KeyError("'{}' is not a residue number".format(residue[lower:]))
+        if ":" in residue:
+            chain, residue = residue.split(":", 1)
+            if not chain:
+                raise KeyError("Residue selector must include a chain before ':'")
+        residue = residue.upper()
+        lower = 0
+        while lower < len(residue) and residue[lower].isalpha():
+            lower += 1
+        number = residue[lower:]
+        if lower not in (0, 1, 3) or not number or any(digit not in "0123456789" for digit in number):
+            raise KeyError("'{}' is not a residue name + number or a residue number".format(residue))
+        resname = residue[:lower] if lower == 3 else None
+        if lower == 1:
+            resname = one2three[residue[0]]
         resnum = int(residue[lower:])
+        if resnum < 1:
+            raise KeyError("Residue positions are 1-based")
         # Get the Residue instance
         if chain is not None:
             _residue = None
@@ -46,13 +48,15 @@ def get_residue(protein,residue):
         else:
             _residue = protein.chains[0].residues[resnum-1]
         # Check that the name and number correspond
-        if lower == 3:
-            if _residue.name != residue[:3]:
+        if resname is not None:
+            if _residue.name != resname:
                 raise KeyError("Residue '{}' could not be found".format(residue))
 
     # If residue is an integer, assume first chain
     elif isinstance(residue,int):
         resnum = int(residue)
+        if resnum < 1:
+            raise KeyError("Residue positions are 1-based")
         _residue = protein.chains[0].residues[resnum-1]
     else:
         raise MyDockingError("New residue should be a string or a Residue object")

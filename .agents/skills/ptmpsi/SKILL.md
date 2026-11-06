@@ -44,7 +44,7 @@ A Mac therefore runs everything on CPU. That is enough for the smoke test in "Pl
 
 1. Run every Python snippet from a scratch directory, not from the repo root. `Protein(pdbid=...)` writes `<pdbid>.pdb` into the current directory, and `gen_ptm_files` writes a UUID-named folder there.
 2. Use the exact strings below. PTM names are lowercase and must be keys of `ptmdict` (`ptmpsi/residues/__init__.py`, line 178). The tutorial text spells one of them wrong ("sulfynilation"). The valid key is `sulfinylation`.
-3. Residue selectors use `"<chain>:<RES><number>"`, for example `"A:ALA130"`. The residue name may be left out (`"A:130"`). The number is the 1-based position in the chain's residue list, not the PDB number.
+3. Residue selectors use `"<chain>:<RES><number>"`, for example `"A:ALA130"`. The residue name may be left out (`"A:130"`), or given as a one-letter code (`"A:A130"`). Named selectors verify that the residue name matches. The number is the 1-based position in the chain's residue list, not the PDB number.
 4. Do not invent keyword arguments. If a keyword is not listed in `references/api.md`, read the source function before using it.
 5. Needs internet: `pdbid=`, `uniprotid=`.
 6. Run `scripts/check_env.sh` before anything else. It reports what is missing.
@@ -145,10 +145,10 @@ Sizing a local run (measured on the 6gve CP12 reduction, 776,653 atoms, 15-core 
 
 ```python
 from ptmpsi.alphafold import prediction
-prediction("GGGGGGGGGGG", multimer=False)
+prediction("GGGGGGGGGGG", model="monomer")
 ```
 
-Writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta` in the current directory. Database paths default to the Tahoma cluster. A list of sequences gives one prediction each. For multimer pass `multimer=True` and a path to a FASTA file with two or more `>name` records. Run the output on a cluster, not locally.
+Writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta` in the current directory. Database paths default to the Tahoma cluster. Consecutive raw sequence strings in a list are grouped into one multi-record FASTA file. For independent target predictions, pass paths to separate single-record FASTA files, or make separate calls in separate output directories. For multimer pass `model="multimer"` and a path to a FASTA file with two or more `>name` records. Run the output on a cluster, not locally.
 
 ## Step 2: load a structure
 

@@ -11,9 +11,10 @@ check() { # name, command, steps-that-need-it
 }
 echo "Platform: $(uname -s) $(uname -m)"
 echo "Python:"
-python3 - <<'PY'
+if ! python3 - <<'PY'
 import sys, multiprocessing as mp
 v = sys.version_info
+ok = (3, 6) <= v[:2] < (3, 13)
 print(f"  {v.major}.{v.minor}.{v.micro}", "(ok)" if (3, 6) <= v[:2] < (3, 13) else "(ptmpsi needs >=3.6,<3.13)")
 print("  multiprocessing start method:", mp.get_start_method(),
       "(scripts calling gen_ptm_files need an if __name__ == '__main__' guard)" if mp.get_start_method() != "fork" else "")
@@ -22,7 +23,12 @@ try:
     print("  ptmpsi importable from", ptmpsi.__file__)
 except Exception as e:
     print("  ptmpsi NOT importable:", e)
+    ok = False
+sys.exit(0 if ok else 1)
 PY
+then
+  ok=1
+fi
 echo "Programs on PATH:"
 check pdb2pqr30 pdb2pqr30 "protonate(), qmmm_optimize(), gen_ptm_files() (activate the venv)"
 check mk_prepare_receptor mk_prepare_receptor.py "Protein.dock() (installed with Meeko)"

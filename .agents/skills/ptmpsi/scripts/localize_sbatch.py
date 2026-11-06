@@ -55,11 +55,14 @@ def main():
 
     out = ["#!/bin/bash", "set -euo pipefail", "export GMX_MAXBACKUP=-1"]
     for raw in open(args.sbatch).read().splitlines():
-        keep = raw.startswith(("perl -0pi", "sed -i '/; Include water topology")) or (
-            re.match(r"^(echo\b.*\|\s*)?(srun|mpirun|mpiexec|flux run)\b", raw) and "gmx" in raw)
+        raw = raw.strip()
+        gromacs = re.match(
+            r"^(echo\b.*\|\s*)?(?:srun|mpirun|mpiexec|flux run|gmx(?:_mpi)?)\b", raw
+        ) and re.search(r"\bgmx(?:_mpi)?\s+\w+\b", raw)
+        keep = raw.startswith(("perl -0pi", "sed -i '/; Include water topology")) or gromacs
         if keep:
             out.append(localize(raw, args.smoke))
-        if re.search(r"-o md\.tpr\b", raw):
+        if gromacs and re.search(r"\bgrompp\b.*(?:^|\s)-o\s+md\.tpr(?:\s|$)", raw):
             break
     else:
         sys.exit("did not find the 'grompp ... -o md.tpr' line; is this a <NNNN>_slurm.sbatch file?")
