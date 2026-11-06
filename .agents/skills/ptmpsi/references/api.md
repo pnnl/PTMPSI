@@ -30,7 +30,7 @@ Paths are relative to the repo root. Line numbers are for the `skill` branch (ba
 | `resdict` (valid residue names) | `__init__.py` | 132 |
 | `ptmdict` (valid PTM names) | `__init__.py` | 178 |
 | `ptm2nonstandard` | `__init__.py` | 206 |
-| `check_ptm(residue, ptm)` | `ptms.py` | 176 |
+| `check_ptm(residue, ptm)` | `ptms.py` | 179 |
 | `Template` class | `template.py` | 4 |
 
 Valid PTM names (keys of `ptmdict`): acetylation, citrullination, cysteinylation, glutathionylation, glycosylation, hydroxylation, methylation, myristoylation, nitration, nitrosylation, oxidation, palmitoylation, phosphorylation, prenylation, reduction, sulfenylation, sulfhydration, sulfinylation, sulfonylation, dimethylation, trimethylation, symmetric dimethylation, asymmetric dimethylation, cyanylation, carbamoylation. Being a key does not mean it is implemented: only the ones in the `SKILL.md` tables work.

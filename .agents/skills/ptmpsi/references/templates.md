@@ -87,9 +87,8 @@ Where each is placed: `Protein.gen_ptm_files` copies the force field folder, `re
 
 ## Bundled examples (`assets/`)
 
-Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise. The other non-TI `.mdp` files come from `generate_mdp()` in `ptmpsi/gromacs/__init__.py`; run it in an empty folder to get them.
+Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise. The non-TI `.mdp` files come from `generate_mdp()` in `ptmpsi/gromacs/__init__.py`; run it in an empty folder to get them.
 
-- `assets/mdp/md.mdp`: the production stage.
 - `assets/mdp/ti/lam00_01-q.mdp`: charge-decoupling window 0 (`couple-lambda0 = vdw-q`, `init_lambda_state = 0`).
 - `assets/mdp/ti/lam06_02-vdw.mdp`: vdW-decoupling window 6 (`couple-lambda0 = vdw`, `couple-lambda1 = none`). Its inline comments say an earlier `vdw-q` setting there was wrong; keep `vdw`.
 
