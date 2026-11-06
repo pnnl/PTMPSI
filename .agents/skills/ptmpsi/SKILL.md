@@ -12,6 +12,34 @@ Read this file first. Open the references only when a step tells you to:
 - `references/api.md`: every function the tutorial calls, with file and line.
 - `references/templates.md`: the GROMACS `.mdp`, `.itp`, `.tpr` and other template files. Read it before changing or checking any generated run directory.
 
+## Background: what PTM-Psi is for
+
+A post-translational modification (PTM) is a chemical change to an amino acid after the protein is made, for example a phosphate, methyl or acetyl group, or an oxidized cysteine. Standard force fields (the energy models used by molecular dynamics) have no parameters for most modified residues. PTM-Psi builds the modified structure, gets the missing parameters from quantum chemistry, and writes the inputs for simulations that show how the PTM changes protein dynamics and stability.
+
+The workflow is: get a structure (steps 1-3), modify it (4, 6), parameterize new residues (5), optionally dock a ligand (7) or set up QM/MM (8), then generate the MD run folders (9). PTM-Psi prepares inputs. The simulation and quantum programs are separate and are run on a cluster (or locally for small tests).
+
+| Program | What it does here |
+|---|---|
+| GROMACS | Molecular dynamics engine. PTM-Psi writes the `.mdp` settings, topology, and Slurm scripts for minimization, heating, equilibration, and production. With `thermo=True` it also writes 13 thermodynamic integration (TI) windows, which estimate the free-energy change of adding a PTM or forming a disulfide bond. |
+| NWChem | Quantum chemistry. `get_qm_data` writes inputs for RESP partial charges and bond and angle constants of a modified residue (it also writes `espfit.py` and `modseminario.py` for the fits). `qmmm_optimize` writes a QM/MM input in which a reactive region is quantum and the rest of the protein is classical. |
+| AutoDock Vina (with Meeko) | Docking. Places a ligand, such as a nylon fragment, on a protein. Meeko converts structures to Vina's format. |
+| pdb2pqr | Adds hydrogens and charges at a chosen pH. Docking and GROMACS setup both need them. |
+| ForceBalance, torsiondrive | Declared dependencies (maintainer forks) for fitting force-field parameters from QM data. The tutorial does not call them directly. |
+| AlphaFold | PTM-Psi writes Slurm and Singularity scripts for a prediction (step 1) and downloads finished models from the AlphaFold Database (`uniprotid=`). It never runs AlphaFold. Boltz and BioEmu are not part of the repository. |
+
+Parallelism and GPUs (from the code and the generated scripts):
+
+| Component | Multiprocessing / MPI | CUDA | Apple GPU (MPS) |
+|---|---|---|---|
+| PTM-Psi (`gen_ptm_files`, `gromacs/analysis.py`) | Process pools across combinations and trajectories | No GPU code | No |
+| GROMACS | Threads and MPI, set in the generated scripts (`mpirun` or `srun`, rank files) | Yes, on the A100 and H100 partitions | No. The Homebrew build is CPU only. |
+| NWChem | MPI through `srun`, with `OMP_NUM_THREADS` | Not used by PTM-Psi | No |
+| Vina | Multithreaded on CPU | `engine="adgpu"` uses AutoDock-GPU (not run here) | No |
+| AlphaFold (cluster job) | n/a | Yes, in the Singularity image | No |
+| pdb2pqr, RDKit, Meeko | Single process | No | No |
+
+A Mac therefore runs everything on CPU. That is enough for the smoke test in "Platform notes: macOS" and not for production MD or TI.
+
 ## Ground rules
 
 1. Run every Python snippet from a scratch directory, not from the repo root. `Protein(pdbid=...)` writes `<pdbid>.pdb` into the current directory, and `gen_ptm_files` writes a UUID-named folder there.
