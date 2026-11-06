@@ -62,7 +62,10 @@ class Protein:
         # Download file from AlphaFold Database
         elif self.uniprotid is not None:
             print("\t Downloading file from the AlphaFold Protein Structure Database")
-            response = requests.get("https://alphafold.ebi.ac.uk/files/AF-"+self.uniprotid.upper()+"-F1-model_v4.pdb")
+            # The file name carries a model version that changes (v4 now returns 404), so ask the API for the URL
+            api = requests.get("https://alphafold.ebi.ac.uk/api/prediction/"+self.uniprotid.upper())
+            api.raise_for_status()
+            response = requests.get(api.json()[0]["pdbUrl"])
             response.raise_for_status()
             self.pdbfile = response.text.splitlines()
             with open(self.uniprotid+".pdb","w") as fh:
@@ -227,7 +230,7 @@ class Protein:
         if psi is None:
             psi = -40.0
         elif isinstance(psi,str):
-            psi = phi.lower()
+            psi = psi.lower()
             if psi == "alpha":
                 psi = -40
             elif psi == "beta":

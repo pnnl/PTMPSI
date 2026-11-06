@@ -1,25 +1,25 @@
 # API pointers
 
-Paths are relative to the repo root. Line numbers are for branch `TI_disulfides` at commit `f5223119`. Re-check with `grep -n` if the file changed.
+Paths are relative to the repo root. Line numbers are for the `skill` branch (base commit `f5223119` plus the fixes in this branch). Re-check with `grep -n` if the file changed.
 
 ## Protein (`ptmpsi/protein/__init__.py`)
 
 | Method | Line | Notes |
 |---|---|---|
 | `Protein(filename=None, pdbid=None, uniprotid=None, interactive=False, delwat=True, delhet=True)` | 35 | Exactly one source, or none for an empty chain "A" |
-| `write_pdb(pdbfile)`, `write_xyz(xyzfile)`, `write_fasta(fastafile)` | 94-100 | |
-| `mutate(original, new)` | 210 | Calls `point_mutation` in `ptmpsi/protein/mutate.py`, line 14 |
-| `append(chain, residue, psi=None)` | 215 | Numeric `psi` only (string path is broken) |
-| `prepend(chain, residue, phi=None)` | 256 | `phi` numeric or `"alpha"` / `"beta"` |
-| `delchain(chain)` | 300 | |
-| `findresidue(name)` | 310 | Prints `chain:NAMEnumber` |
-| `modify(original, modification, logger=None)` | 318 | Calls `post_translational_modification`, `mutate.py` line 84 |
-| `get_ptm_combinations(ptms, exclude=None, ntuple=-1)` | 322 | Calls `ptm_combination`, `ptmpsi/protein/tools.py` line 138 |
-| `check_combinations_format(combinations)` | 325 | Needs list of lists of tuples |
-| `process_combination(...)` | 352 | One combination to one folder; used by `gen_ptm_files` |
-| `gen_ptm_files(combinations, path=None, prefix=None, ff='amber99sb', **kwargs)` | 459 | Returns the UID |
-| `dock(ligand, receptor, boxcenter, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None, spacing=None)` | 663 | |
-| `protonate(pdbin=None, pdb=None, pqr=None, ph=7, path=".")` | 722 | Runs `pdb2pqr30` with AMBER and propka; sets `self.charge` |
+| `write_pdb(pdbfile)`, `write_xyz(xyzfile)`, `write_fasta(fastafile)` | 97-103 | |
+| `mutate(original, new)` | 213 | Calls `point_mutation` in `ptmpsi/protein/mutate.py`, line 14 |
+| `append(chain, residue, psi=None)` | 218 | Numeric `psi`, or `"alpha"` / `"beta"` |
+| `prepend(chain, residue, phi=None)` | 259 | `phi` numeric or `"alpha"` / `"beta"` |
+| `delchain(chain)` | 303 | |
+| `findresidue(name)` | 313 | Prints `chain:NAMEnumber` |
+| `modify(original, modification, logger=None)` | 321 | Calls `post_translational_modification`, `mutate.py` line 84 |
+| `get_ptm_combinations(ptms, exclude=None, ntuple=-1)` | 325 | Calls `ptm_combination`, `ptmpsi/protein/tools.py` line 138 |
+| `check_combinations_format(combinations)` | 328 | Needs list of lists of tuples |
+| `process_combination(...)` | 355 | One combination to one folder; used by `gen_ptm_files` |
+| `gen_ptm_files(combinations, path=None, prefix=None, ff='amber99sb', **kwargs)` | 462 | Returns the UID |
+| `dock(ligand, receptor, boxcenter, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None, spacing=None)` | 666 | |
+| `protonate(pdbin=None, pdb=None, pqr=None, ph=7, path=".")` | 725 | Runs `pdb2pqr30` with AMBER and propka; sets `self.charge` |
 
 `gen_ptm_files` keyword arguments read in the source (lines 459-540): `thermo=True`, `pdb2pqr=True`, `cofactor=None`, `lenlambda=2.0`, `timestep=2.0`, `temp=300.0`, `nsplit=1`, `gpu_id=""`, `max_script_workers=1`, `machine`, `auto_submit_ti=True`, `checkpointing=True`, `bundling=False`, `time=12`, `combination_logging=True`. Remaining keywords go to `ptmpsi.gromacs.generate` and then `generate_slurm` (`mpirun`, `container`, `gmx`, `ntasks`, `nthreads`, `nstlist`, `partition`, `account`, `nnodes`).
 
@@ -41,8 +41,8 @@ Valid PTM names (keys of `ptmdict`): acetylation, citrullination, cysteinylation
 |---|---|
 | `generate_mdp(temp=300, posres=[...], **kwargs)` | 39 |
 | `generate_slurm(infile, posres=[...], ...)` | 95 |
-| `sltcap(protein, bt="dodecahedron", size=None, conc=0.154, charge=0)` | 354 |
-| `generate(protein, filename=None, size=None, conc=None, charge=0, **kwargs)` | 375 |
+| `sltcap(protein, bt="dodecahedron", size=None, conc=0.154, charge=0)` | 355 |
+| `generate(protein, filename=None, size=None, conc=None, charge=0, **kwargs)` | 376 |
 
 ## Slurm machines (`ptmpsi/slurm/__init__.py`)
 

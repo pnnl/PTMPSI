@@ -26,13 +26,14 @@ Read this file first. Open the references only when a step tells you to:
 ## Step 0: environment
 
 ```bash
-python3.12 -m venv ~/ptmpsi-venv      # requires-python is >=3.6,<3.13
-source ~/ptmpsi-venv/bin/activate     # puts pdb2pqr30 on PATH
-pip install -e /path/to/PTMPSI        # repo root, where pyproject.toml is
-bash .agents/skills/ptmpsi/scripts/check_env.sh
+# From the repository root. Creates the venv (Python 3.9 to 3.12), installs ptmpsi, downloads Vina, runs check_env.sh
+bash .agents/skills/ptmpsi/scripts/setup_env.sh ~/ptmpsi-venv
+source ~/ptmpsi-venv/bin/activate     # puts pdb2pqr30 and vina on PATH; do this in every new shell
 ```
 
-`Protein.protonate` (`ptmpsi/protein/__init__.py`, line 722) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
+The script does not install GROMACS or NWChem. Manual equivalent: `python3.12 -m venv ~/ptmpsi-venv`, `source ~/ptmpsi-venv/bin/activate`, `pip install -e <repo root>`, then `bash .agents/skills/ptmpsi/scripts/check_env.sh`.
+
+`Protein.protonate` (`ptmpsi/protein/__init__.py`, line 725) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
 
 External programs by step:
 
@@ -55,7 +56,7 @@ Checked on macOS 26, arm64, Python 3.12.14, Homebrew GROMACS 2026.4 (CPU only, `
 | Cluster launch lines | Generated `*_slurm.sbatch` files call `mpirun -np N --rankfile ... apptainer exec --nv ... gmx_mpi` and pass `-gpu_id`, `-nb gpu`, `-pme gpu`, `-update gpu`. None of that exists on a Mac | `scripts/localize_sbatch.py` strips them and emits a plain `gmx` script |
 | `pdb2pqr30` | Not on `PATH` unless the venv is active; `protonate()` then raises `KeyError: Cannot find PDB2PQR` | `source ~/ptmpsi-venv/bin/activate`, or export `<venv>/bin` on `PATH` |
 | Receptor hydrogens | `Protein.dock` fails for a receptor without hydrogens | Call `protonate()` before `write_pdb` (see step 7) |
-| AutoDock Vina | Step 7 needs `vina` on `PATH`. An arm64 `vina` 1.2.7 was present in the test venv. How it was installed was not recorded, `brew` has no `autodock-vina` formula, and `pip download vina` failed to build | Put an arm64 build of `vina` on `PATH` and check with `vina --version` |
+| AutoDock Vina | Step 7 needs `vina` on `PATH`. `brew` has no `autodock-vina` formula and `pip download vina` fails to build on this Mac | Download the official arm64 release: `curl -L -o "$VIRTUAL_ENV/bin/vina" https://github.com/ccsb-scripps/AutoDock-Vina/releases/download/v1.2.7/vina_1.2.7_mac_aarch64 && chmod +x "$VIRTUAL_ENV/bin/vina"`, then `vina --version` (expect `v1.2.7`). Use `vina_1.2.7_mac_x86_64` on an Intel Mac (not tested) |
 | Python version | `requires-python` is `>=3.6,<3.13` | Use 3.12, not the newest Homebrew Python |
 
 Running the generated GROMACS workflow on a Mac (cluster steps and time limits do not apply):
@@ -83,7 +84,7 @@ Writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta` in the current di
 from ptmpsi.protein import Protein
 local   = Protein(filename="/path/to/local.pdb")
 fetched = Protein(pdbid="6tht")          # downloads from RCSB, saves 6tht.pdb
-af      = Protein(uniprotid="G9BY57")    # downloads AlphaFold DB model v4
+af      = Protein(uniprotid="G9BY57")    # downloads the current AlphaFold DB model
 ```
 
 `delwat=True` and `delhet=True` are the defaults, so waters and hetero atoms are dropped on load.
@@ -99,8 +100,8 @@ chain.prepend(chain="A", residue="ACE", phi=-120.0)
 chain.append(chain="A", residue="NME", psi=120.0)
 ```
 
-- Give `phi` and `psi` as numbers. Passing the strings `"alpha"` or `"beta"` to `append` fails (line 215 area has a bug: it reads an undefined `phi`). `prepend` accepts the strings.
-- Defaults: `psi=-40.0` for `append`, `phi=-60.0` for `prepend`.
+- Give `phi` and `psi` as numbers or as `"alpha"` / `"beta"`.
+- Defaults: `psi=-40.0` for `append`, `phi=-60.0` for `prepend`. Both accept `"alpha"` or `"beta"` as well as numbers (`append` needed a one-word fix for the string form; it is in this branch).
 - Valid residue names are the keys of `resdict` (`ptmpsi/residues/__init__.py`, line 132). A one-letter code also works.
 - Write results with `write_pdb("x.pdb")` or `write_xyz("x.xyz")`.
 
@@ -147,13 +148,15 @@ Other residues:
 | PTM | Residues |
 |---|---|
 | acetylation | LYS, LYN |
-| methylation | GLU, GLH, LYS, LYN, ARG, HIS, HIP, HID, HIE |
+| methylation | GLU, GLH, LYS, LYN, ARG, HIS, HIP, HID, HIE (GLU and GLH are listed by `check_ptm` but fail with `KeyError` in `modify`: they have no entry in `ptmsite`, `ptmpsi/residues/ptms.py` line 84) |
 | dimethylation | LYS, LYN, ARG |
 | trimethylation | LYS, LYN |
 | symmetric / asymmetric dimethylation | ARG |
 | phosphorylation | SER, THR, TYR, ARG, HIS, HIP, HID, HIE, LYS, LYN, ASP, ASH, CYS, CYM |
 
 The check lives in `check_ptm` (`ptmpsi/residues/ptms.py`, line 176). Anything else raises `MyDockingError`.
+
+Histidine methylation and phosphorylation stop and ask `Selection:` on stdin (1 = pros, 2 = tele). A non-interactive agent must supply the answer (for example by replacing `builtins.input`), or the call blocks forever.
 
 ## Step 7: docking (needs `vina`)
 
@@ -238,7 +241,8 @@ After step 9, list `<uid>/` and compare it with the layout in `references/templa
 
 - The tutorial's last cell is empty.
 - `Tutorial_lcf.ipynb` and `Tutorial_frontier.ipynb` in the same folder are the same workflow for the LCF and Frontier machines. Use them for those clusters.
-- Run on macOS arm64: step 2 (`pdbid=`), `prepend`/`append` with default angles and `mutate` (inside the step 7 script), step 7 (docking, `dock_cutinase.py` flow), and step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
-- Not run: step 1 (AlphaFold scripts), 3b (nylon surfaces), the `phi`/`psi` trimer in step 3, step 5 (`get_qm_data`), step 6 (`modify`), step 8 (`qmmm_optimize`), and the `filename=` and `uniprotid=` loaders.
+- Run on macOS arm64 (outputs inspected): step 1 (`prediction` writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta`); step 2 (`pdbid=`, `filename=`, `uniprotid=`); step 3 (the trimer with `phi`/`psi`, and `"alpha"`/`"beta"` strings); step 3b (both `gen_surface` calls wrote `*_333.pdb` and `*_models_333.pdb`); step 5 (`get_qm_data` wrote `conf0.nw`, `conf1.nw`, the two `*_hess.nw`, `espfit.py`, `modseminario.py`, `torsions.dat`, `get_qm_data.sbatch`); step 6 (every CYS PTM, plus acetylation, methylation, dimethylation, trimethylation of LYS/LYN, ARG methylation and dimethylations, HIS/HIP/HID/HIE methylation, and phosphorylation of SER, THR, TYR, ARG, HIS, LYS, ASP, ASH, CYS, CYM, plus CYS reduction and oxidation); step 7 (docking, 9 poses); step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
+- Failing as shipped: `modify` methylation of GLU and GLH (`KeyError`).
+- Not run: step 8 (`qmmm_optimize`), the NWChem inputs themselves, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
 - Not tested: production MD, the 13 TI windows, and the generated scripts on a cluster. The smoke run only shows that every `grompp` accepts the files and every `mdrun` takes steps.
 - The local GROMACS is 2026.4; the cluster image is 2023.4.
