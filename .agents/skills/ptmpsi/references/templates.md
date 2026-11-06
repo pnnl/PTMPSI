@@ -85,19 +85,13 @@ Where each is placed: `Protein.gen_ptm_files` copies the force field folder, `re
 
 `plugins/v4.0/CysPTM/src/templates/*.idatmres` (and a `v3.0` copy) are UCSF Chimera atom-type templates for CYS, SNC, CSO, CSD, OCS, CSS, CGL, SMC, QCS, XCN. They are separate from the Python workflow.
 
-## Bundled examples (`assets/`)
+## Files in the repo that every run uses
 
-Rendered by `gen_ptm_files` for PDB 6gve, combination `M:CYX19/29/61/70 -> reduction`, `amber99sb`, defaults otherwise. The non-TI `.mdp` files come from `generate_mdp()` in `ptmpsi/gromacs/__init__.py`; run it in an empty folder to get them.
-
-- `assets/mdp/ti/lam00_01-q.mdp`: charge-decoupling window 0 (`couple-lambda0 = vdw-q`, `init_lambda_state = 0`).
-- `assets/mdp/ti/lam06_02-vdw.mdp`: vdW-decoupling window 6 (`couple-lambda0 = vdw`, `couple-lambda1 = none`). Its inline comments say an earlier `vdw-q` setting there was wrong; keep `vdw`.
-
-Two files that every run needs are in the repo, so no copy is bundled:
-
-- `ptmpsi/gromacs/forcefield/specbond.dat`: SG-SG pairs are defined for `CYX-CYX` (0.2 and 0.25 nm), `CYM-CYM` and `CYZ-CYZ`. There is no `CYS-CYS` line, which is what keeps nearby CYS residues from bonding.
-- `ptmpsi/gromacs/forcefield/amber99sb.ff/forcefield.itp`: entry point of the force field. The other `.itp` files are in the same folder.
-
-The run index `README` that `gen_ptm_files` writes lists each combination and its folder.
+- `generate_mdp()` in `ptmpsi/gromacs/__init__.py` writes the non-TI `.mdp` files. Run it in an empty folder to see them.
+- `ptmpsi/gromacs/templates.py` holds the TI window templates. Window `01-q` sets `couple-lambda0 = vdw-q` (line 314). Window `02-vdw` sets `couple-lambda0 = vdw` (line 384), and an inline comment there says `vdw-q` was wrong. Keep `vdw`.
+- `ptmpsi/gromacs/forcefield/specbond.dat` defines SG-SG pairs for `CYX-CYX` (0.2 and 0.25 nm), `CYM-CYM` and `CYZ-CYZ`. There is no `CYS-CYS` line, which is what keeps nearby CYS residues from bonding.
+- `ptmpsi/gromacs/forcefield/amber99sb.ff/forcefield.itp` is the entry point of the force field. The other `.itp` files are in the same folder.
+- `gen_ptm_files` writes a run index `README` that lists each combination and its folder.
 
 Every stage runs the same way in the macOS check: `ions.tpr`, seven `minim*.tpr`, `heating.tpr`, `npt.tpr`, `minim.tpr`, `fheating.tpr`, `fnpt.tpr` and `md.tpr` were all produced by `gmx grompp` 2026.4.
 

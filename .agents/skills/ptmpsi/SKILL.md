@@ -270,7 +270,7 @@ Facts to rely on:
 
 After step 9, list `<uid>/` and compare it with the layout in `references/templates.md`. A complete combination folder has 14 `.mdp` files, `<NNNN>_slurm.sbatch`, `md.sbatch`, `submit_lambdas.sh` and a `dualti/` folder with `lam-00` to `lam-12`. If something is missing, do not edit generated files by hand. Fix the input and regenerate.
 
-Real output from this workflow is in `assets/mdp/ti/`: two rendered TI windows. The non-TI `.mdp` files come from `generate_mdp()`, and `specbond.dat` and `forcefield.itp` are in `ptmpsi/gromacs/forcefield/`.
+The non-TI `.mdp` files come from `generate_mdp()`, the TI windows from `ptmpsi/gromacs/templates.py`, and `specbond.dat` and `forcefield.itp` are in `ptmpsi/gromacs/forcefield/`.
 
 ## Known gaps
 
