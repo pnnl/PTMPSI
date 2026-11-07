@@ -127,6 +127,44 @@ class AlphaFoldInputs(unittest.TestCase):
             self.assertIn('separate single-record FASTA files', source)
 
 
+class TopologyUpdater(unittest.TestCase):
+    def setUp(self):
+        self.templates = runpy.run_path(str(ROOT / 'ptmpsi/gromacs/templates.py'))
+        self.script = self.templates['update_topology']
+
+    def test_exact_generated_script_compiles(self):
+        compile(self.script, 'update_topology.py', 'exec')
+
+    def test_supported_cyz_topology_execution(self):
+        with scratch():
+            names = ['N', 'H', 'CA', 'HA', 'CB', 'HB1', 'HB2', 'SG', 'DU', 'C', 'O']
+            parameters = self.templates['CYZ'].splitlines()
+            original = '[ moleculetype ]\nProtein 3\n[ atoms ]\n'
+            for residue in range(2):
+                original += f'; residue {residue + 1} CYZ\n'
+                for offset, (name, parameter) in enumerate(zip(names, parameters), 1):
+                    atom = residue * 11 + offset
+                    atomtype, charge, mass = parameter.split()
+                    original += f'{atom} {atomtype} {residue+1} CYZ {name} {atom} {charge} {mass}\n'
+            original += '[ bonds ]\n8 19 1\n[ angles ]\n5 8 19 1\n[ dihedrals ]\n5 8 19 16 9\n[ system ]\nTwo CYZ updater fixture\n[ molecules ]\nProtein 1\n'
+            Path('topol.top').write_text(original)
+            Path('update_topology.py').write_text(self.script)
+            result = subprocess.run([sys.executable, 'update_topology.py'],
+                                    text=True, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(Path('topol.top').read_text(), original)
+            output = Path('TItop.top').read_text()
+            atoms = output.split('[ atoms ]\n', 1)[1].split('[ bonds ]', 1)[0]
+            atom_lines = [line.split() for line in atoms.splitlines() if line and not line.startswith(';')]
+            self.assertEqual(len(atom_lines), 22)
+            self.assertTrue(all(len(fields) == 11 for fields in atom_lines))
+            self.assertEqual(atom_lines[7][-3:], ['SH', '-0.3119', '32.06'])
+            self.assertIn('0.20380   138908.8   0.45000   0.000000', output)
+            self.assertIn('103.700    569.024   103.700   0.00000', output)
+            self.assertIn('14.64400  2  0.0   0.00000', output)
+            self.assertIn('[ molecules ]\nProtein 1\n', output)
+
+
 class LocalScripts(unittest.TestCase):
     def test_generated_default_and_launcher_free_stages(self):
         slurm = runpy.run_path(str(ROOT / 'ptmpsi/slurm/__init__.py'))
