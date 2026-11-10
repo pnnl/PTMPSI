@@ -278,6 +278,9 @@ module load gcc/14.2.0 openmpi/5.0.7 nwchem/7.2.3 python/3.13.5
 
 export OMP_NUM_THREADS=1
 export NWC_RANKS_PER_DEVICE=0
+# The module leaves NWCHEM_BASIS_LIBRARY unset, and the built-in default points at a missing build directory
+export NWCHEM_BASIS_LIBRARY=/share/apps/nwchem/7.2.3/share/libraries/
+export NWCHEM_NWPW_LIBRARY=/share/apps/nwchem/7.2.3/share/libraryps/
 
 mkdir -p {scratch}/${{USER}}/${{SLURM_JOB_ID}}
 cd {scratch}/${{USER}}/${{SLURM_JOB_ID}}
@@ -696,6 +699,24 @@ cp ${{SLURM_SUBMIT_DIR}}/{complex} /big_scratch
 cp ${{SLURM_SUBMIT_DIR}}/prepare.nw /big_scratch
 
 srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scratch,$NWCHEM_BASIS_LIBRARY,/cluster/apps/nwchem/nwchem/src/data/ $NWBIN nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
+qmmm_slurm["DECEPTION"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /share/apps/nwchem/7.2.3/share/data/amber_s/
+amber_2 /share/apps/nwchem/7.2.3/share/data/amber_x/
+amber_3 /share/apps/nwchem/7.2.3/share/data/amber_q/
+spce /share/apps/nwchem/7.2.3/share/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg .
+cp ${{SLURM_SUBMIT_DIR}}/{complex} .
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw .
+
+mpirun -np $SLURM_NTASKS --bind-to none nwchem prepare.nw > prepare.log
 
 cleanup
 """

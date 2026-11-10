@@ -314,10 +314,14 @@ python -m pip install numpy'''
         infile.write("\npython espfit.py\n")
         infile.write("\npython modseminario.py\n")
         infile.write("\ndeactivate\n")
-        if dotorsions and single: 
+        # The torsion scan setup (proxy, git clone, container image) is specific to Tahoma
+        tdrive_in_script = dotorsions and single and slurm.machine.name != "DECEPTION"
+        if dotorsions and single and not tdrive_in_script:
+            print("\t Warning: torsion scans are not added to the Deception job script")
+        if tdrive_in_script:
             infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
-        if dotorsions and single:
+        if tdrive_in_script:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
                 infile.write(script_copy[script_method].format(filename=f"dihedrals{str(idx)}.txt"))

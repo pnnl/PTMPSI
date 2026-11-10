@@ -30,8 +30,8 @@ class Partition:
         self.options = options
 
 # Deception (PNNL Institutional Computing). GROMACS 2025.2 and NWChem 7.2.3 come from
-# Lmod modules. The cluster GROMACS is MPI-only (no CUDA), so only CPU partitions are
-# defined; GPU runs would need a GPU build of GROMACS or a container.
+# Lmod modules. The cluster GROMACS is MPI-only (no CUDA), so GROMACS refuses the GPU
+# partitions; those exist for AlphaFold, which runs from the cluster's container.
 def _deception_gromacs(ntasks, nthreads):
     return {"gromacs": {"gmx": "gmx_mpi", "container": "", "ntasks": ntasks, "nthreads": nthreads}}
 
@@ -53,7 +53,7 @@ deception = Machine(
         ncpus   = 64,
         ngpus   = 0,
         maxtime = 168,
-        maxnode = 8,
+        maxnode = 1,
         options = _deception_gromacs(32, 2)
         ),
     "short": Partition(
@@ -62,8 +62,32 @@ deception = Machine(
         ncpus  = 64,
         ngpus  = 0,
         maxtime = 3,
-        maxnode = 8,
+        maxnode = 1,
         options = _deception_gromacs(32, 2)
+        ),
+    "a100_shared": Partition(
+        name = "a100_shared",
+        memory = 996,
+        ncpus  = 128,
+        ngpus  = 8,
+        maxtime = 168,
+        maxnode = 1
+        ),
+    "a100_80_shared": Partition(
+        name = "a100_80_shared",
+        memory = 938,
+        ncpus  = 64,
+        ngpus  = 8,
+        maxtime = 168,
+        maxnode = 1
+        ),
+    "h100_shared": Partition(
+        name = "h100_shared",
+        memory = 1992,
+        ncpus  = 96,
+        ngpus  = 8,
+        maxtime = 168,
+        maxnode = 1
         ),
     },
   modules = {"gcc": "gcc/14.2.0",
@@ -395,6 +419,7 @@ class Slurm:
                 "user"     : self.user
                 }
         self.options_dictionary["ngpus"] = self.ngpus
+        self.options_dictionary["gpuline"] = self.gpuline
 
 
         self.header = self._header_template.format(**self.options_dictionary)

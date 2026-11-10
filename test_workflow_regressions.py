@@ -208,6 +208,26 @@ class LocalScripts(unittest.TestCase):
         for absent in ('apptainer', '-nb gpu', '-gpu_id'):
             self.assertNotIn(absent, script)
         self.assertEqual(machine.default_partition().name, 'shared')
+        self.assertIn('set -eo pipefail', script)
+        with scratch(), patch.dict(sys.modules, {'ptmpsi.gromacs.templates': templates}):
+            with self.assertRaises(ValueError):
+                generator('0000.pdb', conc=0.154, thermo=False, machine=machine, account='nwbrave',
+                          time=1, partition='a100_shared', ngpus=1)
+
+    def test_deception_nwchem_and_alphafold_templates(self):
+        nwchem = runpy.run_path(str(ROOT / 'ptmpsi/nwchem/templates.py'))
+        header = nwchem['slurm_header']['DECEPTION']
+        self.assertIn('module load gcc/14.2.0 openmpi/5.0.7 nwchem/7.2.3', header)
+        self.assertIn('NWCHEM_BASIS_LIBRARY=/share/apps/nwchem/7.2.3/share/libraries/', header)
+        self.assertIn('amber_s', nwchem['qmmm_slurm']['DECEPTION'])
+        self.assertIn('mpirun -np $SLURM_NTASKS', nwchem['runsingularity']['DECEPTION'])
+        alphafold = runpy.run_path(str(ROOT / 'ptmpsi/alphafold/templates.py'))
+        self.assertIn('{gpuline}', alphafold['slurm_header']['DECEPTION'])
+        body = alphafold['slurm_body']['Deception'].format(
+            header='', data_dir='/d', container='/c.sif', nv='--nv ', dbs='full_dbs', model='monomer',
+            run_relax=True, gpu_relax=True, fasta_paths='./a.fasta', date='2022-01-01')
+        self.assertIn('apptainer run --nv', body)
+        self.assertIn('--data_dir=$Data_Loc', body)
 
     def test_bare_piped_and_launched_commands(self):
         with scratch():

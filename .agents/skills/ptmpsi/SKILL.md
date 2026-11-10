@@ -106,7 +106,7 @@ Machines and partitions (names are what `machine=` and `partition=` accept):
 | `ptmpsi.slurm.perlmutter` | `regular` (64/0, 10, 48 h), `preempt`, `shared` |
 | `ptmpsi.slurm.frontier` | `batch` (56/8, 12 h), `extended` (56/8, 24 h, 64 nodes) |
 | `ptmpsi.slurm.polaris` | `debug` (32/4, 1 h), `prod` (32/4, 24 h, 476 nodes), `preemptable` (32/4, 72 h) |
-| `ptmpsi.slurm.deception` | `shared` (64/0, 1 node, 168 h; default), `slurm` (64/0, 8 nodes, 168 h), `short` (64/0, 8 nodes, 3 h). CPU only. See "Running on PNNL Deception" |
+| `ptmpsi.slurm.deception` | `shared` (64/0, 1 node, 168 h; default), `slurm` (64/0, 1 node, 168 h), `short` (64/0, 1 node, 3 h); `a100_shared`, `a100_80_shared`, `h100_shared` for AlphaFold only. See "Running on PNNL Deception" |
 
 The default machine is `tahoma`. Requests beyond a partition's limits raise `KeyError`.
 
@@ -301,12 +301,12 @@ Facts to rely on:
 - Default simulation: minimization, heating, NPT equilibration, 100 ns production (`lenmd=100.0` in `generate_mdp`), plus 13 lambda windows of thermodynamic integration (TI) when `thermo=True` (default).
 - `machine=` and the spread `options["gromacs"]` describe the PNNL AQE-LDRD cluster (apptainer image, rankfile, `gmx_mpi`). They only shape the generated sbatch scripts. Generating the files ran on a Mac with no cluster access.
 - `pdb2pqr=False` skips protonation and writes the input structure as `protonated.pdb`. It failed with `UnboundLocalError` before this branch's fix.
-- Other machines are defined in `ptmpsi/slurm/__init__.py`: `deception` (line 38), `aqe_ldrd` (77), `aqe_h100`, `tahoma` (178), `perlmutter` (190), `frontier` (206), `polaris` (249).
+- Other machines are defined in `ptmpsi/slurm/__init__.py`: `deception` (line 38), `aqe_ldrd` (101), `aqe_h100` (174), `tahoma` (202), `perlmutter` (214), `frontier` (230), `polaris` (273).
 - `ff` is `"amber99sb"` (default), `"amber99zn"` or `"amber14sb"`. An invalid name does not raise (the `KeyError` in `gen_ptm_files` is built but never raised), and the later copy fails instead.
 
 ## Running on PNNL Deception
 
-PTM-Psi writes every job script, so on Deception run those scripts as generated. The pnnl-deception skill handles access, the account choice, upload, status and cancel. It does not rewrite PTM-Psi's scripts.
+PTM-Psi writes its own job scripts, and on Deception they run as generated. The pnnl-deception skill covers access, the account choice, upload, status and cancel. Do not convert PTM-Psi's scripts into `dcx.py submit` payloads.
 
 ```python
 dc = ptmpsi.slurm.deception
@@ -315,20 +315,36 @@ uid = protein.gen_ptm_files([combos], machine=dc, partition="shared",
                             account="<account the user named>", time=2.0, conc=0.154, **opts)
 ```
 
+GROMACS:
+
 - `account` has no default (a missing one becomes `XXXX` in the header). `time` is in hours and must be above 0.2, because `md.sbatch` runs `mdrun -maxh time-0.2`.
-- The cluster GROMACS (module `gromacs/2025.2`) is built without CUDA, so only CPU partitions are defined. The header loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5` (python is for `update_topology.py`).
-- `shared` bills the cores requested. `slurm` and `short` bill whole 64-core nodes. Keep `ntasks * nthreads` at 64 or less.
+- The module `gromacs/2025.2` has no CUDA, so `generate_slurm` raises `ValueError` for the GPU partitions. The header loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5` (python is for `update_topology.py`) and ends with `set -eo pipefail`, so a failed GROMACS command ends the job as `FAILED`.
+- `shared` bills the cores requested. `slurm` and `short` bill whole 64-core nodes. All three accept one node, because the generated `mpirun -np` counts the ranks of a single node. Keep `ntasks * nthreads` at 64 or less.
 - Ranks start with `mpirun -np N --bind-to none`. With `--bind-to core --map-by slot:PE=2`, 6 of 13 TI jobs exited with status 85 after 3 seconds, because cores handed out on a shared node can sit on two sockets.
-- `get_qm_data` writes `mpirun nwchem` lines and a header with the `nwchem/7.2.3` module. That NWChem build has no `xtb`, so on Deception the `xtb` pre-optimization is left out unless you pass `xtb=True`.
+
+NWChem (`get_qm_data`, `qmmm_optimize`):
+
+- The scripts load `nwchem/7.2.3` and set `NWCHEM_BASIS_LIBRARY`, which the module leaves unset (its built-in default points at a missing directory). The `xtb` pre-optimization is left out because the build has no `xtb` (pass `xtb=True` to keep it). Torsion scans are not added to Deception scripts, and a warning says so.
+- The module cannot run PTM-Psi's inputs. `conf0.nw` stops with `int_2e4c: fatal error` at the first SCF step, which also happens with Homebrew NWChem on macOS. `prepare.nw` of `qmmm_optimize` stops with `Illegal input to pfft3d` with 1, 4 and 8 ranks. Both inputs are written for the container build used on Tahoma. No container run has been tried on Deception, so run these steps on a cluster that has that build.
+- NWChem scripts have no `set -e`, so a job can show `COMPLETED` after NWChem failed. Read the `.log` and `.err` files.
+
+AlphaFold (`prediction`):
+
+- `prediction("<sequence>", machine=dc, partition="a100_shared", account="<account>", ntasks=8, date="2022-01-01")` writes `alphafold.sbatch`. It runs the cluster's AlphaFold 2.3.0 container (`/share/apps/alphafold/2.3.0/alphafold.sif`) on `/share/apps/alphafold-data` with one GPU. Only `model="monomer"` and `dbs="full_dbs"` are accepted. The job was submitted once and stayed pending (estimated start about 6 hours out), so the script has not run.
 
 Upload and submit with the driver in the pnnl-deception skill (`dcx.py`):
 
 1. On macOS, build the archive with `COPYFILE_DISABLE=1 tar czf run.tgz <uid>`. Without that variable the archive holds `._*` files inside `amber99sb.ff`, and `pdb2gmx` stops with `Invalid atomtype format`. A tar archive also keeps the symlinks that the `dualti/lam-NN` folders use. Run `dcx.py upload run.tgz --dest <project dir>`, then `dcx.py run "cd <project dir> && tar xzf run.tgz"`.
-2. The login node refuses `source submit.sh` and `jobid=$(sbatch ...)`. Send the lines of `submit.sh` as separate `dcx.py run` calls: `sbatch 0000_slurm.sbatch`, then `sbatch --dependency=afterok:<that id> md.sbatch`, then `echo <md id> > md.jobid`. `md.jobid` has to hold the md job id, because the last md job compares it with its own id before it updates the TI topology.
-3. With the defaults, `0000_slurm.sbatch` queues the 13 TI jobs itself (and any extra md runs). One combination is 1 setup + 1 md + 13 TI = 15 jobs. `auto_submit_ti=False` leaves out the 13.
-4. A setup job can show `COMPLETED` after its GROMACS steps failed, because the script has no `set -e`. The later stages then fail too, and the dependent jobs run or stay pending on a failed parent. Read the `.err` file of the setup job. To reuse queued TI jobs after rerunning setup and md, run `scontrol update JobId=<id> Dependency=afterok:<new md id>` for each TI job.
+2. The login node refuses `source submit.sh` and `jobid=$(sbatch ...)`. Send the lines of `submit.sh` as separate `dcx.py run` calls: `sbatch 0000_slurm.sbatch`, then `sbatch --dependency=afterok:<that id> md.sbatch`, then `echo <md id> > md.jobid`. The setup job reads `md.jobid` at its end, and the last md job compares it with its own id before it updates the TI topology. A setup job run alone ends `FAILED` at that read.
+3. With the defaults, `0000_slurm.sbatch` queues the 13 TI jobs itself (and any extra md runs). One combination is 1 setup + 1 md + 13 TI = 15 jobs. `auto_submit_ti=False` leaves out the 13, and `dualti/lam-NN/<prefix>_lamNN_slurm.sbatch` can then be submitted one window at a time.
+4. After a rerun of setup and md, repoint queued TI jobs with `scontrol update JobId=<id> Dependency=afterok:<new md id>`, one call per job.
 
-Smoke test that passed on `shared` (16 cores, account chosen by the user): cutinase `6tht`, `reduction` of `A:CYX203` and `A:CYX240`, `lennvt=0.04, lennpt=0.04, lenmd=0.002, lenlambda=0.002, time=0.25`, and `nsteps = 100` in the `minim*.mdp` files of an uploaded copy. The setup job took 59 s, the md job 8 s, and each TI job 15 to 24 s. Of the 13 TI jobs, 7 passed on the first try. Four of the 6 that hit the `--bind-to core` failure were rerun with `--bind-to none` and passed. The other 2 (`lam-10`, `lam-12`) were not rerun. The 11 windows that ran wrote `lam-NN.xvg` in both `01-q` and `02-vdw`.
+Tests on `shared` (account chosen by the user), using cutinase `6tht` with `reduction` of `A:CYX203` and `A:CYX240`, `lennvt=0.04, lennpt=0.04, lenmd=0.002, lenlambda=0.002, time=0.25`, and `nsteps = 100` in the `minim*.mdp` files of the uploaded copy:
+
+- Setup took 59 s, md 9 s, and a TI window 16 to 24 s. The md job rebuilt `dualti/TItop.top`.
+- 12 of the 13 TI windows have completed on Deception and written `lam-NN.xvg`. `lam-10` failed in the first run, because of the core binding above, and was not rerun. The 13 scripts differ only in the window number.
+- The `short` partition ran the whole setup chain through `grompp -o md.tpr` in 69 s. The job then ended `FAILED` because the test had no `md.jobid` file.
+- A setup job with a truncated `0000.pdb` ended `FAILED` after 5 seconds.
 
 ## Checking your work
 
@@ -345,6 +361,6 @@ The non-TI `.mdp` files come from `generate_mdp()`, the TI windows from `ptmpsi/
 - Not run: executing the full generated NWChem parameterization inputs, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
 - Native Apple Silicon runtime smoke: GROMACS 2026.4 ran 20 steps each of the repository's `01-q` and `02-vdw` TI templates at lambda state 6 with finite derivative output, using a manually defined neutral two-site dual topology in TIP3P water (one rank, two threads). Velocities were initialized and pressure coupling disabled for the tiny test; lambda schedules and soft-core settings were retained. NWChem 7.3.0 converged an HF/STO-3G single-point calculation on ACE-GLY-NME coordinates generated by `get_qm_data` (one rank, one thread). Preparation and runtime were under ten minutes.
 - The exact generated TI topology updater compiles and executes on a two-CYZ fixture, with checks of B-state atoms and disulfide bond, angle, and dihedral output. The fixture test does not validate force-field chemistry or a complete PTM TI trajectory.
-- Known gaps (not tested): production MD, Linux and Intel Mac, the `--install-system-tools` install itself (only detection and the hint were run), `qmmm_optimize` run to completion, the `vina` pip path, the full NWChem optimization/ESP/RESP/Hessian workflow, and generated scripts on any cluster other than Deception.
-- Deception was tested with GROMACS only: setup, minimization, equilibration, a 1,000-step md run, and the 13 TI windows, all on `shared`. `get_qm_data` started and ran its NWChem and pip steps on Deception, but its first input stopped at the missing `xtb`, and the input without `xtb` has not run there. `qmmm_optimize` and the AlphaFold scripts have no Deception header, and the `slurm` and `short` partitions and multi-node runs were not used.
+- Known gaps (not tested): production MD, Linux and Intel Mac, the `--install-system-tools` install itself (only detection and the hint were run), `qmmm_optimize` run to completion, the `vina` pip path, the full NWChem optimization/ESP/RESP/Hessian workflow, a Deception AlphaFold run, a multi-node run, and generated scripts on any cluster other than Deception.
+- Deception was tested with GROMACS (setup, minimization, equilibration, a 1,000-step md run, 12 of 13 TI windows, the `short` partition) and with the failure case. The NWChem module started but could not run PTM-Psi's NWChem inputs (see "Running on PNNL Deception").
 - The local GROMACS is 2026.4; the cluster image is 2023.4.

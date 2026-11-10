@@ -13,6 +13,8 @@ singularity_232 = "oras://ghcr.io/dmejiar/alphafold_singularity/alphafold_v232:l
 frontier_experimental_232 = "alphafold"
 frontier_datasets_232 = "/lustre/orion/bip258/world-shared/datasets/alphafold"
 polaris_datasets_232 = "/grand/TwinHostPath/datasets/alphafold"
+deception_datasets = "/share/apps/alphafold-data"
+deception_container = "/share/apps/alphafold/2.3.0/alphafold.sif"
 
 class AlphaFoldOptions:
     def __init__(self, fasta_paths, **kwargs):
@@ -144,6 +146,27 @@ def gen_fasta_paths(fasta):
     if j>0: fh.close() 
     return _files
 
+def _deception_prediction(options, slurm, data_dir):
+    # Deception provides an AlphaFold 2.3.0 container and database, so nothing is pulled
+    if options.model != "monomer":
+        raise ValueError("Only the monomer model is set up for Deception")
+    if options.dbs != "full_dbs":
+        raise ValueError("Only full_dbs is available on Deception")
+    with open("alphafold.sbatch","w") as fh:
+        fh.write(slurm_body["Deception"].format(header=slurm.header,
+                 data_dir=data_dir,
+                 container=deception_container,
+                 nv="--nv " if options.use_gpu else "",
+                 dbs=options.dbs,
+                 model=options.model,
+                 run_relax=options.run_relax,
+                 gpu_relax=options.gpu_relax and options.use_gpu,
+                 fasta_paths=",".join(options.fasta_paths),
+                 date=options.date))
+    print("\n\t Info: Copy alphafold.sbatch and your fasta files (including temp*.fasta) to a")
+    print("\t       submission directory and run `sbatch alphafold.sbatch`. Results go to AF_results.<jobid>.")
+    return
+
 def prediction(fasta,**kwargs):
     """
     Predicts the 3D structure from a given FASTA sequence.
@@ -155,12 +178,23 @@ def prediction(fasta,**kwargs):
 
     # Override default options with user's settings
     options = AlphaFoldOptions(fasta_paths, **kwargs)
+    on_deception = False
+    _machine = kwargs.get("machine")
+    if _machine is not None and getattr(_machine, "name", _machine) in ("DECEPTION", "deception"):
+        on_deception = True
+        # Deception partitions list 8 GPUs per node; one is enough for a prediction
+        if options.use_gpu:
+            kwargs.setdefault("ngpus", 1)
+        else:
+            kwargs.setdefault("ngpus", 0)
     slurm   = Slurm("alphafold", **kwargs)
     if options.machine == None:
         options.machine = slurm.machine.name.lower()
         print("\t Info: Using default machine '{}'".format(options.machine))
     else:
         print("\t Info: Using machine '{}'".format(options.machine))
+    if on_deception:
+        return _deception_prediction(options, slurm, kwargs.get("data_dir") or deception_datasets)
     if options.use_gpu == "True":
         slurm.header += "#SBATCH --gres=gpu:1\n"
 

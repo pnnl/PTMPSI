@@ -491,7 +491,7 @@ export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
 #export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
-export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\\$LD_LIBRARY_PATH"
 myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
 cat > rankfile1  <<EOF
@@ -601,7 +601,7 @@ export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 export APPTAINERENV_OMP_STACKSIZE=${{OMP_STACKSIZE}}
-export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\\$LD_LIBRARY_PATH"
 myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
 cat > rankfileH100 <<EOF
@@ -736,6 +736,9 @@ module load gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 export GMX_MAXBACKUP=-1
+
+# A failed GROMACS step ends the job as FAILED instead of COMPLETED
+set -eo pipefail
 """
 
 flux_header = {}
@@ -1285,7 +1288,7 @@ with open(topol_file, 'r') as f:
 
 cb, sg, du = None, None, None
 for line in lines:
-    if re.match(r"\s*\d+\s+\S+\s+\d+\s+CYZ", line):
+    if re.match(r"\\s*\\d+\\s+\\S+\\s+\\d+\\s+CYZ", line):
         fields = line.split()
         atom_name = fields[4]
         atom_index = int(fields[0])
@@ -1450,10 +1453,10 @@ for (ca1, cb1, ho1, hp1, sg1, du1), (ca2, cb2, ho2, hp2, sg2, du2) in combinatio
 
 in_dihedrals = in_bonds = in_angles = in_pairs = False
 modified_lines = []
-dihedral_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)')
-bond_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
-pair_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
-angle_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)')
+dihedral_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)')
+bond_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)')
+pair_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)')
+angle_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)')
 
 for line in lines:
     stripped = line.strip()
