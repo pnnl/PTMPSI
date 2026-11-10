@@ -335,7 +335,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         subprocess.run(["chmod", "+x", run_script])
 
     if do_ti:
-        lam_gpu = "-nb gpu" if slurm.ngpus >= 1 else ""
+        # Deception GROMACS has no GPU support; every other machine keeps "-nb gpu"
+        lam_gpu = "" if slurm.machine.name == "DECEPTION" else "-nb gpu"
         for i in range(13):
             lam_filename = f"{infile[:-4]}_lam{i:02d}.sh" if slurm.machine.name == "Polaris" else f"{infile[:-4]}_lam{i:02d}_slurm.sbatch"
             ipath = os.path.join(path, f"lam-{i:02d}")

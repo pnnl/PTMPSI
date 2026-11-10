@@ -53,6 +53,7 @@ class ResidueSelectors(unittest.TestCase):
         self.get_residue = definitions(
             ROOT / 'ptmpsi/protein/tools.py', {'get_residue'},
             Residue=Residue, one2three={'A': 'ALA', 'G': 'GLY'},
+            three2one={'ALA': 'A', 'GLY': 'G', 'CYX': 'C'},
             MyDockingError=RuntimeError).get_residue
 
     def test_numeric_and_named_positions(self):
@@ -65,6 +66,13 @@ class ResidueSelectors(unittest.TestCase):
                                   self.residues[position - 1])
             self.assertIs(self.get_residue(self.protein, f'B:{position}'),
                           self.other[position - 1])
+
+    def test_one_letter_code_matches_residue_variants(self):
+        self.residues[4].name = 'CYX'
+        self.assertIs(self.get_residue(self.protein, 'C5'), self.residues[4])
+        self.assertIs(self.get_residue(self.protein, 'A:C5'), self.residues[4])
+        with self.assertRaises(KeyError):
+            self.get_residue(self.protein, 'A5')
 
     def test_residue_instance(self):
         self.assertIs(self.get_residue(self.protein, self.other[0]), self.other[0])

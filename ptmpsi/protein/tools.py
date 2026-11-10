@@ -32,8 +32,8 @@ def get_residue(protein,residue):
         if lower not in (0, 1, 3) or not number or any(digit not in "0123456789" for digit in number):
             raise KeyError("'{}' is not a residue name + number or a residue number".format(residue))
         resname = residue[:lower] if lower == 3 else None
-        if lower == 1:
-            resname = one2three[residue[0]]
+        # A one-letter code matches every variant of that amino acid (CYX, HIE, ASH, ...)
+        letter = residue[0] if lower == 1 else None
         resnum = int(residue[lower:])
         if resnum < 1:
             raise KeyError("Residue positions are 1-based")
@@ -50,6 +50,9 @@ def get_residue(protein,residue):
         # Check that the name and number correspond
         if resname is not None:
             if _residue.name != resname:
+                raise KeyError("Residue '{}' could not be found".format(residue))
+        if letter is not None:
+            if three2one.get(_residue.name) != letter:
                 raise KeyError("Residue '{}' could not be found".format(residue))
 
     # If residue is an integer, assume first chain
