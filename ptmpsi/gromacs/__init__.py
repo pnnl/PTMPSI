@@ -106,6 +106,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
     jobname   = kwargs.pop("jobname", f"{infile[:-4]}")
     slurm = Slurm("gromacs", jobname=jobname, **kwargs)
+    if slurm.machine.name == "DECEPTION" and slurm.ngpus > 0:
+        raise ValueError("GROMACS on Deception is CPU only; use the 'shared', 'slurm' or 'short' partition")
     gmx       = kwargs.pop("gmx", "gmx")
     container = kwargs.pop("container", "")
     bundling = kwargs.get("bundling", False)
@@ -126,6 +128,9 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
             mpirun = kwargs.pop("mpirun", f"srun -n {slurm.ncpus}")
     elif slurm.machine.name == "Polaris":
         mpirun    = kwargs.pop("mpirun", f"mpiexec -n {slurm.ncpus}")
+    elif slurm.machine.name == "DECEPTION":
+        # cores of a shared-node job can span two sockets, which binding to cores with PE>1 rejects
+        mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus} --bind-to none")
     else:
         mpirun    = kwargs.pop("mpirun", f"mpirun -np {slurm.ncpus}")
     nstlist   = kwargs.pop("nstlist", 0)
@@ -212,7 +217,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         # INCLUDE POSRES DEFINITIONS
         for force in posres:
             fh.write(f"echo Protein | {single_mpiexec} {container} {gmx} genrestr -f step4.gro -n index.ndx -o {int(force)}p.itp -fc {force} {force} {force}\n")
-            fh.write("""sed -i '/; Include water topology/i #ifdef P{force}\\n  #include "{force}p.itp"\\n#endif' topol.top\n""".format(force=int(force)))
+            # perl instead of "sed -i": BSD sed (macOS) rejects both "-i" without a suffix and "\n" in the "i" command
+            fh.write("""perl -0pi -e 's/; Include water topology/#ifdef P{force}\\n  #include "{force}p.itp"\\n#endif\\n; Include water topology/' topol.top\n""".format(force=int(force)))
 
 
         # RUN ALL RESTRAINED MINIMIZATIONS
@@ -329,6 +335,8 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         subprocess.run(["chmod", "+x", run_script])
 
     if do_ti:
+        # Deception GROMACS has no GPU support; every other machine keeps "-nb gpu"
+        lam_gpu = "" if slurm.machine.name == "DECEPTION" else "-nb gpu"
         for i in range(13):
             lam_filename = f"{infile[:-4]}_lam{i:02d}.sh" if slurm.machine.name == "Polaris" else f"{infile[:-4]}_lam{i:02d}_slurm.sbatch"
             ipath = os.path.join(path, f"lam-{i:02d}")
@@ -337,13 +345,13 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                 slurm.update_jobname(f"{jobname}_lam{i:02d}")
                 fh.write(slurm.header)
                 fh.write(f"cd 01-q\n")
-                fh.write(f"ln -s ../rankfile1 rankfile1 \n")
+                fh.write(f"ln -sf ../rankfile1 rankfile1 \n")
                 fh.write(f"{single_mpiexec} {container} {gmx} grompp -f grompp.mdp -c md.gro -r md.gro -t md.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
+                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} {lam_gpu} -deffnm lam-{i:02}\n")
                 fh.write(f"cd ../02-vdw\n")
-                fh.write(f"ln -s ../rankfile1 rankfile1 \n")
+                fh.write(f"ln -sf ../rankfile1 rankfile1 \n")
                 fh.write(f"{single_mpiexec} {container} {gmx} grompp -f grompp.mdp -c ../01-q/lam-{i:02d}.gro -r ../01-q/lam-{i:02d}.gro -t ../01-q/lam-{i:02d}.cpt -n index.ndx -o lam-{i:02d}.tpr -maxwarn 999\n")
-                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} -nb gpu -deffnm lam-{i:02}\n")
+                fh.write(f"{mpirun} {container} {gmx} mdrun {gpu_id} {nstlist} {lam_gpu} -deffnm lam-{i:02}\n")
             os.chdir(cwd)
 
     return

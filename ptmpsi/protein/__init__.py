@@ -62,7 +62,10 @@ class Protein:
         # Download file from AlphaFold Database
         elif self.uniprotid is not None:
             print("\t Downloading file from the AlphaFold Protein Structure Database")
-            response = requests.get("https://alphafold.ebi.ac.uk/files/AF-"+self.uniprotid.upper()+"-F1-model_v4.pdb")
+            # The file name carries a model version that changes (v4 now returns 404), so ask the API for the URL
+            api = requests.get("https://alphafold.ebi.ac.uk/api/prediction/"+self.uniprotid.upper())
+            api.raise_for_status()
+            response = requests.get(api.json()[0]["pdbUrl"])
             response.raise_for_status()
             self.pdbfile = response.text.splitlines()
             with open(self.uniprotid+".pdb","w") as fh:
@@ -227,7 +230,7 @@ class Protein:
         if psi is None:
             psi = -40.0
         elif isinstance(psi,str):
-            psi = phi.lower()
+            psi = psi.lower()
             if psi == "alpha":
                 psi = -40
             elif psi == "beta":
@@ -506,7 +509,8 @@ class Protein:
             with open(cofactor, "r") as fh:
                 cofactorpdb = fh.readlines()
             
-        parent_dir = path if path is not None else cwd
+        # Symlink targets are made relative to the current directory, which os.getcwd() returns with links resolved (macOS /tmp)
+        parent_dir = os.path.realpath(path) if path is not None else cwd
         path = os.path.join(parent_dir, uid)
         os.makedirs(path, exist_ok=True)
         print(f"Generating input files in {path}")
@@ -518,13 +522,13 @@ class Protein:
 
         prefix = "" if prefix is None else f"{prefix}_"
 
+        __updates = []
         if do_pdb2pqr:
             # Save current state
             __chain_map = { self.chains[ichain].name: ichain for ichain in range(len(self.chains)) }
             __original_names = [[self.chains[ichain].residues[iresidue].name for iresidue in range(len(self.chains[ichain].residues))] for ichain in range(len(self.chains)) ]
             self.protonate(pdb=f"{path}/{prefix}protonated.pdb", pqr=f"{path}/{prefix}protonated.pqr", path=path)
             # Restore residue naming in case PDB2PQR changed it
-            __updates = []
             for ichain in range(len(self.chains)):
                 jchain = __chain_map[self.chains[ichain].name]
                 for iresidue in range(len(self.chains[ichain].residues)):
@@ -616,10 +620,13 @@ class Protein:
                             elif auto_submit_ti:
                                 submit.write(f"{submit_cmd} {dependency}=afterok:$jobid {prefix}{jobfile}_{i}.sbatch\n")
             else:
+                # submit.sh is run from its own folder, which may not be where it was generated
+                submit.write('base=$(pwd)\n')
                 for i in range(len(combinations)):
                     ipath = os.path.join(path, f"{i+1}tuples")
                     for j, combi in enumerate(combinations[i]):
                         jpath = os.path.join(ipath, f"{j:04d}")
+                        submit.write('cd "$base"\n')
                         submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                         submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
                         submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
@@ -630,7 +637,7 @@ class Protein:
                     if do_ti and not checkpointing and auto_submit_ti:
                         submit.write(f"./submit_lambdas.sh $jobid\n")
                 if not bundling:
-                    submit.write(f"cd {path} \n")
+                    submit.write('cd "$base"\n')
                     submit.write(f"sleep 1s \n")
                     submit.write(f"\n\n")
         subprocess.run(["chmod", "+x", f"{path}/submit.sh"])   

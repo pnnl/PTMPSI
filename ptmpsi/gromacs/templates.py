@@ -491,7 +491,7 @@ export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
 #export APPTAINERENV_GMX_CUDA_GRAPH=${{GMX_CUDA_GRAPH}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
-export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\\$LD_LIBRARY_PATH"
 myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
 cat > rankfile1  <<EOF
@@ -601,7 +601,7 @@ export APPTAINERENV_GMX_GPU_PME_DECOMPOSITION=${{GMX_GPU_PME_DECOMPOSITION}}
 export APPTAINERENV_GMX_MAXBACKUP=${{GMX_MAXBACKUP}}
 export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 export APPTAINERENV_OMP_STACKSIZE=${{OMP_STACKSIZE}}
-export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\$LD_LIBRARY_PATH"
+export APPTAINERENV_LD_LIBRARY_PATH="${{LD_LIBRARY_PATH}}:\\$LD_LIBRARY_PATH"
 myimage=/anfhome/shared/gromacs2023.4+plumed+cufftmp.simg
 
 cat > rankfileH100 <<EOF
@@ -712,6 +712,33 @@ NTHREADS={nthreads}
 
 echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= ${{NRANKS_PER_NODE}} THREADS_PER_RANK= ${{NTHREADS}}"
 
+"""
+
+slurm_header['DECEPTION'] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --cpus-per-task={nthreads}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
+
+if ! command -v module >/dev/null 2>&1; then
+  source /etc/profile.d/modules.sh
+fi
+module purge
+module load gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5
+
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+export GMX_MAXBACKUP=-1
+
+# A failed GROMACS step ends the job as FAILED instead of COMPLETED
+set -eo pipefail
 """
 
 flux_header = {}
@@ -966,7 +993,6 @@ CYZ_list = [
    [""]]
 ]
 
-]
 IYY_list = [
  [[2, 4, 7, 8],
    ["   0.0   1.39467   3     0.0   1.04600   3"]],
@@ -1198,6 +1224,9 @@ with open("modified.top", "w") as topo:
       iline += 1
       continue
 
+    if fields[0] == "[":
+      dihedrals = False
+
     if not dihedrals and "[ dihedrals ]" in oldtopo[iline]:
       dihedrals = True
       topo.write(oldtopo[iline])
@@ -1259,7 +1288,7 @@ with open(topol_file, 'r') as f:
 
 cb, sg, du = None, None, None
 for line in lines:
-    if re.match(r"\s*\d+\s+\S+\s+\d+\s+CYZ", line):
+    if re.match(r"\\s*\\d+\\s+\\S+\\s+\\d+\\s+CYZ", line):
         fields = line.split()
         atom_name = fields[4]
         atom_index = int(fields[0])
@@ -1424,10 +1453,10 @@ for (ca1, cb1, ho1, hp1, sg1, du1), (ca2, cb2, ho2, hp2, sg2, du2) in combinatio
 
 in_dihedrals = in_bonds = in_angles = in_pairs = False
 modified_lines = []
-dihedral_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)')
-bond_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
-pair_pattern = re.compile(r'^\s*(\d+)\s+(\d+)')
-angle_pattern = re.compile(r'^\s*(\d+)\s+(\d+)\s+(\d+)')
+dihedral_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)')
+bond_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)')
+pair_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)')
+angle_pattern = re.compile(r'^\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)')
 
 for line in lines:
     stripped = line.strip()
@@ -1474,44 +1503,44 @@ for line in lines:
 
             if atoms in type_A:
                 new_lines = [
-                    line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\n',
-                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   2.51040  3  0.0   0.00000  3\n'
+                    line.strip() + '   0.0  14.64400  2  0.0   0.00000  2\\n',
+                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   2.51040  3  0.0   0.00000  3\\n'
                 ]
             elif atoms in type_B:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n',
-                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   B2   B3\n'
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\\n',
+                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   B2   B3\\n'
                 ]
             elif atoms in type_C:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\n',
-                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\n'
+                    line.strip() + '   0.0   0.00000  2  0.0   0.00000  2\\n',
+                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\\n'
                 ]
             elif atoms in type_G:
                 new_lines = [
-                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\n'
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\\n' #from X-CT-S-X JCC(1986)
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\\n'
                 ]
             elif atoms in type_H:
                 new_lines = [
-                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\n'
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\\n' #from X-CT-S-X JCC(1986)
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\\n'
                 ]
             elif atoms in type_I:
                 new_lines = [
-                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\n' #from X-CT-S-X JCC(1986)
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\n'
+                    line.strip() + '   0.0   1.39467  3  0.0   0.00000  3\\n' #from X-CT-S-X JCC(1986)
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\\n'
                 ]
             elif atoms in type_L:
                 new_lines = [
-                    line.strip() + '   0.0   0.00000  3  0.0   1.04600  3\n' #!!!from X-CT-SH-X JCC(1986)
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\n'
-#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\n'
+                    line.strip() + '   0.0   0.00000  3  0.0   1.04600  3\\n' #!!!from X-CT-SH-X JCC(1986)
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}     9   0.0   0.00000  3  0.0   0.00000  3\\n'
+#                    f'{{i1}}   {{i2}}   {{i3}}   {{i4}}   9   C2   C3\\n'
                 ]
             if new_lines:
                 modified_lines.extend(new_lines)
@@ -1526,34 +1555,34 @@ for line in lines:
    #         new_lines = None
         if pair_A:
             for atom1, atom2 in pair_A:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     3.56E-01     1.05E+00 \n') #S-S
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     3.56E-01     1.05E+00 \\n') #S-S
         if pair_B:
             for atom1, atom2 in pair_B:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     3.48E-01     6.92E-01 \n') #S1-CB2 | S2-CB1
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     3.48E-01     6.92E-01 \\n') #S1-CB2 | S2-CB1
         if pair_C:
             for atom1, atom2 in pair_C:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     2.32E-01     2.62E-01 \n') #DU1-S2 | S1-DU2
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     2.32E-01     2.62E-01 \\n') #DU1-S2 | S1-DU2
         if pair_D: #1-4 Interaction, considered FudgeLJ = 0.5
             for atom1, atom2 in pair_D:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     1.12E-01     8.67E-02 \n') #DU1-CA1 | DU2-CA2 (SH - CA)
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     1.12E-01     8.67E-02 \\n') #DU1-CA1 | DU2-CA2 (SH - CA)
         if pair_E:
             for atom1, atom2 in pair_E:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     8.85E-02     3.28E-02 \n') #HB12-DU1 | HB12-DU2 (HB-HS)
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     8.85E-02     3.28E-02 \\n') #HB12-DU1 | HB12-DU2 (HB-HS)
         if pair_F:
             for atom1, atom2 in pair_F:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.74E-01 3.46E-01 3.48E-01  6.92E-01 \n') #CA1-S2 | CA2-S1
+                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.74E-01 3.46E-01 3.48E-01  6.92E-01 \\n') #CA1-S2 | CA2-S1
         if pair_G:
             for atom1, atom2 in pair_G:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.70E-01 2.29E-01 3.40E-01  4.58E-01 \n') #CB-CB 
+                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.70E-01 2.29E-01 3.40E-01  4.58E-01 \\n') #CB-CB
         if pair_H:
             for atom1, atom2 in pair_H:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.51E-01 1.31E-01 3.02E-01  2.62E-01 \n') #H1-S
+                modified_lines.append(f' {{atom1}} {{atom2}}  1  1.51E-01 1.31E-01 3.02E-01  2.62E-01 \\n') #H1-S
         if pair_I:
             for atom1, atom2 in pair_I:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     1.07E-01     6.57E-02 \n') #DU-DU (HS-HS)
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     1.07E-01     6.57E-02 \\n') #DU-DU (HS-HS)
         if pair_J:
             for atom1, atom2 in pair_J:
-                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     2.23E-01     1.73E-01 \n') #DU1-CB2 DU2-CB1 (SH-CB)
+                modified_lines.append(f' {{atom1}} {{atom2}}  1 0.0     0.0     2.23E-01     1.73E-01 \\n') #DU1-CB2 DU2-CB1 (SH-CB)
 
             in_pairs = False
 #        modified_lines.append(line)
@@ -1563,11 +1592,11 @@ for line in lines:
         if match:
             a1, a2 = int(match.group(1)), int(match.group(2))
             if (a1, a2) in type_D:
-                line = line.strip() + '  0.20380   138908.8   0.45000   0.000000 \n'
+                line = line.strip() + '  0.20380   138908.8   0.45000   0.000000 \\n'
             if (a1, a2) in type_J:
-                line = line.strip() + '  0.13360   229283.2   0.13360   229283.2 \n'
+                line = line.strip() + '  0.13360   229283.2   0.13360   229283.2 \\n'
             if (a1, a2) in type_N:
-                line = line.strip() + '  0.18100   189953.6   0.18100   198321.6 \n'
+                line = line.strip() + '  0.18100   189953.6   0.18100   198321.6 \\n'
 
         modified_lines.append(line)
     elif in_angles:
@@ -1575,13 +1604,13 @@ for line in lines:
         if match:
             a1, a2, a3 = int(match.group(1)), int(match.group(2)), int(match.group(3))
             if (a1, a2, a3) in type_E:
-                line = line.strip() + '  103.700    569.024   103.700   0.00000 \n'
+                line = line.strip() + '  103.700    569.024   103.700   0.00000 \\n'
             if (a1, a2, a3) in type_F:
-                line = line.strip() + '  103.700    282.880   103.700   0.00000 \n'
+                line = line.strip() + '  103.700    282.880   103.700   0.00000 \\n'
             if (a1, a2, a3) in type_K:
-                line = line.strip() + '   96.000    000.000    96.000   359.824 \n'
+                line = line.strip() + '   96.000    000.000    96.000   359.824 \\n'
             if (a1, a2, a3) in type_M:
-                line = line.strip() + '  114.700    418.400   108.600   418.400 \n'
+                line = line.strip() + '  114.700    418.400   108.600   418.400 \\n'
         modified_lines.append(line)
     else:
         modified_lines.append(line)

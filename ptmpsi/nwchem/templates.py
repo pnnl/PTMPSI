@@ -14,11 +14,14 @@ end
 task dft
 """
 
+cando_flags = "set int:cando_txs f\nset int:cando_nw f"
+xtbopt = "xtb\n acc 0.1\nend\n\n"
+xtbtask = "task xtb optimize ignore\n"
+
 respnw = """start
 title "RESP {name}"
 set driver:linopt 0
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 
 memory total {memory} mb noverify
 
@@ -32,16 +35,11 @@ end
 
 charge {charge}
 
-xtb
- acc 0.1
-end
-
-driver
+{xtb}driver
  maxiter 100
 end
 
-task xtb optimize ignore
-
+{xtbtask}
 basis "ao basis" spherical
  * library {aobasis}
 end
@@ -250,6 +248,42 @@ export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 #export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
 cd {scratch}
+"""
+
+slurm_header["DECEPTION"] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
+
+cleanup()
+{{
+cp *.xyz *.log *.txt *.json *.grid *.qrs *.pdb *.rst *.top *.trj *.out $SLURM_SUBMIT_DIR 2>/dev/null || :
+}}
+
+trap cleanup SIGINT SIGTERM
+
+if ! command -v module >/dev/null 2>&1; then
+  source /etc/profile.d/modules.sh
+fi
+module purge
+module load gcc/14.2.0 openmpi/5.0.7 nwchem/7.2.3 python/3.13.5
+
+export OMP_NUM_THREADS=1
+export NWC_RANKS_PER_DEVICE=0
+# The module leaves NWCHEM_BASIS_LIBRARY unset, and the built-in default points at a missing build directory
+export NWCHEM_BASIS_LIBRARY=/share/apps/nwchem/7.2.3/share/libraries/
+export NWCHEM_NWPW_LIBRARY=/share/apps/nwchem/7.2.3/share/libraryps/
+
+mkdir -p {scratch}/${{USER}}/${{SLURM_JOB_ID}}
+cd {scratch}/${{USER}}/${{SLURM_JOB_ID}}
 """
 
 slurm_header["Frontier"] = """#!/bin/bash
@@ -502,8 +536,7 @@ hessnw = """start
 memory total {memory} mb noverify
 title "{name} hessian calculation"
 
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 
 
 geometry nocenter
@@ -543,8 +576,7 @@ torsnw = """start
 memory total {memory} mb
 title "{name} torsion scan"
 
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 set driver:linopt 0
 
 geometry
@@ -669,6 +701,24 @@ srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind /big_scr
 cleanup
 """
 
+qmmm_slurm["DECEPTION"] = """
+cat <<EOF >nwchemrc
+ffield amber
+amber_1 /share/apps/nwchem/7.2.3/share/data/amber_s/
+amber_2 /share/apps/nwchem/7.2.3/share/data/amber_x/
+amber_3 /share/apps/nwchem/7.2.3/share/data/amber_q/
+spce /share/apps/nwchem/7.2.3/share/data/solvents/spce.rst
+EOF
+
+cp ${{SLURM_SUBMIT_DIR}}/*.frg .
+cp ${{SLURM_SUBMIT_DIR}}/{complex} .
+cp ${{SLURM_SUBMIT_DIR}}/prepare.nw .
+
+mpirun -np $SLURM_NTASKS --bind-to none nwchem prepare.nw > prepare.log
+
+cleanup
+"""
+
 qmmm_slurm["Frontier"] = """
 cat <<EOF >nwchemrc
 ffield amber
@@ -714,6 +764,7 @@ pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
 runsingularity = {}
 runsingularity['Tahoma'] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
 runsingularity['Frontier'] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['DECEPTION'] = "mpirun -np $SLURM_NTASKS --bind-to none nwchem {name}.nw > {name}.log\n\n"
 runsingularity['Polaris'] = "mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind=core $NWBIN {name}.nw > {name}.log\n\n"
 runsingularity_prefix = {}
 runsingularity_prefix_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"
