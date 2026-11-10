@@ -509,7 +509,8 @@ class Protein:
             with open(cofactor, "r") as fh:
                 cofactorpdb = fh.readlines()
             
-        parent_dir = path if path is not None else cwd
+        # Symlink targets are made relative to the current directory, which os.getcwd() returns with links resolved (macOS /tmp)
+        parent_dir = os.path.realpath(path) if path is not None else cwd
         path = os.path.join(parent_dir, uid)
         os.makedirs(path, exist_ok=True)
         print(f"Generating input files in {path}")

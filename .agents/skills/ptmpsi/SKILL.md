@@ -65,7 +65,7 @@ source ~/ptmpsi-venv/bin/activate     # puts pdb2pqr30 and vina on PATH; do this
 
 Manual equivalent: `python3.12 -m venv ~/ptmpsi-venv`, `source ~/ptmpsi-venv/bin/activate`, `pip install -e <repo root>`, `brew install gromacs nwchem gnu-sed`, then `bash .agents/skills/ptmpsi/scripts/check_env.sh`.
 
-`Protein.protonate` (`ptmpsi/protein/__init__.py`, line 725) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
+`Protein.protonate` (`ptmpsi/protein/__init__.py`, line 729) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
 
 External programs by step:
 
@@ -334,17 +334,31 @@ AlphaFold (`prediction`):
 
 Upload and submit with the driver in the pnnl-deception skill (`dcx.py`):
 
-1. On macOS, build the archive with `COPYFILE_DISABLE=1 tar czf run.tgz <uid>`. Without that variable the archive holds `._*` files inside `amber99sb.ff`, and `pdb2gmx` stops with `Invalid atomtype format`. A tar archive also keeps the symlinks that the `dualti/lam-NN` folders use. Run `dcx.py upload run.tgz --dest <project dir>`, then `dcx.py run "cd <project dir> && tar xzf run.tgz"`.
-2. The login node refuses `source submit.sh` and `jobid=$(sbatch ...)`. Send the lines of `submit.sh` as separate `dcx.py run` calls: `sbatch 0000_slurm.sbatch`, then `sbatch --dependency=afterok:<that id> md.sbatch`, then `echo <md id> > md.jobid`. The setup job reads `md.jobid` at its end, and the last md job compares it with its own id before it updates the TI topology. A setup job run alone ends `FAILED` at that read.
+1. `dcx.py upload -r --archive <uid> --dest <project dir>` builds the archive, leaves out `._*` files, keeps the symlinks and extracts it on the cluster. By hand on macOS, build the archive with `COPYFILE_DISABLE=1 tar czf run.tgz <uid>`. Without that variable the archive holds `._*` files inside `amber99sb.ff`, and `pdb2gmx` stops with `Invalid atomtype format`. A tar archive also keeps the symlinks that the `dualti/lam-NN` folders use. Run `dcx.py upload run.tgz --dest <project dir>`, then `dcx.py run "cd <project dir> && tar xzf run.tgz"`.
+2. `dcx.py submit-script <dir>/0000_slurm.sbatch --account <account>` prints a receipt for a generated script, and the same command with `--submission-id`, `--content-digest` and `--allow-nested` submits it as written. The login node refuses `source submit.sh` and `jobid=$(sbatch ...)`. Send the lines of `submit.sh` as separate `dcx.py run` calls: `sbatch 0000_slurm.sbatch`, then `sbatch --dependency=afterok:<that id> md.sbatch`, then `echo <md id> > md.jobid`. The setup job reads `md.jobid` at its end, and the last md job compares it with its own id before it updates the TI topology. A setup job run alone ends `FAILED` at that read.
 3. With the defaults, `0000_slurm.sbatch` queues the 13 TI jobs itself (and any extra md runs). One combination is 1 setup + 1 md + 13 TI = 15 jobs. `auto_submit_ti=False` leaves out the 13, and `dualti/lam-NN/<prefix>_lamNN_slurm.sbatch` can then be submitted one window at a time.
 4. After a rerun of setup and md, repoint queued TI jobs with `scontrol update JobId=<id> Dependency=afterok:<new md id>`, one call per job.
 
 Tests on `shared` (account chosen by the user), using cutinase `6tht` with `reduction` of `A:CYX203` and `A:CYX240`, `lennvt=0.04, lennpt=0.04, lenmd=0.002, lenlambda=0.002, time=0.25`, and `nsteps = 100` in the `minim*.mdp` files of the uploaded copy:
 
 - Setup took 59 s, md 9 s, and a TI window 16 to 24 s. The md job rebuilt `dualti/TItop.top`.
-- 12 of the 13 TI windows have completed on Deception and written `lam-NN.xvg`. `lam-10` failed in the first run, because of the core binding above, and was not rerun. The 13 scripts differ only in the window number.
+- 12 of the 13 TI windows have completed on Deception and written `lam-NN.xvg`. `lam-10` failed in the first run, because of the core binding above. A later run of all 13 windows, `lam-10` included, completed (see "Free energy on Deception"). The 13 scripts differ only in the window number.
 - The `short` partition ran the whole setup chain through `grompp -o md.tpr` in 69 s. The job then ended `FAILED` because the test had no `md.jobid` file.
 - A setup job with a truncated `0000.pdb` ended `FAILED` after 5 seconds.
+
+## Free energy on Deception
+
+Checked with T4 lysozyme (`Protein(pdbid="2LZM")`, 33,323 atoms), nitrosylation of `A:CYS54`, generated with `machine=dc, partition="shared", time=1, **opts` and run on `shared` with 16 cores (8 ranks x 2 threads). The generated scripts ran in one allocation with 1,000 steps for heating and equilibration and 10,000 steps for md and for each TI stage (10 ps). Setup took 296 s, md 51 s (36 ns/day), `update_topology.py` 1 s, and the 13 windows 111 to 161 s each (12 to 16 ns/day). The whole job took 34 minutes.
+
+- Which PTMs get a perturbation: `update_topology.py` changes the topology only for residues named `SNC`, `CSO`, `CGL`, `IYY` or `CYZ`. For nitrosylation, `TItop.top` differs from `topol.top` by 39 lines and has one `DU` atom. For `reduction` of `A:CYX203` and `A:CYX240` in cutinase `6tht`, `TItop.top` is identical to `topol.top`, every `dH/dl` and `dH` column in `lam-NN.xvg` is 0.0, and `gmx bar` prints `DG 0.00` for every pair. `CYZ` residues (a cysteine with a `DU` atom) come from `Protein.save_cyz_modified_pdb()`, which `gen_ptm_files` does not call.
+- `gmx_mpi bar -f dualti/lam-*/01-q/lam-*.xvg -o bar.xvg` works on the module build. Results for the nitrosylation case: 01-q 107.3 +/- 1.4 kJ/mol, 02-vdw -16.1 +/- 1.8 kJ/mol. alchemlyb gave the same BAR values, and TI values of 108.1 and -20.6 kJ/mol. These come from 10 ps per stage and check the pipeline. They are not results.
+- alchemlyb `MBAR` raised `LinAlgError: SVD did not converge` on both stages. The window `.mdp` sets `calc_lambda_neighbors = 1`, so each `.xvg` holds energy differences to the adjacent states only. I did not test `calc_lambda_neighbors = -1`.
+- `pip install alchemlyb pandas scipy` into a venv in project storage works on a compute node (module `python/3.13.5`).
+- Cost of the defaults for a system this size: each TI stage is 1,000,000 steps at `dt = 0.001` (1 ns), so 26 ns per combination, which is about 1.8 days on 16 cores (roughly 700 core-hours) at 14 ns/day. The default production md is 100 ns (`nsteps = 50000000`, `dt = 0.002`), about 2.8 days and 1,070 core-hours at 36 ns/day. `0000_slurm.sbatch` estimates the number of one-hour md jobs from the equilibration speed (67 for 100 ns at 0.668 hours/ns) and queues them, with the 13 TI jobs.
+- To run a generated chain in one allocation without queuing anything: `bash` the setup script cut at the line `# Extract performance value`, `bash` `md.sbatch` cut at the line `file_jobid=`, run `python update_topology.py` in `dualti/`, then `bash` each `dualti/lam-NN/<NNNN>_lamNN_slurm.sbatch`. The uncut scripts call `sbatch`.
+- `ptmpsi.gromacs.analysis.rmsf()` does not run on Deception. Its `interactive=True` branch runs `source /anfhome/.profile`, `module load gcc/13.2.0 ...` and `source /anfhome/shared/qipd/gromacs/bin/GMXRC` and calls `gmx`, and the other branch is `pass`. The command it wraps works: `echo "4 4" | gmx_mpi rmsf -f md.xtc -s md.tpr -o rmsf.xvg -res -oq bfac.pdb -fit` wrote 258 per-residue values from 100 frames of cutinase.
+- PTM-Psi has no code that combines TI or BAR results. `pymbar` is in `setup.py` and is used only by the AWSEM subproject.
+- `gen_ptm_files(path=...)` now calls `os.path.realpath` on `path`. Before, a path under a symlinked folder (`/tmp` on macOS) produced `dualti/lam-NN/*/topol.top` links that climbed to the filesystem root and were dangling after upload.
 
 ## Checking your work
 
@@ -362,5 +376,5 @@ The non-TI `.mdp` files come from `generate_mdp()`, the TI windows from `ptmpsi/
 - Native Apple Silicon runtime smoke: GROMACS 2026.4 ran 20 steps each of the repository's `01-q` and `02-vdw` TI templates at lambda state 6 with finite derivative output, using a manually defined neutral two-site dual topology in TIP3P water (one rank, two threads). Velocities were initialized and pressure coupling disabled for the tiny test; lambda schedules and soft-core settings were retained. NWChem 7.3.0 converged an HF/STO-3G single-point calculation on ACE-GLY-NME coordinates generated by `get_qm_data` (one rank, one thread). Preparation and runtime were under ten minutes.
 - The exact generated TI topology updater compiles and executes on a two-CYZ fixture, with checks of B-state atoms and disulfide bond, angle, and dihedral output. The fixture test does not validate force-field chemistry or a complete PTM TI trajectory.
 - Known gaps (not tested): production MD, Linux and Intel Mac, the `--install-system-tools` install itself (only detection and the hint were run), `qmmm_optimize` run to completion, the `vina` pip path, the full NWChem optimization/ESP/RESP/Hessian workflow, a Deception AlphaFold run, a multi-node run, and generated scripts on any cluster other than Deception.
-- Deception was tested with GROMACS (setup, minimization, equilibration, a 1,000-step md run, 12 of 13 TI windows, the `short` partition) and with the failure case. The NWChem module started but could not run PTM-Psi's NWChem inputs (see "Running on PNNL Deception").
+- Deception was tested with GROMACS (setup, minimization, equilibration, a 1,000-step md run, all 13 TI windows, a full TI chain with BAR and TI analysis, `gmx_mpi rmsf`, the `short` partition) and with the failure case. The NWChem module started but could not run PTM-Psi's NWChem inputs (see "Running on PNNL Deception").
 - The local GROMACS is 2026.4; the cluster image is 2023.4.
