@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / '.agents/skills/ptmpsi/scripts'
 
 
@@ -228,6 +228,22 @@ class LocalScripts(unittest.TestCase):
             run_relax=True, gpu_relax=True, fasta_paths='./a.fasta', date='2022-01-01')
         self.assertIn('apptainer run --nv', body)
         self.assertIn('--data_dir=$Data_Loc', body)
+
+    def test_deception_nwchem_inputs_omit_cando_flags(self):
+        try:
+            from ptmpsi.protein import Protein
+            from ptmpsi.nwchem import get_qm_data
+            from ptmpsi.slurm import deception, tahoma
+        except ImportError as error:
+            self.skipTest(str(error))
+        for machine, expected in ((deception, 0), (tahoma, 2)):
+            with scratch() as directory:
+                residue = Protein()
+                residue.prepend(chain='A', residue='EAC')
+                get_qm_data(residue, machine=machine, account='nwbrave')
+                for name in ('conf0.nw', 'conf0_hess.nw', 'conf1.nw'):
+                    text = (directory / name).read_text()
+                    self.assertEqual(text.count('set int:cando_'), expected, (machine.name, name))
 
     def test_bare_piped_and_launched_commands(self):
         with scratch():

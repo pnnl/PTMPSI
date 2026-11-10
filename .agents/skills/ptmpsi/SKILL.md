@@ -325,7 +325,7 @@ GROMACS:
 NWChem (`get_qm_data`, `qmmm_optimize`):
 
 - The scripts load `nwchem/7.2.3` and set `NWCHEM_BASIS_LIBRARY`, which the module leaves unset (its built-in default points at a missing directory). The `xtb` pre-optimization is left out because the build has no `xtb` (pass `xtb=True` to keep it). Torsion scans are not added to Deception scripts, and a warning says so.
-- The module cannot run PTM-Psi's inputs. `conf0.nw` stops with `int_2e4c: fatal error` at the first SCF step, which also happens with Homebrew NWChem on macOS. `prepare.nw` of `qmmm_optimize` stops with `Illegal input to pfft3d` with 1, 4 and 8 ranks. Both inputs are written for the container build used on Tahoma. No container run has been tried on Deception, so run these steps on a cluster that has that build.
+- Inputs with `set int:cando_txs f` and `set int:cando_nw f` stop at the first SCF step with `int_2e4c: fatal error` on the Deception module and on Homebrew NWChem on macOS. `get_qm_data` now leaves those two lines out when the machine is Deception, and a local macOS run of the resulting `conf0.nw` passes the first SCF iteration. That fix has not been run on Deception. `prepare.nw` of `qmmm_optimize` stops with `Illegal input to pfft3d` with 1, 4 and 8 ranks on Deception (cause not found), so QM/MM on Deception is untested.
 - NWChem scripts have no `set -e`, so a job can show `COMPLETED` after NWChem failed. Read the `.log` and `.err` files.
 
 AlphaFold (`prediction`):

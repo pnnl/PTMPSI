@@ -100,6 +100,9 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
     # the NWChem module on Deception is built without xtb
     if slurm.machine.name == "DECEPTION" and "xtb" not in kwargs:
         nwchem.xtb = False
+    # With these two flags the NWChem build on Deception stops in the first SCF step with
+    # "int_2e4c: fatal error"; the container builds used elsewhere need them
+    cando = "" if slurm.machine.name == "DECEPTION" else cando_flags
     tdrive = TorsionDrive(**kwargs)
     _dohfresp = hfresp if dohfresp else ""
 
@@ -262,7 +265,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
                 constraint=consnw,geometry=geometry,lshift=nwchem.lshift,
-                noautoz=noautoz, dohfresp=_dohfresp,
+                noautoz=noautoz, dohfresp=_dohfresp, cando=cando,
                 xtb=xtbopt if nwchem.xtb else "", xtbtask=xtbtask if nwchem.xtb else ""))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
@@ -272,7 +275,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, disp=nwchem.disp, delta=nwchem.delta,
-                geometry=_geometry))
+                geometry=_geometry, cando=cando))
         if dotorsions and single:
             filename = f"conf{str(idx)}_tdrive.nw"
             with open(os.path.join(qm_path, filename),"w") as infile:
@@ -281,7 +284,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                     mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                     grid=nwchem.tdgrid, aobasis=nwchem.tdbasis, cdbasis=nwchem.cdbasis,
                     nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
-                    geometry="@geometry@"))
+                    geometry="@geometry@", cando=cando))
             with open(os.path.join(qm_path, f"dihedrals{str(idx)}.txt"),"w") as infile:
                 infile.write("{} {} {} {}".format(*tdrive.torsions[-1]))
             with open(os.path.join(qm_path, f"extras{str(idx)}.txt"),"w") as infile:

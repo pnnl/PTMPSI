@@ -14,14 +14,14 @@ end
 task dft
 """
 
+cando_flags = "set int:cando_txs f\nset int:cando_nw f"
 xtbopt = "xtb\n acc 0.1\nend\n\n"
 xtbtask = "task xtb optimize ignore\n"
 
 respnw = """start
 title "RESP {name}"
 set driver:linopt 0
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 
 memory total {memory} mb noverify
 
@@ -536,8 +536,7 @@ hessnw = """start
 memory total {memory} mb noverify
 title "{name} hessian calculation"
 
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 
 
 geometry nocenter
@@ -577,8 +576,7 @@ torsnw = """start
 memory total {memory} mb
 title "{name} torsion scan"
 
-set int:cando_txs f
-set int:cando_nw f
+{cando}
 set driver:linopt 0
 
 geometry
