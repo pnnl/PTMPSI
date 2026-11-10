@@ -330,7 +330,7 @@ NWChem (`get_qm_data`, `qmmm_optimize`):
 
 AlphaFold (`prediction`):
 
-- `prediction("<sequence>", machine=dc, partition="a100_shared", account="<account>", ntasks=8, date="2022-01-01")` writes `alphafold.sbatch`. It runs the cluster's AlphaFold 2.3.0 container (`/share/apps/alphafold/2.3.0/alphafold.sif`) on `/share/apps/alphafold-data` with one GPU. Only `model="monomer"` and `dbs="full_dbs"` are accepted. The job was submitted once and stayed pending (estimated start about 6 hours out), so the script has not run.
+- `prediction("<sequence>", machine=dc, partition="a100_shared", account="<account>", ntasks=8, date="2022-01-01")` writes `alphafold.sbatch`. It runs the cluster's AlphaFold 2.3.0 container (`/share/apps/alphafold/2.3.0/alphafold.sif`) on `/share/apps/alphafold-data` with one GPU. Only `model="monomer"` and `dbs="full_dbs"` are accepted. The generated script matches the cluster's `/share/apps/alphafold/readme.txt` recipe. Job 1531328 ran on `a100-01` and failed after 4 seconds with `FATAL: container creation failed ... squashfuse_ll exited: fusermount: mountpoint /dev/fuse is not a directory or a regular file`, before AlphaFold started. The same error stopped `apptainer exec` on another image on `dc009`, so it looks like a cluster setting that affects every squashfs container run from a batch job. It needs a report to the cluster support team, or a test with `apptainer --unsquash`, which has not been tried.
 
 Upload and submit with the driver in the pnnl-deception skill (`dcx.py`):
 
