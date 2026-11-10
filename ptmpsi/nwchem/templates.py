@@ -14,6 +14,9 @@ end
 task dft
 """
 
+xtbopt = "xtb\n acc 0.1\nend\n\n"
+xtbtask = "task xtb optimize ignore\n"
+
 respnw = """start
 title "RESP {name}"
 set driver:linopt 0
@@ -32,16 +35,11 @@ end
 
 charge {charge}
 
-xtb
- acc 0.1
-end
-
-driver
+{xtb}driver
  maxiter 100
 end
 
-task xtb optimize ignore
-
+{xtbtask}
 basis "ao basis" spherical
  * library {aobasis}
 end
@@ -250,6 +248,39 @@ export APPTAINERENV_OMP_NUM_THREADS=${{OMP_NUM_THREADS}}
 #export APPTAINERENV_NWCHEM_BASIS_LIBRARY=$NWCHEM_BASIS_LIBRARY
 
 cd {scratch}
+"""
+
+slurm_header["DECEPTION"] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
+
+cleanup()
+{{
+cp *.xyz *.log *.txt *.json *.grid *.qrs *.pdb *.rst *.top *.trj *.out $SLURM_SUBMIT_DIR 2>/dev/null || :
+}}
+
+trap cleanup SIGINT SIGTERM
+
+if ! command -v module >/dev/null 2>&1; then
+  source /etc/profile.d/modules.sh
+fi
+module purge
+module load gcc/14.2.0 openmpi/5.0.7 nwchem/7.2.3 python/3.13.5
+
+export OMP_NUM_THREADS=1
+export NWC_RANKS_PER_DEVICE=0
+
+mkdir -p {scratch}/${{USER}}/${{SLURM_JOB_ID}}
+cd {scratch}/${{USER}}/${{SLURM_JOB_ID}}
 """
 
 slurm_header["Frontier"] = """#!/bin/bash
@@ -714,6 +745,7 @@ pyprint = """print("{name}: {{:10.6f}}".format(q[{atom}]))\n"""
 runsingularity = {}
 runsingularity['Tahoma'] = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem {name}.nw > {name}.log\n\n"
 runsingularity['Frontier'] = "srun -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind $BINDS --workdir `pwd` $NWBIN nwchem {name}.nw > {name}.log\n\n"
+runsingularity['DECEPTION'] = "mpirun -np $SLURM_NTASKS --bind-to none nwchem {name}.nw > {name}.log\n\n"
 runsingularity['Polaris'] = "mpiexec -hostfile $PBS_NODEFILE -n ${{NTOTRANKS}} -ppn ${{NRANKS_PER_NODE}} --depth=${{NDEPTH}} --cpu-bind=core $NWBIN {name}.nw > {name}.log\n\n"
 runsingularity_prefix = {}
 runsingularity_prefix_tahoma = "srun --mpi=pmi2 -N $SLURM_NNODES -n $SLURM_NPROCS apptainer exec --bind {scratch},$NWCHEM_BASIS_LIBRARY $NWBIN nwchem"

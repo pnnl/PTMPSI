@@ -191,6 +191,24 @@ class LocalScripts(unittest.TestCase):
                 syntax = subprocess.run(['/bin/bash', '-n', 'local.sh'], capture_output=True)
                 self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
+    def test_deception_scripts_use_modules_and_cpu_launcher(self):
+        slurm = runpy.run_path(str(ROOT / 'ptmpsi/slurm/__init__.py'))
+        generator = definitions(ROOT / 'ptmpsi/gromacs/__init__.py', {'generate_slurm'},
+                                Slurm=slurm['Slurm']).generate_slurm
+        templates = SimpleNamespace(**runpy.run_path(str(ROOT / 'ptmpsi/gromacs/templates.py')))
+        machine = slurm['deception']
+        options = machine.partitions['shared'].options['gromacs']
+        with scratch(), patch.dict(sys.modules, {'ptmpsi.gromacs.templates': templates}):
+            generator('0000.pdb', conc=0.154, thermo=False, checkpointing=False,
+                      machine=machine, account='nwbrave', time=1, **options)
+            script = Path('0000_slurm.sbatch').read_text()
+        self.assertIn('#SBATCH --account=nwbrave\n#SBATCH --partition=shared', script)
+        self.assertIn('module load gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2', script)
+        self.assertIn('mpirun -np 8 --bind-to none  gmx_mpi mdrun -deffnm npt', script)
+        for absent in ('apptainer', '-nb gpu', '-gpu_id'):
+            self.assertNotIn(absent, script)
+        self.assertEqual(machine.default_partition().name, 'shared')
+
     def test_bare_piped_and_launched_commands(self):
         with scratch():
             commands = ['# comment -o md.tpr', 'echo SOL | gmx_mpi genion -s ions.tpr',

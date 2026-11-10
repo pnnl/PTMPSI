@@ -714,6 +714,30 @@ echo "NUM_OF_NODES= ${{NNODES}} TOTAL_NUM_RANKS= ${{NTOTRANKS}} RANKS_PER_NODE= 
 
 """
 
+slurm_header['DECEPTION'] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --time={time}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node={ntasks}
+#SBATCH --cpus-per-task={nthreads}
+#SBATCH --job-name={jname}
+#SBATCH --error={jname}-%j.err
+#SBATCH --output={jname}-%j.out
+
+# From the user
+{user}
+
+if ! command -v module >/dev/null 2>&1; then
+  source /etc/profile.d/modules.sh
+fi
+module purge
+module load gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5
+
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+export GMX_MAXBACKUP=-1
+"""
+
 flux_header = {}
 
 flux_header['Frontier'] = """#!/bin/bash

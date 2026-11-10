@@ -46,7 +46,7 @@ Valid PTM names (keys of `ptmdict`): acetylation, citrullination, cysteinylation
 
 ## Slurm machines (`ptmpsi/slurm/__init__.py`)
 
-`Machine` (1), `Partition` (21), `deception` (32), `aqe_ldrd` (106; partitions `basic`, `standard`, `premium`, `prm96c4g`), `get_machine_name` (171), `aqe_h100` (179), `tahoma` (207), `perlmutter` (234), `frontier` (250), `polaris` (293), `Slurm` (350). `Slurm(caller, **kwargs)` takes `partition`, `ngpus`, `ntasks`, `nthreads`, `time` (hours), `account`, `nnodes`, `scratch`, `jobname`. It raises `KeyError` when a request exceeds the partition.
+`Machine` (1), `Partition` (21), `deception` (38; partitions `shared`, `slurm`, `short`), `aqe_ldrd` (77; partitions `basic`, `standard`, `premium`, `prm96c4g`), `get_machine_name` (142), `aqe_h100` (150), `tahoma` (178), `perlmutter` (190), `frontier` (206), `polaris` (249), `Slurm` (306). `Slurm(caller, **kwargs)` takes `partition`, `ngpus`, `ntasks`, `nthreads`, `time` (hours), `account`, `nnodes`, `scratch`, `jobname`. It raises `KeyError` when a request exceeds the partition.
 
 ## NWChem (`ptmpsi/nwchem/__init__.py`)
 

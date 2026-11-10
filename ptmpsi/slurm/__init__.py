@@ -29,79 +29,50 @@ class Partition:
         self.default = False
         self.options = options
 
+# Deception (PNNL Institutional Computing). GROMACS 2025.2 and NWChem 7.2.3 come from
+# Lmod modules. The cluster GROMACS is MPI-only (no CUDA), so only CPU partitions are
+# defined; GPU runs would need a GPU build of GROMACS or a container.
+def _deception_gromacs(ntasks, nthreads):
+    return {"gromacs": {"gmx": "gmx_mpi", "container": "", "ntasks": ntasks, "nthreads": nthreads}}
+
 deception = Machine(
   name = "DECEPTION",
   partitions = {
-    "slurm": Partition(
-        name = "slurm",
-        memory  = 256,
+    "shared": Partition(
+        name = "shared",
+        memory  = 250,
         ncpus   = 64,
         ngpus   = 0,
         maxtime = 168,
-        maxnode = 200,
-        options = {
-            "gromacs": {
-                "mpirun": "mpirun -np 32",
-                "container": "",
-                "gmx": "gmx_mpi",
-                "ntasks": 32,
-                "nthreads": 2
-                }
-            }
+        maxnode = 1,
+        options = _deception_gromacs(8, 2)
+        ),
+    "slurm": Partition(
+        name = "slurm",
+        memory  = 250,
+        ncpus   = 64,
+        ngpus   = 0,
+        maxtime = 168,
+        maxnode = 8,
+        options = _deception_gromacs(32, 2)
         ),
     "short": Partition(
         name = "short",
-        memory = 256,
+        memory = 250,
         ncpus  = 64,
         ngpus  = 0,
         maxtime = 3,
-        options = {
-            "gromacs": {
-                "mpirun": "mpirun -np 32",
-                "container": "",
-                "gmx": "gmx_mpi",
-                "ntasks": 32,
-                "nthreads": 2
-                }
-            }
-        ),
-    "a100": Partition(
-        name = "a100",
-        memory = 512,
-        ncpus = 64,
-        ngpus = 8,
-        maxtime = 168,
-        options = {
-            "gromacs": {
-                "mpirun": "mpirun -np 8",
-                "container": "",
-                "gmx": "gmx_mpi",
-                "ntasks": 8,
-                "nthreads": 8,
-                "nstlist": 300
-                }
-            }
-        ),
-    "h100": Partition(
-        name = 'h100',
-        memory = 204,
-        ncpus = 96,
-        ngpus = 8,
-        maxtime = 168,
-        options = {
-            "gromacs": {
-                "mpirun": "mpirun -np 8",
-                "container": "",
-                "gmx": "gmx_mpi",
-                "ntasks": 8,
-                "nthreads": 12,
-                "nstlist": 300
-                }
-            }
+        maxnode = 8,
+        options = _deception_gromacs(32, 2)
         ),
     },
-    scratchdir="/scratch"
+  modules = {"gcc": "gcc/14.2.0",
+             "openmpi": "openmpi/5.0.7",
+             "gromacs": "gromacs/2025.2",
+             "nwchem": "nwchem/7.2.3"},
+  scratchdir="/scratch"
 )
+deception.partitions["shared"].default = True
 
 aqe_ldrd = Machine(
   name="AQE-LDRD",
@@ -215,21 +186,6 @@ tahoma = Machine(name="Tahoma",
             },
         scratchdir="/big_scratch")
 tahoma.partitions["normal"].default = True
-
-
-#deception = Machine(name="Deception",
-#        partitions={
-#            "slurm": Partition(name="slurm", memory=0, ncpus=64,
-#                              ngpus=0, maxtime=168, maxnode=10),
-#            "short": Partition(name="short", memory=0, ncpus=64,
-#                              ngpus=0, maxtime=3, maxnode=7)
-#            },
-#        modules={"apptainer": "apptainer/1.2.5",
-#                 "gcc": "gcc/11.2.0",
-#                 "python": "python/3.11.5",
-#                 "openmpi": "openmpi/4.1.0"},
-#        scratchdir="/scratch")
-deception.partitions["slurm"].default = True
 
 perlmutter = Machine(name="Perlmutter",
         partitions={
@@ -422,6 +378,8 @@ class Slurm:
 
         self.user    = kwargs.pop("slurm_header", "")
 
+        if self.machine.name not in slurm_header:
+            raise KeyError(f"No {caller} job script header is defined for machine '{self.machine.name}'")
         self._header_template = slurm_header[self.machine.name]
 
         self.options_dictionary = {

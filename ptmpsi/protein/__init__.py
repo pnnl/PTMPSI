@@ -619,10 +619,13 @@ class Protein:
                             elif auto_submit_ti:
                                 submit.write(f"{submit_cmd} {dependency}=afterok:$jobid {prefix}{jobfile}_{i}.sbatch\n")
             else:
+                # submit.sh is run from its own folder, which may not be where it was generated
+                submit.write('base=$(pwd)\n')
                 for i in range(len(combinations)):
                     ipath = os.path.join(path, f"{i+1}tuples")
                     for j, combi in enumerate(combinations[i]):
                         jpath = os.path.join(ipath, f"{j:04d}")
+                        submit.write('cd "$base"\n')
                         submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                         submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
                         submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
@@ -633,7 +636,7 @@ class Protein:
                     if do_ti and not checkpointing and auto_submit_ti:
                         submit.write(f"./submit_lambdas.sh $jobid\n")
                 if not bundling:
-                    submit.write(f"cd {path} \n")
+                    submit.write('cd "$base"\n')
                     submit.write(f"sleep 1s \n")
                     submit.write(f"\n\n")
         subprocess.run(["chmod", "+x", f"{path}/submit.sh"])   

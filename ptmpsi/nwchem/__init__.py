@@ -42,6 +42,7 @@ class NWChem:
         self.tdgrid  = kwargs.get("tdgrid","lebedev 100 14")
         self.nscf    = kwargs.get("nscf",100)
         self.nopt    = kwargs.get("nopt",60)
+        self.xtb     = kwargs.get("xtb",True)
         self.disp    = kwargs.get("disp","disp vdw 4")
         self.delta   = kwargs.get("delta",0.0189)
         self.lshift  = kwargs.get("lshift",0.1)
@@ -96,6 +97,9 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
     # Process all keyword arguments
     slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
+    # the NWChem module on Deception is built without xtb
+    if slurm.machine.name == "DECEPTION" and "xtb" not in kwargs:
+        nwchem.xtb = False
     tdrive = TorsionDrive(**kwargs)
     _dohfresp = hfresp if dohfresp else ""
 
@@ -258,7 +262,8 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
                 constraint=consnw,geometry=geometry,lshift=nwchem.lshift,
-                noautoz=noautoz, dohfresp=_dohfresp))
+                noautoz=noautoz, dohfresp=_dohfresp,
+                xtb=xtbopt if nwchem.xtb else "", xtbtask=xtbtask if nwchem.xtb else ""))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
         with open(os.path.join(qm_path, filename),"w") as infile:
