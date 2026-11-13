@@ -481,8 +481,15 @@ class Protein:
         max_script_workers = kwargs.pop("max_script_workers", 1)
 
         machine = kwargs.get("machine", "")
+        raw_machine = machine
         machine = get_machine_name(machine)
         machine = machine.capitalize()
+        if machine == "Deception":
+            acct = kwargs.get("account", getattr(raw_machine, "account", None))
+            if acct is None or not str(acct).strip() or str(acct).strip() == "XXXX":
+                raise ValueError(
+                    "Deception requires an explicit Slurm account (pass account='<project>'); 'XXXX' is not allowed"
+                )
 
         if machine == "Polaris":
             submit_cmd = "qsub"

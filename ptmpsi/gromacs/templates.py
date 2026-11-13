@@ -1688,46 +1688,74 @@ estimated_hours=$(echo "$total_ns * $hours_per_ns" | bc -l)
 
 echo "Estimated number of hours: $estimated_hours"
 
-# Calculate number of runs needed
-num_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
-num_runs=$(printf "%.0f" "$num_runs")
+# Calculate total number of MD runs needed (at least 1 unless capped to 0)
+total_runs=$(echo "($estimated_hours / {job_hours} + 0.5)" | bc -l)
+total_runs=$(printf "%.0f" "$total_runs")
+if [ "$total_runs" -lt 1 ]; then
+  total_runs=1
+fi
 
-# Subtract num_runs by 1 to account for the first run aging in the queue
-if [ "$num_runs" -gt 0 ]; then
-  num_runs=$(echo "$num_runs - 1" | bc)
+max_md_runs={max_md_runs}
+if [ "$max_md_runs" -ge 0 ] && [ "$total_runs" -gt "$max_md_runs" ]; then
+  echo "Capping total MD runs from $total_runs to max_md_runs=$max_md_runs"
+  total_runs=$max_md_runs
 fi
 
 file=$(basename "{mdp_file}" .mdp)
 
-echo "Number of additional runs needed for $file: $num_runs"
+# Support both submit.sh (pre-queued first md.sbatch in md.jobid) and direct sbatch / dcx.py submit-script
+if [ -s "${{file}}.jobid" ]; then
+  jobid=$(cat "${{file}}.jobid")
+  prequeued=1
+else
+  jobid="${{SLURM_JOB_ID:-${{SLURM_JOBID:-}}}}"
+  prequeued=0
+fi
 
-# Obtain the jobid of the first run
-jobid=$(cat ${{file}}.jobid)
+if [ "$total_runs" -gt "$prequeued" ]; then
+  num_runs=$((total_runs - prequeued))
+else
+  num_runs=0
+fi
 
-for i in $(seq 1 $num_runs); do
-  sleep 1s
-  echo "Batching run $i"
-  jobid=$({submit_cmd} {dependency}=afterok:$jobid ${{file}}.sbatch {sed})
-  echo "Submitted job $jobid"
-done
+echo "Number of additional runs needed for $file: $num_runs (total target: $total_runs, pre-queued: $prequeued)"
 
-echo $jobid > ${{file}}.jobid
+if [ "$num_runs" -gt 0 ]; then
+  for i in $(seq 1 "$num_runs"); do
+    sleep 1s
+    echo "Batching run $i"
+    if [ -n "$jobid" ]; then
+      jobid=$({submit_cmd} {dependency}=afterok:$jobid "${{file}}.sbatch" {sed})
+    else
+      jobid=$({submit_cmd} "${{file}}.sbatch" {sed})
+    fi
+    echo "Submitted job $jobid"
+  done
+fi
+
+if [ -n "$jobid" ] && [ "$total_runs" -gt 0 ]; then
+  echo "$jobid" > "${{file}}.jobid"
+fi
 """
 submit_lambdas = """
 echo "Submitting lambdas"
 ./submit_lambdas.sh $jobid
 """
 check_and_update_topology = """
-file_jobid=$(cat {jobpath}.jobid)
 self_jobid={self_jobid}
-if [ $file_jobid -eq $self_jobid ]; then
+if [ -s "{jobpath}.jobid" ]; then
+  file_jobid=$(cat "{jobpath}.jobid")
+else
+  file_jobid="$self_jobid"
+fi
+if [ "$file_jobid" = "$self_jobid" ]; then
   echo "This is the last {job} job. Checking to see if requested steps match completed steps."
-  requested_nsteps=$(grep nsteps {job}.mdp | awk '{{print $3}}')
-  completed_nsteps=$(grep "Writing checkpoint, step" {job}.log | tail -1 | awk '{{print $4}}')
-  if [ $requested_nsteps -eq $completed_nsteps ]; then
+  requested_nsteps=$(grep "^nsteps" {job}.mdp | awk '{{print $3}}')
+  completed_nsteps=$(grep "Writing checkpoint, step" {job}.log | tail -1 | awk '{{print $4}}' || true)
+  if [ -n "$requested_nsteps" ] && [ -n "$completed_nsteps" ] && [ "$requested_nsteps" -eq "$completed_nsteps" ]; then
     echo "nsteps completed match the requested nsteps! $completed_nsteps steps completed."
   else
-    echo "WARNING: nsteps completed ($completed_nsteps) do not match the requested nsteps ($requested_nsteps)."
+    echo "WARNING: nsteps completed (${{completed_nsteps:-unknown}}) do not match the requested nsteps (${{requested_nsteps:-unknown}})."
   fi
   echo "Updating topology whether nsteps was achieved or not."
   cd dualti

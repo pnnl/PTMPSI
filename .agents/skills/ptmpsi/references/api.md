@@ -21,7 +21,7 @@ Paths are relative to the repo root. Line numbers are for the `skill` branch (ba
 | `dock(ligand, receptor, boxcenter, boxsize=10, output=None, flexible=None, engine=None, exhaustiveness=None, spacing=None)` | 666 | |
 | `protonate(pdbin=None, pdb=None, pqr=None, ph=7, path=".")` | 729 | Runs `pdb2pqr30` with AMBER and propka; sets `self.charge` |
 
-`gen_ptm_files` keyword arguments read in the source (lines 459-540): `thermo=True`, `pdb2pqr=True`, `cofactor=None`, `lenlambda=2.0`, `timestep=2.0`, `temp=300.0`, `nsplit=1`, `gpu_id=""`, `max_script_workers=1`, `machine`, `auto_submit_ti=True`, `checkpointing=True`, `bundling=False`, `time=12`, `combination_logging=True`. Remaining keywords go to `ptmpsi.gromacs.generate` and then `generate_slurm` (`mpirun`, `container`, `gmx`, `ntasks`, `nthreads`, `nstlist`, `partition`, `account`, `nnodes`).
+`gen_ptm_files` keyword arguments read in the source (lines 462-545): `thermo=True`, `pdb2pqr=True`, `cofactor=None`, `lenlambda=2.0`, `timestep=2.0`, `temp=300.0`, `nsplit=1`, `gpu_id=""`, `max_script_workers=1`, `machine`, `auto_submit_ti=True`, `checkpointing=True`, `bundling=False`, `time=12`, `combination_logging=True`. Remaining keywords go to `ptmpsi.gromacs.generate` and then `generate_slurm` (`mpirun`, `container`, `gmx`, `ntasks`, `nthreads`, `nstlist`, `partition`, `account`, `nnodes`, `max_md_runs` [defaults to `1` on Deception, `None` elsewhere]). On Deception, `account` is required (raises `ValueError` if missing or `"XXXX"`).
 
 ## Residues and PTMs (`ptmpsi/residues/`)
 

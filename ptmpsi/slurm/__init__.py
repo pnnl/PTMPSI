@@ -382,6 +382,14 @@ class Slurm:
         self.time = f"{hours:02}:{minutes:02}:{seconds:02}"
 
         self.account = kwargs.pop("account", self.machine.default_account())
+        if self.machine.name == "DECEPTION" and (
+            self.account is None
+            or not str(self.account).strip()
+            or str(self.account).strip() == "XXXX"
+        ):
+            raise ValueError(
+                "Deception requires an explicit Slurm account (pass account='<project>'); 'XXXX' is not allowed"
+            )
 
         self.nnodes  = kwargs.pop("nnodes", 1)
         if self.nnodes > _partition.maxnode:

@@ -138,6 +138,12 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
     do_ti     = kwargs.get("thermo", True)
     subindex  = kwargs.pop("subindex", "")
     checkpointing = kwargs.pop("checkpointing", True)
+    default_max_md_runs = 1 if slurm.machine.name == "DECEPTION" else None
+    max_md_runs = kwargs.pop("max_md_runs", default_max_md_runs)
+    if max_md_runs is not None:
+        max_md_runs = int(max_md_runs)
+        if max_md_runs < 0:
+            raise ValueError(f"max_md_runs must be >= 0 or None, got {max_md_runs}")
 
     if bundling and slurm.machine.name != "Frontier" and slurm.machine.name != "Polaris":
         raise NotImplementedError(f"Bundling is only supported on Frontier and Polaris, not {slurm.machine.name}.")
@@ -285,7 +291,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
 
         if checkpointing:
             if not bundling:
-                fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
+                fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours(), max_md_runs=(-1 if max_md_runs is None else max_md_runs)))
                 if auto_submit_ti:
                     fh.write(submit_lambdas)
             else:

@@ -208,9 +208,9 @@ class LocalScripts(unittest.TestCase):
         options = machine.partitions['shared'].options['gromacs']
         with scratch(), patch.dict(sys.modules, {'ptmpsi.gromacs.templates': templates}):
             generator('0000.pdb', conc=0.154, thermo=False, checkpointing=False,
-                      machine=machine, account='nwbrave', time=1, **options)
+                      machine=machine, account='example_account', time=1, **options)
             script = Path('0000_slurm.sbatch').read_text()
-        self.assertIn('#SBATCH --account=nwbrave\n#SBATCH --partition=shared', script)
+        self.assertIn('#SBATCH --account=example_account\n#SBATCH --partition=shared', script)
         self.assertIn('module load gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2', script)
         self.assertIn('mpirun -np 8 --bind-to none  gmx_mpi mdrun -deffnm npt', script)
         for absent in ('apptainer', '-nb gpu', '-gpu_id'):
@@ -219,8 +219,66 @@ class LocalScripts(unittest.TestCase):
         self.assertIn('set -eo pipefail', script)
         with scratch(), patch.dict(sys.modules, {'ptmpsi.gromacs.templates': templates}):
             with self.assertRaises(ValueError):
-                generator('0000.pdb', conc=0.154, thermo=False, machine=machine, account='nwbrave',
+                generator('0000.pdb', conc=0.154, thermo=False, machine=machine, account='example_account',
                           time=1, partition='a100_shared', ngpus=1)
+            for bad_account in ({}, {'account': ''}, {'account': 'XXXX'}):
+                with self.assertRaises(ValueError):
+                    generator('0000.pdb', conc=0.154, thermo=False, machine=machine,
+                              time=1, **options, **bad_account)
+
+    def test_deception_direct_submit_script_and_max_md_runs_cap(self):
+        slurm = runpy.run_path(str(ROOT / 'ptmpsi/slurm/__init__.py'))
+        templates = SimpleNamespace(**runpy.run_path(str(ROOT / 'ptmpsi/gromacs/templates.py')))
+        generator = definitions(ROOT / 'ptmpsi/gromacs/__init__.py', {'generate_slurm'},
+                                Slurm=slurm['Slurm'], subprocess=subprocess, **vars(templates)).generate_slurm
+        machine = slurm['deception']
+        options = machine.partitions['shared'].options['gromacs']
+        with scratch() as directory, patch.dict(sys.modules, {'ptmpsi.gromacs.templates': templates}):
+            for i in range(13):
+                (directory / f'dualti/lam-{i:02d}').mkdir(parents=True, exist_ok=True)
+            generator('0000.pdb', conc=0.154, thermo=True, checkpointing=True,
+                      machine=machine, account='example_account', time=1, **options)
+            setup_sbatch = (directory / '0000_slurm.sbatch').read_text()
+            md_sbatch = (directory / 'md.sbatch').read_text()
+            for fname in ('0000_slurm.sbatch', 'md.sbatch'):
+                syn = subprocess.run(['/bin/bash', '-n', str(directory / fname)], capture_output=True, text=True)
+                self.assertEqual(syn.returncode, 0, syn.stderr)
+            self.assertIn('max_md_runs=1', setup_sbatch)
+
+            # Execute queue_estimated_runs under set -eo pipefail WITHOUT pre-existing md.jobid
+            # (simulating direct dcx.py submit-script 0000_slurm.sbatch on a 100 ns md.mdp)
+            (directory / 'fnpt.log').write_text('Performance:       36.000      0.667\n')
+            (directory / 'md.mdp').write_text('dt = 0.002\nnsteps = 50000000\n')
+            mock_bin = directory / 'bin'
+            mock_bin.mkdir()
+            sbatch_log = directory / 'sbatch_calls.log'
+            mock_sbatch = mock_bin / 'sbatch'
+            mock_sbatch.write_text(
+                f'#!/bin/bash\necho "$@" >> "{sbatch_log}"\ncount=$(wc -l < "{sbatch_log}" | tr -d " ")\necho "Submitted batch job $((5000 + count))"\n'
+            )
+            mock_sbatch.chmod(0o755)
+            queue_block = setup_sbatch[setup_sbatch.index('# Extract performance value'):setup_sbatch.index('echo "Submitting lambdas"')]
+            harness = directory / 'run_queue.sh'
+            harness.write_text('set -eo pipefail\nexport SLURM_JOB_ID=4000\n' + queue_block)
+            env = dict(os.environ, PATH=f'{mock_bin}:{os.environ["PATH"]}')
+            res = subprocess.run(['/bin/bash', str(harness)], cwd=directory, env=env, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            calls = sbatch_log.read_text().strip().splitlines()
+            # Capped to max_md_runs=1 despite ~67h estimated runtime!
+            self.assertEqual(calls, ['--dependency=afterok:4000 md.sbatch'])
+            self.assertEqual((directory / 'md.jobid').read_text().strip(), '5001')
+
+            # Verify check_and_update_topology in md.sbatch succeeds under set -eo pipefail
+            (directory / 'md.log').write_text('Writing checkpoint, step 100 at ...\n')
+            (directory / 'dualti').mkdir(exist_ok=True)
+            (directory / 'dualti/update_topology.py').write_text('from pathlib import Path; Path("updated.ok").write_text("yes")\n')
+            tail_block = md_sbatch[md_sbatch.index('self_jobid='):]
+            md_harness = directory / 'run_md_tail.sh'
+            md_harness.write_text('set -eo pipefail\nSLURM_JOBID=5001\n' + tail_block)
+            env_py = dict(env, PATH=f'{Path(sys.executable).parent}:{env["PATH"]}')
+            res_md = subprocess.run(['/bin/bash', str(md_harness)], cwd=directory, env=env_py, capture_output=True, text=True)
+            self.assertEqual(res_md.returncode, 0, res_md.stderr)
+            self.assertTrue((directory / 'dualti/updated.ok').is_file())
 
     def test_deception_nwchem_and_alphafold_templates(self):
         nwchem = runpy.run_path(str(ROOT / 'ptmpsi/nwchem/templates.py'))
@@ -248,7 +306,7 @@ class LocalScripts(unittest.TestCase):
             with scratch() as directory:
                 residue = Protein()
                 residue.prepend(chain='A', residue='EAC')
-                get_qm_data(residue, machine=machine, account='nwbrave')
+                get_qm_data(residue, machine=machine, account='example_account')
                 for name in ('conf0.nw', 'conf0_hess.nw', 'conf1.nw'):
                     text = (directory / name).read_text()
                     self.assertEqual(text.count('set int:cando_'), expected, (machine.name, name))
