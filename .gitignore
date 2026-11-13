@@ -133,3 +133,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# macOS Finder metadata
+.DS_Store
+
+# Local agent-session scratch in AnalysisTools/
+AnalysisTools/*transcript*.md

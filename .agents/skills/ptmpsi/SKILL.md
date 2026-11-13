@@ -361,6 +361,22 @@ Checked with T4 lysozyme (`Protein(pdbid="2LZM")`, 33,323 atoms), nitrosylation 
 - PTM-Psi has no code that combines TI or BAR results. `pymbar` is in `setup.py` and is used only by the AWSEM subproject.
 - `gen_ptm_files(path=...)` now calls `os.path.realpath` on `path`. Before, a path under a symlinked folder (`/tmp` on macOS) produced `dualti/lam-NN/*/topol.top` links that climbed to the filesystem root and were dangling after upload.
 
+## Trajectory analysis (`AnalysisTools`)
+
+`ptmpsi.gromacs.analysis` is unchanged and still hardcoded to the AQE cluster (see the `rmsf()` note above), so do not call it on Deception. Use `AnalysisTools` (`import AnalysisTools` or `python -m AnalysisTools`) for post-simulation structural analysis. It pairs GROMACS (`gmx_mpi` on Deception, `gmx` locally) for PBC unwrapping with `MDAnalysis` for RMSD, mass-weighted RoG, iteratively aligned RMSF, contact maps, and mass-weighted Cartesian PCA.
+
+1. **Always pass `.tpr` + unwrapped `.xtc`.** Load `md.tpr` (not a `.pdb`/`.gro`) as the `MDAnalysis` topology so exact force-field atomic masses and bonds—including modified PTM residues—are present for mass-weighted RoG, RMSF, and Cartesian PCA.
+2. **Unwrap dodecahedron PBC jumps first.** Raw `md.xtc` wraps chains across periodic faces. Run `AnalysisTools.unwrap_trajectory("md.tpr", "md.xtc", "md_clean.xtc")` (or `python -m AnalysisTools unwrap -s md.tpr -f md.xtc -o md_clean.xtc`), which runs `trjconv -pbc whole` then `-pbc nojump` in a staging folder with `ptmpsi/gromacs/forcefield/residuetypes.dat` present so `Protein` keeps PTM residues. `AnalysisTools.check_pbc_jumps(u)` flags un-unwrapped trajectories.
+3. **Never use bare `"protein"` or `"backbone"` selections on PTM runs.** Standard `MDAnalysis` keywords silently drop PTM-Psi residue names (`SNC`, `CSO`, `CSD`, `OCS`, `CSS`, `CGL`, `SMC`, `QCS`, `XCN`, `IYY`, `ALY`, `PTM`, `CYZ`). Use `AnalysisTools.select_protein(u, kind="all" | "backbone" | "ca" | "heavy")` or `AnalysisTools.protein_selection_str(...)`, which derives the live set from `ptmpsi/residues/` and `residuetypes.dat`.
+4. **Use the five tested analyses instead of scratch `sklearn`/NumPy:**
+   - `compute_rmsd(u, reference=...)`: aligned backbone RMSD (Å).
+   - `compute_rog(u)`: mass-weighted protein radius of gyration (Å).
+   - `compute_rmsf(u, by_residue=True)`: `AverageStructure` + `AlignTraj` + mass-weighted residue RMSF (Å).
+   - `compute_contact_map(u, representation="ca" | "heavy")` and `contact_difference_map(ptm_map, wt_map)`: PBC minimum-image residue contact probabilities and PTM-minus-WT $\Delta P_{ij}$ matched by `(segid, resid)`.
+   - `compute_cartesian_pca(u)` and `compute_joint_cartesian_pca({"WT": (wt_tpr, wt_xtc), "SNC54": (ptm_tpr, ptm_xtc)}, ref_system="WT")`: mass-weighted Cartesian PCA ($\text{amu}\cdot\text{\AA}^2$) over the shared `(segid, resid, atom_name)` backbone so side-chain atom-count differences between `CYS` and `SNC`/`CGL` never break joint projection axes.
+   - `save_standard_report(tpr, clean_xtc, out_dir)` (or `python -m AnalysisTools analyze -s md.tpr -f md_clean.xtc -o analysis_out`) runs all five and writes CSV/NPY/PNG summaries.
+5. **On Deception, run post-processing in a `shared` batch job via `dcx.py`.** Login nodes forbid `gmx_mpi` and Python workloads; install `MDAnalysis` into a project-storage venv (`/rcfs/projects/<project>/...`) and submit an `.sbatch` script on `shared` loading `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2` + activating that venv.
+
 ## Checking your work
 
 After step 9, list `<uid>/` and compare it with the layout in `references/templates.md`. A complete combination folder has 14 `.mdp` files, `<NNNN>_slurm.sbatch`, `md.sbatch`, `submit_lambdas.sh` and a `dualti/` folder with `lam-00` to `lam-12`. If something is missing, do not edit generated files by hand. Fix the input and regenerate.

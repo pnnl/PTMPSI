@@ -19,6 +19,7 @@ dependencies = [
             'future',
             'pymbar',
             'matplotlib',
+            'MDAnalysis',
             'lxml',
             'prody',
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
@@ -44,6 +45,6 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = ["ptmpsi"]
+packages = ["ptmpsi", "AnalysisTools"]
 
 

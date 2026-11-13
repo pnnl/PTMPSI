@@ -63,3 +63,7 @@ Valid PTM names (keys of `ptmdict`): acetylation, citrullination, cysteinylation
 ## AlphaFold (`ptmpsi/alphafold/__init__.py`)
 
 `AlphaFoldOptions` takes `model="monomer"`, `version="2.3.2"`, `dbs="full_dbs"`, `machine`, `data_dir`, and others. `prediction(fasta, **kwargs)` is at line 147. Frontier and Polaris force version 2.3.2 and `full_dbs`.
+
+## Trajectory Analysis (`AnalysisTools/trajectory.py`)
+
+`get_ptmpsi_residue_sets`, `protein_selection_str`, `select_protein`, `find_ptm_residues`, `load_universe`, `check_pbc_jumps`, `unwrap_trajectory`, `compute_rmsd`, `compute_rog`, `compute_rmsf`, `compute_contact_map`, `contact_difference_map`, `compute_cartesian_pca`, `compute_joint_cartesian_pca`, `save_standard_report`.
