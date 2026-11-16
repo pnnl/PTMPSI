@@ -18,20 +18,22 @@ from functools import partial
 
 import numpy as np
 
+AQE_GMXRC = "/anfhome/shared/qipd/gromacs/bin/GMXRC"
+AQE_PREAMBLE = (
+    "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
+    f"&& source {AQE_GMXRC}"
+)
+
 _PACKAGED_RESIDUETYPES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "forcefield", "residuetypes.dat")
 
 def check_file_exists(filename, canbenone=False):
-    #
-    # Check if filename is None
-    if filename is None: 
-        if canbenone: 
+    if filename is None:
+        if canbenone:
             return
         else:
             raise KeyError("filename cannot be None")
-    #
-    # Check if file exists
     if not os.path.isfile(filename):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+        raise FileNotFoundError(f"File not found: {filename}")
     return
 
 def totss(result):
@@ -42,17 +44,19 @@ def totab(result):
 
 
 def find_gmx(gmx=None):
-    """Return the gmx executable: gmx_mpi (cluster modules) if present, else gmx."""
+    """Return the gmx executable: gmx if present (as before), else gmx_mpi (the Deception module)."""
     if gmx:
         found = shutil.which(gmx)
         if found is None:
             raise FileNotFoundError(f"GROMACS executable '{gmx}' was not found on PATH")
         return found
-    for name in ("gmx_mpi", "gmx"):
+    for name in ("gmx", "gmx_mpi"):
         found = shutil.which(name)
         if found:
             return found
-    raise FileNotFoundError("Neither 'gmx_mpi' nor 'gmx' is on PATH. Load the GROMACS module or install GROMACS")
+    if os.path.isfile(AQE_GMXRC):
+        return "gmx"   # the AQE cluster only has gmx after sourcing GMXRC; _run does that
+    raise FileNotFoundError("Neither 'gmx' nor 'gmx_mpi' is on PATH. Load the GROMACS module or install GROMACS")
 
 
 def _available_cpus():
@@ -63,6 +67,8 @@ def _available_cpus():
 
 
 def _run(command, cwd, stdin=None):
+    if command[0] == "gmx" and shutil.which("gmx") is None and os.path.isfile(AQE_GMXRC):
+        command = ["bash", "-c", AQE_PREAMBLE + ' && exec "$@"', "bash", *command]
     result = subprocess.run(command, cwd=cwd, input=stdin or "", text=True, capture_output=True)
     if result.returncode != 0:
         raise RuntimeError(f"{' '.join(command)} failed with exit code {result.returncode}:\n{result.stderr[-2000:]}")
@@ -70,18 +76,18 @@ def _run(command, cwd, stdin=None):
 
 
 def _run_all(tasks, maxprocs):
-    """Run callables concurrently and raise one error listing every failure."""
+    """Run callables concurrently. A failure is printed and the others carry on, as before."""
     if not tasks:
-        return
-    errors = []
+        return []
+    failures = []
     with ThreadPoolExecutor(max_workers=max(1, min(maxprocs, len(tasks), _available_cpus()))) as pool:
         for future in [pool.submit(task) for task in tasks]:
             try:
                 future.result()
             except Exception as error:
-                errors.append(str(error))
-    if errors:
-        raise RuntimeError("\n".join(errors))
+                failures.append(str(error))
+                print(f"Command failed: {error}")
+    return failures
 
 
 @contextlib.contextmanager
@@ -95,16 +101,8 @@ def _working_dir(path):
         os.chdir(previous)
 
 
-def _require_interactive(interactive, name):
-    if not interactive:
-        raise NotImplementedError(
-            f"{name}(interactive=False) was meant to write a Slurm script and never did. "
-            "Call it with interactive=True from inside a batch job (it runs gmx in this process)")
-
-
-def _reject_unknown(kwargs, name):
-    if kwargs:
-        raise TypeError(f"{name}() got unexpected keyword argument(s): {', '.join(sorted(kwargs))}")
+def _not_interactive(name):
+    print(f"{name}(interactive=False) does nothing: the Slurm-script branch was never written. Pass interactive=True.")
 
 
 def _inputs(trajectory, structure, index):
@@ -124,7 +122,7 @@ def _inputs(trajectory, structure, index):
 def _labels(trajectories):
     """Name each output after the folder holding its trajectory (0001, 0002, ...)."""
     labels = [os.path.basename(os.path.dirname(t)) for t in trajectories]
-    if len(set(labels)) != len(labels) or "" in labels:
+    if len(set(labels)) != len(labels):
         labels = [f"{i:04d}" for i in range(len(trajectories))]
     return labels
 
@@ -324,7 +322,7 @@ def extract_nested_directory(file_path):
     return nested_dir_int
 
 
-def post_process(trajectories, structures, indices=None, prefix=None, suffix=None, interactive=True, maxprocs=90,
+def post_process(trajectories, structures, indices=None, prefix=None, suffix=None, interactive=False, maxprocs=90,
                  group="Non-Water", **kwargs):
     """Make `group` whole, remove periodic jumps and fit it, for each trajectory.
 
@@ -333,10 +331,10 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
     inside `prefix` (plus _<suffix>). Returns the fitted trajectories. `fit_group` is the gmx group
     the fit uses (default 3, C-alpha).
     """
-    _require_interactive(interactive, "post_process")
+    if not interactive:
+        return _not_interactive("post_process")
     fit_group = kwargs.pop("fit_group", 3)
     gmx = find_gmx(kwargs.pop("gmx", None))
-    _reject_unknown(kwargs, "post_process")
     trajectories, structures, indices = _inputs(trajectories, structures, indices)
     workdir = os.path.abspath(prefix) if prefix else os.getcwd()
     os.makedirs(workdir, exist_ok=True)
@@ -359,20 +357,20 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
     return [f"{output}_whole_nojump_fit.xtc" for output in outputs]
 
 
-def dssp(trajectory, structure, output_dir, index=None, interactive=True, maxprocs=90, **kwargs):
+def dssp(trajectory, structure, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
     """Run gmx dssp on each trajectory, then summarize with process_dssp.
 
     Outputs <folder>_dssp.dat in `output_dir`, where <folder> is the folder holding the trajectory, and
     returns their paths.
     `hmode`, `hbond`, `ref` and `doss` are passed on as before.
     """
-    _require_interactive(interactive, "dssp")
+    if not interactive:
+        return _not_interactive("dssp")
     hmode = kwargs.pop("hmode", "gromacs")
     hbond = kwargs.pop("hbond", "energy")
     ref = kwargs.pop("ref", 0)
     doss = kwargs.pop("doss", "all")
     gmx = find_gmx(kwargs.pop("gmx", None))
-    _reject_unknown(kwargs, "dssp")
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
     output_dir = os.path.abspath(output_dir)
@@ -426,16 +424,16 @@ def process_rmsd(result_files, reference_file):
     delspec.close()
     rms_diff.close()
 
-def rmsd(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+def rmsd(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
     """gmx rms of `group` (default 4, Backbone) against the structure, fitted on `group`.
 
     Writes <folder>_rmsd.xvg per trajectory plus DELSPEC_rmsd.out and RESULT_rmsDiffRES.out, which
     compare each case with trajectory number `ref` (default 0).
     """
-    _require_interactive(interactive, "rmsd")
+    if not interactive:
+        return _not_interactive("rmsd")
     ref = kwargs.pop("ref", 0)
     gmx = find_gmx(kwargs.pop("gmx", None))
-    _reject_unknown(kwargs, "rmsd")
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
     output_dir = os.path.abspath(output_dir)
@@ -478,15 +476,15 @@ def process_rmsf(result_files):
     delspec.close()
     rms_diff.close()
 
-def rmsf(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+def rmsf(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
     """gmx rmsf per residue of `group` (default 4, Backbone), fitted on `group`.
 
     Writes <folder>_rmsf.xvg and <folder>_bfactors.pdb per trajectory plus DELSPEC_rmsf.out and
     RESULT_rmsfDiffRES.out.
     """
-    _require_interactive(interactive, "rmsf")
+    if not interactive:
+        return _not_interactive("rmsf")
     gmx = find_gmx(kwargs.pop("gmx", None))
-    _reject_unknown(kwargs, "rmsf")
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
     output_dir = os.path.abspath(output_dir)
@@ -530,15 +528,15 @@ def process_gyration(result_files):
     delspec.close()
     gyr_diff.close()
 
-def gyration(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+def gyration(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
     """gmx gyrate (mass-weighted radius of gyration) of `group` (default 4, Backbone).
 
     Writes <folder>_radgyr.xvg per trajectory plus DELSPEC_gyration.out and RESULT_gyrationDiffRES.out.
     Pass group=1 for the whole protein.
     """
-    _require_interactive(interactive, "gyration")
+    if not interactive:
+        return _not_interactive("gyration")
     gmx = find_gmx(kwargs.pop("gmx", None))
-    _reject_unknown(kwargs, "gyration")
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
     output_dir = os.path.abspath(output_dir)
@@ -552,14 +550,17 @@ def gyration(trajectory, structure, output_dir, index=None, group=4, interactive
 
 
 def process_contact(contact_files, contact_cutoff=0.5):
-    """Turn gmx pairdist files (time, then one minimum distance in nm per residue pair) into contact fractions.
+    """Average the contact fractions of gmx pairdist files and plot them, as before.
 
-    The fraction is the share of frames in which a residue pair is closer than `contact_cutoff` nm.
-    Each file gets <name>_fraction.dat and <name>_fraction.png. Returns one matrix per file.
+    Each file holds a time column and then one minimum distance in nm per residue pair. A pair counts as
+    in contact in a frame when it is closer than `contact_cutoff` nm; each file gives the fraction of its
+    frames, and the files are averaged. Writes contact_fraction.dat and .png next to the first file, shows
+    the plot, and returns the averaged matrix.
     """
-    from matplotlib.figure import Figure
+    import matplotlib.pyplot as plt
 
     matrices = []
+    print("Processing contact files")
     for contact_file in contact_files:
         rows = []
         with open(contact_file, "r", encoding="latin-1") as fh:
@@ -573,46 +574,56 @@ def process_contact(contact_files, contact_cutoff=0.5):
         nres = int(round(np.sqrt(data.shape[1])))
         if nres * nres != data.shape[1]:
             raise ValueError(f"{contact_file}: {data.shape[1]} distances per frame is not a square number of residue pairs")
-        fraction = (data < contact_cutoff).mean(axis=0).reshape(nres, nres)
-        stem = os.path.splitext(contact_file)[0]
-        np.savetxt(f"{stem}_fraction.dat", fraction, fmt="%.4f")
-        fig = Figure(figsize=(8, 6.5))
-        ax = fig.subplots()
-        image = ax.imshow(fraction, cmap="Greens", vmin=0.0, vmax=1.0, interpolation="nearest")
-        fig.colorbar(image, ax=ax, label=f"Fraction of frames closer than {contact_cutoff:g} nm")
-        ax.set_xlabel("Residue index")
-        ax.set_ylabel("Residue index")
-        fig.savefig(f"{stem}_fraction.png", dpi=150)
-        matrices.append(fraction)
-    return matrices
+        matrices.append((data < contact_cutoff).mean(axis=0).reshape(nres, nres))
+
+    if not matrices:
+        print("No valid data matrices found.")
+        return
+
+    average_contact_matrix = sum(matrices) / len(matrices)
+    stem = os.path.join(os.path.dirname(os.path.abspath(contact_files[0])), "contact_fraction")
+    np.savetxt(f"{stem}.dat", average_contact_matrix, fmt="%.4f")
+
+    plt.figure(figsize=(10, 8))
+    plt.imshow(average_contact_matrix, cmap="Greens", interpolation="nearest")
+    plt.colorbar(label="Fraction of Close Contact")
+    plt.xlabel("Residue Index (Columns)")
+    plt.ylabel("Residue Index (Rows)")
+    plt.title("Fraction of Close Contact for Residues")
+    plt.savefig(f"{stem}.png", dpi=150)
+    plt.show()
+    return average_contact_matrix
 
 
-def contact_map(trajectory, structure, md_file, output_dir, index=None, interactive=True, maxprocs=90, **kwargs):
-    """Residue-residue contact fractions from gmx pairdist, one matrix per trajectory.
+def contact_map(trajectory, structure, md_file, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
+    """Residue-residue contact fractions from gmx pairdist, averaged over windows of the trajectory.
 
-    `md_file` is not used. Before, three fixed 1000 ps windows were run; now the whole trajectory is. Keyword arguments: `dt` (ps between frames, default 500; None uses every
-    frame), `begin` and `end` (ps, default the whole trajectory), `selection` (gmx selection,
-    default "all", e.g. 'group "Protein"' for a solvated run) and `contact_cutoff` (nm, default 0.5).
+    As before, each trajectory is cut into 1000 ps windows (0-1000, 1000-2000, 2000-3000 ps), sampled
+    every `dt` = 500 ps, and written to <folder>_dist_<begin>.xvg. `md_file`, `start_residue` and
+    `end_residue` are accepted and not used. Optional keyword arguments: `dt`, `window` and `total_time`
+    (ps), `selection` (gmx group or selection, default "0", the whole system), `contact_cutoff` (nm, default
+    0.5) and `gmx`. Returns the averaged matrix.
     """
-    _require_interactive(interactive, "contact_map")
+    if not interactive:
+        return _not_interactive("contact_map")
     dt = kwargs.pop("dt", 500)
-    begin = kwargs.pop("begin", None)
-    end = kwargs.pop("end", None)
-    selection = kwargs.pop("selection", "all")
+    window = kwargs.pop("window", 1000)
+    total_time = kwargs.pop("total_time", 3000)
+    selection = kwargs.pop("selection", "0")
     contact_cutoff = kwargs.pop("contact_cutoff", 0.5)
     gmx = find_gmx(kwargs.pop("gmx", None))
-    if kwargs.pop("start_residue", None) is not None or kwargs.pop("end_residue", None) is not None:
-        raise NotImplementedError("contact_map no longer takes start_residue/end_residue; pass a gmx `selection` instead")
-    _reject_unknown(kwargs, "contact_map")
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
     output_dir = os.path.abspath(output_dir)
-    window = (["-dt", str(dt)] if dt else []) + (["-b", str(begin)] if begin is not None else []) + (["-e", str(end)] if end is not None else [])
     with _working_dir(output_dir):
         add_residue_file(trajectories[0])
-        result_files = [f"{label}_dist.xvg" for label in labels]
-        _run_all([partial(_run, [gmx, "pairdist", "-f", t, "-s", s, "-refgrouping", "res", "-selgrouping", "res",
-                                 "-ref", selection, "-sel", selection, "-cutoff", str(max(1.0, contact_cutoff)),
-                                 "-o", out, *window, *_index_args(n)], output_dir)
-                  for t, s, n, out in zip(trajectories, structures, indices, result_files)], maxprocs)
-        return process_contact(result_files, contact_cutoff=contact_cutoff)
+        tasks, result_files = [], []
+        for t, s, n, label in zip(trajectories, structures, indices, labels):
+            for begin in range(0, total_time, window):
+                out = f"{label}_dist_{begin}.xvg"
+                result_files.append(out)
+                tasks.append(partial(_run, [gmx, "pairdist", "-f", t, "-s", s, "-b", str(begin), "-e", str(begin + window),
+                                            "-refgrouping", "res", "-selgrouping", "res", "-ref", selection, "-sel", selection,
+                                            "-o", out, "-cutoff", "1.0", "-dt", str(dt), *_index_args(n)], output_dir))
+        _run_all(tasks, maxprocs)
+        return process_contact([os.path.join(output_dir, f) for f in result_files if os.path.isfile(f)], contact_cutoff=contact_cutoff)

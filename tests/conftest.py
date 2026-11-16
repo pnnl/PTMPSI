@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
+os.environ["MPLBACKEND"] = "Agg"   # plt.show() in process_contact must not open a window or need a GUI backend
+
 import shutil
 import subprocess
 

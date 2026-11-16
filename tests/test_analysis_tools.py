@@ -251,7 +251,7 @@ def test_end_to_end_gromacs_snc_unwrap_pca_and_cli(snc_system, tmp_path: Path):
     assert check_pbc_jumps(u_raw)["has_pbc_jumps"] is True
 
     clean_xtc = post_process(
-        raw_xtc, tpr_path, prefix=tmp_path / "clean", group="Protein", fit_group=4, gmx=gmx
+        raw_xtc, tpr_path, prefix=tmp_path / "clean", group="Protein", fit_group=4, gmx=gmx, interactive=True
     )[0]
     u_clean = load_universe(tpr_path, clean_xtc)
     assert check_pbc_jumps(u_clean)["has_pbc_jumps"] is False

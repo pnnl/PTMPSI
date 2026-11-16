@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
             group=args.group,
             fit_group=args.fit_group,
             gmx=args.gmx,
+            interactive=True,
         )
         for out in outputs:
             print(f"Wrote processed trajectory: {out}")

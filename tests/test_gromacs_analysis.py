@@ -24,29 +24,30 @@ def _xvg(path):
 def fitted(snc_system, tmp_path_factory):
     out = tmp_path_factory.mktemp("analysis")
     xtc = an.post_process(
-        snc_system["raw_xtc"], snc_system["tpr"], prefix=out / "pp", group="Protein", fit_group=4, gmx=snc_system["gmx"]
+        snc_system["raw_xtc"], snc_system["tpr"], prefix=out / "pp", group="Protein", fit_group=4, gmx=snc_system["gmx"], interactive=True
     )[0]
     return {"xtc": xtc, "tpr": str(snc_system["tpr"]), "gmx": snc_system["gmx"], "out": out}
 
 
-def test_find_gmx_prefers_gmx_mpi(tmp_path, monkeypatch):
+def test_find_gmx_prefers_gmx_and_falls_back_to_gmx_mpi(tmp_path, monkeypatch):
     for name in ("gmx", "gmx_mpi"):
         exe = tmp_path / name
         exe.write_text("#!/bin/sh\n")
         exe.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path))
-    assert an.find_gmx() == str(tmp_path / "gmx_mpi")
-    assert an.find_gmx("gmx") == str(tmp_path / "gmx")
-    (tmp_path / "gmx_mpi").unlink()
     assert an.find_gmx() == str(tmp_path / "gmx")
+    assert an.find_gmx("gmx_mpi") == str(tmp_path / "gmx_mpi")
     (tmp_path / "gmx").unlink()
+    assert an.find_gmx() == str(tmp_path / "gmx_mpi")
+    (tmp_path / "gmx_mpi").unlink()
     with pytest.raises(FileNotFoundError):
         an.find_gmx()
 
 
-def test_interactive_false_is_not_silently_ignored(tmp_path):
-    with pytest.raises(NotImplementedError, match="interactive=True"):
-        an.rmsd("a.xtc", "a.tpr", tmp_path, interactive=False)
+def test_interactive_false_still_does_nothing_but_says_so(tmp_path, capsys):
+    assert an.rmsd("a.xtc", "a.tpr", tmp_path) is None
+    assert "interactive=False" in capsys.readouterr().out
+    assert not list(tmp_path.iterdir())
 
 
 def test_add_residue_file_uses_packaged_copy(tmp_path):
@@ -55,14 +56,14 @@ def test_add_residue_file_uses_packaged_copy(tmp_path):
     assert "SNC" in open(target).read()
 
 
-def test_process_dssp_names_outputs_after_the_dat_file(tmp_path, monkeypatch):
+@pytest.mark.parametrize("label", ["0001", "spade"])
+def test_process_dssp_names_outputs_after_the_dat_file(tmp_path, monkeypatch, label):
+    # str.strip("_dssp.dat") removes any of those characters from both ends: "0001" is unharmed, "spade" is not
     monkeypatch.chdir(tmp_path)
-    # "spade" starts and ends with characters that str.strip("_dssp.dat") used to remove
-    (tmp_path / "spade_dssp.dat").write_text("~HHHH~\n~HHH~~\n")
-    an.process_dssp(["spade_dssp.dat"], ["spade.xtc"])
-    assert (tmp_path / "spade_summary.dat").is_file()
-    assert (tmp_path / "spade_result.out").is_file()
-    assert not (tmp_path / "e_summary.dat").exists()
+    (tmp_path / f"{label}_dssp.dat").write_text("~HHHH~\n~HHH~~\n")
+    an.process_dssp([f"{label}_dssp.dat"], [f"{label}.xtc"])
+    assert (tmp_path / f"{label}_summary.dat").is_file()
+    assert (tmp_path / f"{label}_result.out").is_file()
 
 
 @pytest.mark.skipif(shutil.which("gmx") is None and shutil.which("gmx_mpi") is None, reason="GROMACS CLI not installed")
@@ -73,7 +74,7 @@ def test_post_process_removes_box_jumps(snc_system, fitted):
 
 
 def test_rmsd_matches_mdanalysis_against_tpr_structure(fitted):
-    (xvg,) = an.rmsd(fitted["xtc"], fitted["tpr"], fitted["out"] / "rmsd", gmx=fitted["gmx"])
+    (xvg,) = an.rmsd(fitted["xtc"], fitted["tpr"], fitted["out"] / "rmsd", gmx=fitted["gmx"], interactive=True)
     gmx_rmsd = _xvg(xvg)[:, 1] * 10.0
     u = mda.Universe(fitted["tpr"], fitted["xtc"])
     ref = mda.Universe(fitted["tpr"])
@@ -83,7 +84,7 @@ def test_rmsd_matches_mdanalysis_against_tpr_structure(fitted):
 
 
 def test_gyration_matches_mdanalysis(fitted):
-    (xvg,) = an.gyration(fitted["xtc"], fitted["tpr"], fitted["out"] / "gyr", gmx=fitted["gmx"])
+    (xvg,) = an.gyration(fitted["xtc"], fitted["tpr"], fitted["out"] / "gyr", gmx=fitted["gmx"], interactive=True)
     gmx_rg = _xvg(xvg)[:, 1] * 10.0
     u = mda.Universe(fitted["tpr"], fitted["xtc"])
     bb = u.select_atoms("name N CA C")
@@ -92,7 +93,7 @@ def test_gyration_matches_mdanalysis(fitted):
 
 
 def test_rmsf_per_residue_matches_numpy(fitted):
-    ((xvg, pdb),) = an.rmsf(fitted["xtc"], fitted["tpr"], fitted["out"] / "rmsf", gmx=fitted["gmx"])
+    ((xvg, pdb),) = an.rmsf(fitted["xtc"], fitted["tpr"], fitted["out"] / "rmsf", gmx=fitted["gmx"], interactive=True)
     assert os.path.isfile(pdb)
     gmx_rmsf = _xvg(xvg)[:, 1] * 10.0
     u = mda.Universe(fitted["tpr"], fitted["xtc"])
@@ -105,33 +106,26 @@ def test_rmsf_per_residue_matches_numpy(fitted):
     assert gmx_rmsf == pytest.approx(per_res, rel=0.05)
 
 
-def test_dssp_and_contact_map(fitted):
-    (dat,) = an.dssp(fitted["xtc"], fitted["tpr"], fitted["out"] / "dssp", gmx=fitted["gmx"])
+def test_dssp_and_contact_map(fitted, capsys):
+    (dat,) = an.dssp(fitted["xtc"], fitted["tpr"], fitted["out"] / "dssp", gmx=fitted["gmx"], interactive=True)
     assert os.path.isfile(dat)
-    (matrix,) = an.contact_map(
-        fitted["xtc"], fitted["tpr"], None, fitted["out"] / "cm", dt=None, selection='group "Protein"', gmx=fitted["gmx"]
+    # group 1 is Protein; start_residue/end_residue/bogus are accepted and ignored, as before
+    matrix = an.contact_map(
+        fitted["xtc"], fitted["tpr"], None, fitted["out"] / "cm", dt=2, selection="1",
+        gmx=fitted["gmx"], interactive=True, start_residue=0, end_residue=3, bogus=1,
     )
     assert matrix.shape == (4, 4)
     assert np.allclose(matrix, matrix.T)
     assert np.allclose(np.diag(matrix), 1.0)
+    assert (fitted["out"] / "cm" / "contact_fraction.png").is_file()
 
 
-def test_process_contact_uses_fraction_of_frames_below_cutoff(tmp_path):
-    xvg = tmp_path / "x_dist.xvg"
-    # time, then a 2x2 pair matrix: the (0, 1) distance is 0.4 nm in 3 of 4 frames
-    xvg.write_text(
-        "# comment\n@ title\n"
-        "0 0.0 0.4 0.4 0.0\n2 0.0 0.4 0.4 0.0\n4 0.0 0.4 0.4 0.0\n6 0.0 0.9 0.9 0.0\n"
-    )
-    (matrix,) = an.process_contact([str(xvg)], contact_cutoff=0.5)
-    assert matrix == pytest.approx(np.array([[1.0, 0.75], [0.75, 1.0]]))
-    assert (tmp_path / "x_dist_fraction.dat").is_file()
-
-
-def test_unknown_keyword_arguments_are_rejected(tmp_path, monkeypatch):
-    monkeypatch.setattr(an, "find_gmx", lambda gmx=None: "gmx")
-    for name in ("rmsd", "rmsf", "gyration", "dssp"):
-        with pytest.raises(TypeError, match="bogus"):
-            getattr(an, name)(__file__, __file__, tmp_path, bogus=1)
-    with pytest.raises(NotImplementedError, match="selection"):
-        an.contact_map(__file__, __file__, None, tmp_path, start_residue=3)
+def test_process_contact_averages_fraction_of_frames_below_cutoff(tmp_path):
+    first = tmp_path / "a_dist_0.xvg"
+    second = tmp_path / "a_dist_1000.xvg"
+    # time, then a 2x2 pair matrix: the (0, 1) distance is 0.4 nm in 3 of 4 frames, then 0.9 nm in all of them
+    first.write_text("# comment\n@ title\n0 0.0 0.4 0.4 0.0\n2 0.0 0.4 0.4 0.0\n4 0.0 0.4 0.4 0.0\n6 0.0 0.9 0.9 0.0\n")
+    second.write_text("0 0.0 0.9 0.9 0.0\n2 0.0 0.9 0.9 0.0\n")
+    matrix = an.process_contact([str(first), str(second)], contact_cutoff=0.5)
+    assert matrix == pytest.approx(np.array([[1.0, 0.375], [0.375, 1.0]]))
+    assert (tmp_path / "contact_fraction.dat").is_file()
