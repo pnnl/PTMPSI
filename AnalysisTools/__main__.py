@@ -5,24 +5,28 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .trajectory import check_pbc_jumps, load_universe, save_standard_report, unwrap_trajectory
+from .trajectory import check_pbc_jumps, load_universe, save_standard_report
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m AnalysisTools",
-        description="Unwrap GROMACS trajectories and run PTM-aware MDAnalysis structural analyses.",
+        description="Check, unwrap and analyze PTM-Psi GROMACS trajectories.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_unwrap = sub.add_parser("unwrap", help="Unwrap PBC jumps via gmx/gmx_mpi trjconv (-pbc whole -> -pbc nojump).")
-    p_unwrap.add_argument("-s", "--topology", required=True, help="Input GROMACS .tpr (preferred) or structure file.")
+    p_unwrap = sub.add_parser(
+        "unwrap",
+        help="Make whole, remove jumps and fit via ptmpsi.gromacs.analysis.post_process (gmx_mpi or gmx).",
+    )
+    p_unwrap.add_argument("-s", "--topology", required=True, help="Input GROMACS .tpr.")
     p_unwrap.add_argument("-f", "--trajectory", required=True, help="Input raw .xtc trajectory.")
-    p_unwrap.add_argument("-o", "--output", required=True, help="Output unwrapped .xtc path.")
+    p_unwrap.add_argument("-o", "--output-dir", required=True, help="Directory for the processed trajectory and .gro/.tpr.")
+    p_unwrap.add_argument("--group", default="Protein", help="gmx group written out (default Protein).")
+    p_unwrap.add_argument("--fit-group", type=int, default=4, help="gmx group index the fit uses (3 C-alpha, 4 Backbone; default 4).")
     p_unwrap.add_argument("--gmx", default=None, help="Explicit gmx or gmx_mpi binary.")
-    p_unwrap.add_argument("--fit-group", default=None, help="Optional trjconv -fit rot+trans group (e.g. Backbone).")
 
-    p_run = sub.add_parser("analyze", help="Run RMSD, mass-weighted RoG, RMSF, contact map, and mass-weighted PCA.")
+    p_run = sub.add_parser("analyze", help="Run the PTM-aware contact map and mass-weighted Cartesian PCA.")
     p_run.add_argument("-s", "--topology", required=True, help="GROMACS .tpr topology file.")
     p_run.add_argument("-f", "--trajectory", required=True, help="Unwrapped .xtc trajectory file.")
     p_run.add_argument("-o", "--output-dir", required=True, help="Directory for CSV, NPY, and PNG outputs.")
@@ -33,14 +37,18 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "unwrap":
-        out = unwrap_trajectory(
-            args.topology,
+        from ptmpsi.gromacs.analysis import post_process
+
+        outputs = post_process(
             args.trajectory,
-            args.output,
-            gmx=args.gmx,
+            args.topology,
+            prefix=args.output_dir,
+            group=args.group,
             fit_group=args.fit_group,
+            gmx=args.gmx,
         )
-        print(f"Wrote unwrapped trajectory: {out}")
+        for out in outputs:
+            print(f"Wrote processed trajectory: {out}")
         return 0
 
     u = load_universe(args.topology, args.trajectory)

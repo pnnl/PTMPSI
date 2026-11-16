@@ -1,12 +1,24 @@
+"""GROMACS trajectory post-processing for PTM-Psi runs.
+
+Each analysis calls the matching gmx tool (trjconv, rms, rmsf, gyrate, dssp, pairdist) on one or
+more trajectories and then summarizes the .xvg/.dat files in the output directory. The gmx
+program is gmx_mpi on cluster modules (Deception) and gmx elsewhere.
+
+PTM-Psi renames modified residues (SNC, CGL, CSO, ...). gmx only treats them as Protein when
+PTM-Psi's residuetypes.dat is in the working directory, so every function stages it there first.
+"""
+
+import contextlib
 import errno
 import os
-from collections import defaultdict
-import time
-import shutil  
-import psutil
+import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, as_completed
+
+_PACKAGED_RESIDUETYPES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "forcefield", "residuetypes.dat")
 
 def check_file_exists(filename, canbenone=False):
     #
@@ -29,108 +41,97 @@ def totab(result):
     return result.count("H") + result.count("E")
 
 
-def post_process(trajectories, structures, indices=None, prefix=None, suffix=None, interactive=False, maxprocs=90, group="Non-Water"):
-    __trajectories = trajectories if isinstance(trajectories, list) else [trajectories]
-    __structures   = structures   if isinstance(structures,   list) else [structures]
+def find_gmx(gmx=None):
+    """Return the gmx executable: gmx_mpi (cluster modules) if present, else gmx."""
+    if gmx:
+        found = shutil.which(gmx)
+        if found is None:
+            raise FileNotFoundError(f"GROMACS executable '{gmx}' was not found on PATH")
+        return found
+    for name in ("gmx_mpi", "gmx"):
+        found = shutil.which(name)
+        if found:
+            return found
+    raise FileNotFoundError("Neither 'gmx_mpi' nor 'gmx' is on PATH. Load the GROMACS module or install GROMACS")
 
-    # Special handling for indices list
-    if indices is None:
-        __indices = [None] * len(__trajectories)
-    else:
-        __indices = indices if isinstance(indices, list) else [indices]
-    #
-    # Check that lists have the same length
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-    #
-    # Total number of trajectories to convert
-    ntraj = len(__trajectories)
-    #
-    # Loop over all trajectories
-    outputs = []
-    for i in range(ntraj):
-        #
-        # Check that current set of files exists
-        trajectory, structure, index = __trajectories[i], __structures[i], __indices[i] 
-        check_file_exists(trajectory)
-        check_file_exists(structure)
-        check_file_exists(index, canbenone=True)
-        #
-        # All checks have passed
-        # Make sure the directory exists
-        if prefix:
-            os.makedirs(prefix, exist_ok=True)
 
-        # Now get the output filenames
-        base_output_name = os.path.splitext(os.path.basename(trajectory))[0]
-        output = os.path.join(prefix, base_output_name) if prefix else base_output_name
-        if suffix:
-            output += f"_{suffix}"
-        outputs.append(output)
+def _available_cpus():
+    try:
+        return len(os.sched_getaffinity(0))   # the cores this Slurm job was given
+    except AttributeError:
+        return os.cpu_count() or 1
 
-    #
-    # Run interactively
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical/nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-        #
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-        #
-        ### TODO: THIS IS PARTICULAR TO AQE, WE NEED TO GENERALIZE IT
-        #
-        commands = "source /anfhome/.profile "
-        commands += "&& module  load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx " 
-        commands += f"&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && " 
-        #
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids         = []
-            for j in range(__nprocs):
-                if i+j == ntraj: break
-                trajectory, structure, index, output = __trajectories[i+j], __structures[i+j], __indices[i+j], outputs[i+j] 
-                #
-                # Extract the desired group from the first from of the trajectory 
-                __commands = commands
-                __commands += f"echo {group} | gmx trjconv -dump 0 -f {trajectory} -s {structure} -o {output}.gro "
-                __commands += f"-n {index} && " if index is not None else "&& "
-                #
-                # Make the molecules in the desired group "Whole"
-                __commands += f"echo {group} | gmx trjconv -f {trajectory} -s {structure} -o {output}_whole.xtc -pbc whole "
-                __commands += f"-n {index} && " if index is not None else "&& "
-                #
-                
-                # Remove jumps
-                __commands += f"gmx trjconv -f {output}_whole.xtc -o {output}_whole_nojump.xtc -pbc nojump && "
-                #
-            
-                # Remove rotations and translations
-                __commands += f"echo 3 0 | gmx trjconv -f {output}_whole_nojump.xtc -o {output}_whole_nojump_fit.xtc -fit rot+trans -s {output}.gro && "
-                
-                # Generate new TPR file with desired group
-                __commands += f"echo '{group}' | gmx convert-tpr -s {structure} -o {output}_{group}.tpr "
-                __commands += f"-n {index}" if index is not None else ""
-                #
-                # Run subprocess and get current process id (PID)
-                subprocesses.append(subprocess.Popen(__commands, shell=True))
-                pids.append(subprocesses[-1].pid)
-                #
-                # Set CPU affinity to avoid oversubscription
-                p = psutil.Process(pids[-1])
-                p.cpu_affinity([j*nskip])
-                #
-                # Sleep 2 seconds
-                time.sleep(2)
-            #
-            # Wait for the current batch to finish
-            exit_codes = [p.wait() for p in subprocesses]
-    #
-    # Generate a SLURM file
-    else:
-        pass
-    return
+
+def _run(command, cwd, stdin=None):
+    result = subprocess.run(command, cwd=cwd, input=stdin or "", text=True, capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"{' '.join(command)} failed with exit code {result.returncode}:\n{result.stderr[-2000:]}")
+    return result
+
+
+def _run_all(tasks, maxprocs):
+    """Run callables concurrently and raise one error listing every failure."""
+    if not tasks:
+        return
+    errors = []
+    with ThreadPoolExecutor(max_workers=max(1, min(maxprocs, len(tasks), _available_cpus()))) as pool:
+        for future in [pool.submit(task) for task in tasks]:
+            try:
+                future.result()
+            except Exception as error:
+                errors.append(str(error))
+    if errors:
+        raise RuntimeError("\n".join(errors))
+
+
+@contextlib.contextmanager
+def _working_dir(path):
+    os.makedirs(path, exist_ok=True)
+    previous = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
+def _require_interactive(interactive, name):
+    if not interactive:
+        raise NotImplementedError(
+            f"{name}(interactive=False) was meant to write a Slurm script and never did. "
+            "Call it with interactive=True from inside a batch job (it runs gmx in this process)")
+
+
+def _reject_unknown(kwargs, name):
+    if kwargs:
+        raise TypeError(f"{name}() got unexpected keyword argument(s): {', '.join(sorted(kwargs))}")
+
+
+def _inputs(trajectory, structure, index):
+    trajectories = list(trajectory) if isinstance(trajectory, (list, tuple)) else [trajectory]
+    structures = list(structure) if isinstance(structure, (list, tuple)) else [structure]
+    indices = list(index) if isinstance(index, (list, tuple)) else [index] * len(trajectories)
+    if not (len(trajectories) == len(structures) == len(indices)):
+        raise ValueError("trajectory, structure and index must have the same number of entries")
+    for t, s, n in zip(trajectories, structures, indices):
+        check_file_exists(t)
+        check_file_exists(s)
+        check_file_exists(n, canbenone=True)
+    absolute = lambda p: None if p is None else os.path.abspath(p)
+    return [absolute(p) for p in trajectories], [absolute(p) for p in structures], [absolute(p) for p in indices]
+
+
+def _labels(trajectories):
+    """Name each output after the folder holding its trajectory (0001, 0002, ...)."""
+    labels = [os.path.basename(os.path.dirname(t)) for t in trajectories]
+    if len(set(labels)) != len(labels) or "" in labels:
+        labels = [f"{i:04d}" for i in range(len(trajectories))]
+    return labels
+
+
+def _index_args(index):
+    return ["-n", index] if index is not None else []
+
 
 def process_dssp(datfile, trajectory, ref=0, doss="all"):
     """
@@ -156,7 +157,7 @@ def process_dssp(datfile, trajectory, ref=0, doss="all"):
     
     results = []
     for i in range(0, ntraj):
-        basename = __datfiles[i].strip("_dssp.dat")
+        basename = __datfiles[i][:-len("_dssp.dat")] if __datfiles[i].endswith("_dssp.dat") else __datfiles[i]
         with open(__datfiles[i], "r") as fh:
             lines = [x for x in (line.strip() for line in fh) if x]
         nchars    = len(lines[0])
@@ -262,7 +263,7 @@ def process_dssp(datfile, trajectory, ref=0, doss="all"):
         sdiff.write("\n")
     delspec.close()
     sdiff.close()
-    
+
 def construct_residue_path(file_path):
     """
     Remove 'postprocess' and the last two parts of the path, and append 'residuetypes.dat'.
@@ -282,25 +283,25 @@ def construct_residue_path(file_path):
     
     return residue_path
 
-def add_residue_file(file_path):
-    """
-    Add 'residuetypes.dat' to the working directory if itz doesn't exist.
-    """
-    # Construct the path where 'residuetypes.dat' should be
-    residue_path = construct_residue_path(fzile_path)
-    print("residue path is:", residue_path)
+def add_residue_file(file_path=None, destination=None):
+    """Copy residuetypes.dat into `destination` (default: the working directory) if it is not there.
 
-    # Check if the file already exists
-    working_dir = os.getcwd()
-    parent_dir = os.path.dirname(working_dir) 
-    destination_path = os.path.join(parent_dir, 'residuetypes.dat')
-    if not os.path.exists(destination_path):
-        # If not, copy it from the source path to working directory
-        print(residue_path)
-        shutil.copy(residue_path, working_dir)
-        print("copied")
-    else:
-        print(f"'{residue_path}' already exists. Nothing to do.")
+    The copy next to the run (see construct_residue_path) wins, because gen_ptm_files put it there;
+    the copy shipped with PTM-Psi is the fallback.
+    """
+    target = os.path.join(destination or os.getcwd(), "residuetypes.dat")
+    if os.path.exists(target):
+        return target
+    candidates = []
+    if file_path is not None:
+        candidates.append(construct_residue_path(os.path.abspath(file_path)))
+    candidates.append(_PACKAGED_RESIDUETYPES)
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            shutil.copy(candidate, target)
+            return target
+    raise FileNotFoundError(errno.ENOENT, "residuetypes.dat was not found", ", ".join(candidates))
+
 
 def extract_nested_directory(file_path):
     """
@@ -322,111 +323,67 @@ def extract_nested_directory(file_path):
     
     return nested_dir_int
 
-def dssp(trajectory, structure, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
-    """
-    Takes a trajectory file, or a list of trajectories, alongside their structure files (tpr)
-    to run the dssp analysis in GROMACS.
 
-    The script can be run in interactive mode, or it can be made to output a SLURM script to
-    submit to a queue (TODO).
+def post_process(trajectories, structures, indices=None, prefix=None, suffix=None, interactive=True, maxprocs=90,
+                 group="Non-Water", **kwargs):
+    """Make `group` whole, remove periodic jumps and fit it, for each trajectory.
 
-    By default, maxprocs processes are started at the same time.
+    Writes <output>.gro (frame 0), <output>_whole.xtc, <output>_whole_nojump.xtc,
+    <output>_whole_nojump_fit.xtc and <output>_<group>.tpr, where <output> is the trajectory name
+    inside `prefix` (plus _<suffix>). Returns the fitted trajectories. `fit_group` is the gmx group
+    the fit uses (default 3, C-alpha).
     """
-    add_residue_file(trajectory)
-    print("1) working directory is", os.getcwd()) 
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
-        
-    original_directory= os.getcwd()
-    os.chdir(output_dir)
-    
-    
-    add_residue_file(trajectory)
-    print("2) working directory is", os.getcwd()) 
-    
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    print(__trajectories)
-    __structures   = structure  if isinstance(structure,  list) else [structure]
-    __indices      = index      if isinstance(index,      list) else [index]
-    #
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-    #
-    ntraj = len(__trajectories)
-    #
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-    #
+    _require_interactive(interactive, "post_process")
+    fit_group = kwargs.pop("fit_group", 3)
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    _reject_unknown(kwargs, "post_process")
+    trajectories, structures, indices = _inputs(trajectories, structures, indices)
+    workdir = os.path.abspath(prefix) if prefix else os.getcwd()
+    os.makedirs(workdir, exist_ok=True)
+    outputs = []
+    for trajectory in trajectories:
+        output = os.path.join(workdir, os.path.splitext(os.path.basename(trajectory))[0])
+        outputs.append(output + (f"_{suffix}" if suffix else ""))
+    add_residue_file(trajectories[0], destination=workdir)
+
+    def one(trajectory, structure, index, output):
+        n = _index_args(index)
+        _run([gmx, "trjconv", "-dump", "0", "-f", trajectory, "-s", structure, "-o", f"{output}.gro", *n], workdir, f"{group}\n")
+        _run([gmx, "trjconv", "-f", trajectory, "-s", structure, "-o", f"{output}_whole.xtc", "-pbc", "whole", *n], workdir, f"{group}\n")
+        _run([gmx, "trjconv", "-f", f"{output}_whole.xtc", "-o", f"{output}_whole_nojump.xtc", "-pbc", "nojump"], workdir, "0\n")
+        _run([gmx, "trjconv", "-f", f"{output}_whole_nojump.xtc", "-o", f"{output}_whole_nojump_fit.xtc",
+              "-fit", "rot+trans", "-s", f"{output}.gro"], workdir, f"{fit_group}\n0\n")
+        _run([gmx, "convert-tpr", "-s", structure, "-o", f"{output}_{group}.tpr", *n], workdir, f"{group}\n")
+
+    _run_all([partial(one, t, s, n, o) for t, s, n, o in zip(trajectories, structures, indices, outputs)], maxprocs)
+    return [f"{output}_whole_nojump_fit.xtc" for output in outputs]
+
+
+def dssp(trajectory, structure, output_dir, index=None, interactive=True, maxprocs=90, **kwargs):
+    """Run gmx dssp on each trajectory, then summarize with process_dssp.
+
+    Outputs <folder>_dssp.dat in `output_dir`, where <folder> is the folder holding the trajectory, and
+    returns their paths.
+    `hmode`, `hbond`, `ref` and `doss` are passed on as before.
+    """
+    _require_interactive(interactive, "dssp")
     hmode = kwargs.pop("hmode", "gromacs")
     hbond = kwargs.pop("hbond", "energy")
-    ref   = kwargs.pop("ref", 0)
-    doss  = kwargs.pop("doss", "all")
-            
-    # All checks have passed
-    if interactive:
-        import psutil
-        import subprocess
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical/nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-    
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-        #
-        datfiles = []
-        # Run DSSP on all trajectories
-        commands = "source /anfhome/.profile "
-        commands += "&& module  load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx " 
-        commands += f"&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && gmx dssp -hmode {hmode} -hbond {hbond} -f " 
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids         = []
-            for j in range(__nprocs):
-                if i+j == ntraj: break
-                basename = os.path.basename(os.path.dirname(__trajectories[i + j]))
-                _commands = commands
-                _commands += f"{__trajectories[i+j]} -s {__structures[i+j]} -o {basename}_dssp.dat"
-                if __indices[i+j] is not None: 
-                    _commands += "-n {__indices[i+j]}"
-                datfiles.append(f"{basename}_dssp.dat")
-                subprocesses.append(subprocess.Popen(_commands, shell=True, cwd=output_dir))
-                pids.append(subprocesses[-1].pid)
-                p = psutil.Process(pids[-1])
-                p.cpu_affinity([j*nskip])
-                time.sleep(2)
-            exit_codes = [p.wait() for p in subprocesses]
-        #
-        # Process the Data
-        #
-        process_dssp(datfiles, trajectory, ref=ref, doss=doss)
-        os.chdir(original_directory)
-    else:
-        """
-        TODO
-        """
-        pass
+    ref = kwargs.pop("ref", 0)
+    doss = kwargs.pop("doss", "all")
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    _reject_unknown(kwargs, "dssp")
+    trajectories, structures, indices = _inputs(trajectory, structure, index)
+    labels = _labels(trajectories)
+    output_dir = os.path.abspath(output_dir)
+    with _working_dir(output_dir):
+        add_residue_file(trajectories[0])
+        datfiles = [f"{label}_dssp.dat" for label in labels]
+        _run_all([partial(_run, [gmx, "dssp", "-hmode", hmode, "-hbond", hbond, "-f", t, "-s", s, "-o", out, *_index_args(n)], output_dir)
+                  for t, s, n, out in zip(trajectories, structures, indices, datfiles)], maxprocs)
+        process_dssp(datfiles, trajectories, ref=ref, doss=doss)
+    return [os.path.join(output_dir, f) for f in datfiles]
 
-def check_file_exists(filename, canbenone=False):
-    if filename is None:
-        if canbenone:
-            return
-        else:
-            raise KeyError("filename cannot be None")
-    if not os.path.isfile(filename):
-        raise FileNotFoundError(f"File not found: {filename}")
-    return
 
 def process_rmsd(result_files, reference_file):
     ref_rmsd = []
@@ -469,233 +426,27 @@ def process_rmsd(result_files, reference_file):
     delspec.close()
     rms_diff.close()
 
-def rmsd(trajectory, structure, output_dir, group=4, index=None, interactive=False ,maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
+def rmsd(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+    """gmx rms of `group` (default 4, Backbone) against the structure, fitted on `group`.
 
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-
-    ntraj = len(__trajectories)
-
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-
+    Writes <folder>_rmsd.xvg per trajectory plus DELSPEC_rmsd.out and RESULT_rmsDiffRES.out, which
+    compare each case with trajectory number `ref` (default 0).
+    """
+    _require_interactive(interactive, "rmsd")
     ref = kwargs.pop("ref", 0)
-
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical / nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-
-        result_files = []
-        commands = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-        )
-
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids = []
-            for j in range(__nprocs):
-                if i + j == ntraj:
-                    break
-                _commands = commands
-                _commands += f"echo {group} 4 | gmx rms -s {__structures[i + j]} -f {__trajectories[i + j]} -o {i + j:04d}_rmsd.xvg"
-                if __indices[i + j] is not None:
-                    _commands += f" -n {__indices[i + j]}"
-                output_file = f"{i + j:04d}_rmsd.xvg"
-                print(f"Executing command: {_commands}")
-                print(f"Output file will be saved at: {os.path.join(output_dir, output_file)}")
-                result_files.append(output_file)
-                subprocesses.append(subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-                pids.append(subprocesses[-1].pid)
-                p = psutil.Process(pids[-1])
-                p.cpu_affinity([j * nskip])
-                time.sleep(2)
-            exit_codes = [p.wait() for p in subprocesses]
-            for ex in exit_codes:
-                print(f"Process exited with code: {ex}")
-                if ex != 0:
-                    print(f"Command failed for file {result_files[exit_codes.index(ex)]}, checking logs...")
-                    stdout, stderr = subprocesses[exit_codes.index(ex)].communicate()
-                    print(f"stdout: {stdout.decode()}")
-                    print(f"stderr: {stderr.decode()}")
-
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    _reject_unknown(kwargs, "rmsd")
+    trajectories, structures, indices = _inputs(trajectory, structure, index)
+    labels = _labels(trajectories)
+    output_dir = os.path.abspath(output_dir)
+    with _working_dir(output_dir):
+        add_residue_file(trajectories[0])
+        result_files = [f"{label}_rmsd.xvg" for label in labels]
+        _run_all([partial(_run, [gmx, "rms", "-s", s, "-f", t, "-o", out, *_index_args(n)], output_dir, f"{group} 4\n")
+                  for t, s, n, out in zip(trajectories, structures, indices, result_files)], maxprocs)
         process_rmsd(result_files, result_files[ref])
-        os.chdir(original_directory)
-        print("3) Changed back to original directory:", os.getcwd())
-    else:
-        """
-        TODO
-        """
-        pass
+    return [os.path.join(output_dir, f) for f in result_files]
 
-def check_file_exists(filename, canbenone=False):
-    if filename is None:
-        if canbenone:
-            return
-        else:
-            raise KeyError("filename cannot be None")
-    if not os.path.isfile(filename):
-        raise FileNotFoundError(f"File not found: {filename}")
-    return
-
-def process_rmsd(result_files, reference_file):
-    ref_rmsd = []
-    if not os.path.exists(reference_file):
-        raise FileNotFoundError(f"Reference file {reference_file} not found.")
-    
-    with open(reference_file, "r") as ref:
-        for line in ref:
-            if not line.startswith("@") and not line.startswith("#"):
-                ref_rmsd.append(float(line.split()[1]))
-
-    delspec = open("DELSPEC_rmsd.out", "w")
-    rms_diff = open("RESULT_rmsDiffRES.out", "w")
-
-    delspec.write("Case   RMSD Total     Delta\n")
-    rms_diff.write(" Case   ")
-
-    for i, result_file in enumerate(result_files):
-        if not os.path.exists(result_file):
-            print(f"Warning: Result file {result_file} not found. Skipping.")
-            continue
-
-        rmsd_values = []
-        with open(result_file, "r") as rf:
-            for line in rf:
-                if not line.startswith("@") and not line.startswith("#"):
-                    rmsd_values.append(float(line.split()[1]))
-
-        total_rmsd = sum(rmsd_values)
-        ref_total_rmsd = sum(ref_rmsd)
-        delta = total_rmsd - ref_total_rmsd
-
-        delspec.write(f"{i:04d}   {total_rmsd:10.4f}     {delta:+10.4f}\n")
-
-        rms_diff.write(f"{i:04d} ")
-        for val in rmsd_values:
-            rms_diff.write(f"{val:8.4f} ")
-        rms_diff.write("\n")
-
-    delspec.close()
-    rms_diff.close()
-
-def rmsd(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
-
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-
-    ntraj = len(__trajectories)
-
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-
-    ref = kwargs.pop("ref", 0)
-
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical / nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-
-        result_files = []
-        commands = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-        )
-
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids = []
-            for j in range(__nprocs):
-                if i + j == ntraj:
-                    break
-                basename = os.path.basename(os.path.dirname(__trajectories[i + j]))
-                print(basename)
-                _commands = commands
-                _commands += f"echo {group} 4 | gmx rms -s {__structures[i + j]} -f {__trajectories[i + j]} -o {basename}_rmsd.xvg"
-
-                if __indices[i + j] is not None:
-                    _commands += f" -n {__indices[i + j]}"
-                output_file = f"{basename}_rmsd.xvg"
-                print(f"Executing command: {_commands}")
-                print(f"Output file will be saved at: {os.path.join(output_dir, output_file)}")
-                result_files.append(output_file)
-                subprocesses.append(subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-                pids.append(subprocesses[-1].pid)
-                p = psutil.Process(pids[-1])
-                p.cpu_affinity([j * nskip])
-                time.sleep(2)
-            exit_codes = [p.wait() for p in subprocesses]
-            for ex in exit_codes:
-                print(f"Process exited with code: {ex}")
-                if ex != 0:
-                    print(f"Command failed for file {result_files[exit_codes.index(ex)]}, checking logs...")
-                    stdout, stderr = subprocesses[exit_codes.index(ex)].communicate()
-                    print(f"stdout: {stdout.decode()}")
-                    print(f"stderr: {stderr.decode()}")
-
-        process_rmsd(result_files, result_files[ref])
-        os.chdir(original_directory)
-        print("3) Changed back to original directory:", os.getcwd())
-    else:
-        """
-        TODO
-        """
-        pass
 
 def process_rmsf(result_files):
     delspec = open("DELSPEC_rmsf.out", "w")
@@ -727,92 +478,27 @@ def process_rmsf(result_files):
     delspec.close()
     rms_diff.close()
 
-def rmsf(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
+def rmsf(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+    """gmx rmsf per residue of `group` (default 4, Backbone), fitted on `group`.
 
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-
-    ntraj = len(__trajectories)
-
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical / nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-
-        result_files = []
-        commands = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-        )
-
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids = []
-            for j in range(__nprocs):
-                if i + j == ntraj:
-                    break
-                basename = os.path.basename(os.path.dirname(__trajectories[i + j]))
-                _commands = commands
-                _commands += f"echo {group} 4 | gmx rmsf -f {__trajectories[i + j]} -s {__structures[i + j]} -o {basename}_rmsf.xvg -res -oq {basename}_bfactors.pdb -fit"
-                if __indices[i + j] is not None:
-                    _commands += f" -n {__indices[i + j]}"
-                rmsf_file = f"{basename}_rmsf.xvg"
-                bfactors_file = f"{basename}_bfactors.pdb"
-                print(f"Executing command: {_commands}")
-                print(f"Output files will be saved at: {os.path.join(output_dir, rmsf_file)} and {os.path.join(output_dir, bfactors_file)}")
-                result_files.append((rmsf_file, bfactors_file))
-                subprocesses.append(subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-                pids.append(subprocesses[-1].pid)
-                p = psutil.Process(pids[-1])
-                p.cpu_affinity([j * nskip])
-                time.sleep(2)
-            exit_codes = [p.wait() for p in subprocesses]
-            for ex in exit_codes:
-                print(f"Process exited with code: {ex}")
-                if ex != 0:
-                    print(f"Command failed for files {result_files[exit_codes.index(ex)]}, checking logs...")
-                    stdout, stderr = subprocesses[exit_codes.index(ex)].communicate()
-                    print(f"stdout: {stdout.decode()}")
-                    print(f"stderr: {stderr.decode()}")
-
+    Writes <folder>_rmsf.xvg and <folder>_bfactors.pdb per trajectory plus DELSPEC_rmsf.out and
+    RESULT_rmsfDiffRES.out.
+    """
+    _require_interactive(interactive, "rmsf")
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    _reject_unknown(kwargs, "rmsf")
+    trajectories, structures, indices = _inputs(trajectory, structure, index)
+    labels = _labels(trajectories)
+    output_dir = os.path.abspath(output_dir)
+    with _working_dir(output_dir):
+        add_residue_file(trajectories[0])
+        result_files = [(f"{label}_rmsf.xvg", f"{label}_bfactors.pdb") for label in labels]
+        _run_all([partial(_run, [gmx, "rmsf", "-f", t, "-s", s, "-o", xvg, "-res", "-oq", pdb, "-fit", *_index_args(n)],
+                          output_dir, f"{group} 4\n")
+                  for t, s, n, (xvg, pdb) in zip(trajectories, structures, indices, result_files)], maxprocs)
         process_rmsf(result_files)
-        os.chdir(original_directory)
-        print("3) Changed back to original directory:", os.getcwd())
-    else:
-        """
-        TODO
-        """
-        pass
+    return [(os.path.join(output_dir, xvg), os.path.join(output_dir, pdb)) for xvg, pdb in result_files]
+
 
 def process_gyration(result_files):
     delspec = open("DELSPEC_gyration.out", "w")
@@ -844,408 +530,89 @@ def process_gyration(result_files):
     delspec.close()
     gyr_diff.close()
 
-def gyration(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
+def gyration(trajectory, structure, output_dir, index=None, group=4, interactive=True, maxprocs=90, **kwargs):
+    """gmx gyrate (mass-weighted radius of gyration) of `group` (default 4, Backbone).
 
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-
-    ntraj = len(__trajectories)
-
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical / nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-
-        result_files = []
-        commands = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-        )
-
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids = []
-            for j in range(__nprocs):
-                if i + j == ntraj:
-                    break
-                
-                # Extract the directory name based on the trajectory
-                basename_index = os.path.basename(os.path.dirname(__trajectories[i + j]))
-
-                _commands = commands
-                _commands += f"echo {group} | gmx gyrate -f {__trajectories[i + j]} -s {__structures[i + j]} -o {basename_index}_radgyr.xvg"
-                
-                
-                if __indices[i + j] is not None:
-                    _commands += f" -n {__indices[i + j]}"
-                
-                gyr_file = f"{basename_index}_radgyr.xvg"
-
-                print(f"Executing command: {_commands}")
-                print(f"Output file will be saved at: {os.path.join(output_dir, gyr_file)}")
-
-                result_files.append(gyr_file)
-
-                process = subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                subprocesses.append(process)
-                pids.append(process.pid)
-
-                # Set CPU affinity to avoid oversubscription
-                p = psutil.Process(process.pid)
-                p.cpu_affinity([j * nskip])
-
-                # Sleep for 2 seconds to stagger commands
-                time.sleep(2)
-            
-            # Wait for the current batch of subprocesses to finish
-            exit_codes = [p.wait() for p in subprocesses]
-
-            for ex in exit_codes:
-                print(f"Process exited with code: {ex}")
-                if ex != 0:
-                    idx = exit_codes.index(ex)
-                    process = subprocesses[idx]
-                    stdout, stderr = process.communicate()
-                    print(f"Command failed for file {result_files[idx]}, checking logs...")
-                    print(f"stdout: {stdout.decode()}")
-                    print(f"stderr: {stderr.decode()}")
-        
+    Writes <folder>_radgyr.xvg per trajectory plus DELSPEC_gyration.out and RESULT_gyrationDiffRES.out.
+    Pass group=1 for the whole protein.
+    """
+    _require_interactive(interactive, "gyration")
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    _reject_unknown(kwargs, "gyration")
+    trajectories, structures, indices = _inputs(trajectory, structure, index)
+    labels = _labels(trajectories)
+    output_dir = os.path.abspath(output_dir)
+    with _working_dir(output_dir):
+        add_residue_file(trajectories[0])
+        result_files = [f"{label}_radgyr.xvg" for label in labels]
+        _run_all([partial(_run, [gmx, "gyrate", "-f", t, "-s", s, "-o", out, *_index_args(n)], output_dir, f"{group}\n")
+                  for t, s, n, out in zip(trajectories, structures, indices, result_files)], maxprocs)
         process_gyration(result_files)
-        os.chdir(original_directory)
-        print("3) Changed back to original directory:", os.getcwd())
-    else:
-        """
-        TODO
-        """
-        pass
-        
-def process_gyration(result_files):
-    delspec = open("DELSPEC_gyration.out", "w")
-    gyr_diff = open("RESULT_gyrationDiffRES.out", "w")
-
-    delspec.write("Case   Gyration Total\n")
-    gyr_diff.write(" Case   ")
-
-    for i, gyr_file in enumerate(result_files):
-        if not os.path.exists(gyr_file):
-            print(f"Warning: Gyration file {gyr_file} not found. Skipping.")
-            continue
-
-        gyr_values = []
-        with open(gyr_file, "r") as gf:
-            for line in gf:
-                if not line.startswith("@") and not line.startswith("#"):
-                    gyr_values.append(float(line.split()[1]))
-
-        total_gyr = sum(gyr_values)
-
-        delspec.write(f"{i:04d}   {total_gyr:10.4f}\n")
-
-        gyr_diff.write(f"{i:04d} ")
-        for val in gyr_values:
-            gyr_diff.write(f"{val:8.4f} ")
-        gyr_diff.write("\n")
-
-    delspec.close()
-    gyr_diff.close()
-
-def gyration(trajectory, structure, output_dir, index=None, group=4, interactive=False, maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
-
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-
-    assert(len(__trajectories) == len(__structures))
-    assert(len(__trajectories) == len(__indices))
-
-    ntraj = len(__trajectories)
-
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-
-    if interactive:
-        nprocs    = psutil.cpu_count(logical=False)
-        nlogical  = psutil.cpu_count()
-        nskip     = int(nlogical / nprocs)
-        __nprocs  = min(maxprocs, nprocs)
-
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {__nprocs} CPUs at the same time")
-
-        result_files = []
-        commands = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-        )
-
-        for i in range(0, ntraj, __nprocs):
-            subprocesses = []
-            pids = []
-            for j in range(__nprocs):
-                if i + j == ntraj:
-                    break
-                
-                # Extract the directory name based on the trajectory
-                basename_index = os.path.basename(os.path.dirname(__trajectories[i + j]))
-
-                _commands = commands
-                _commands += f"echo {group} | gmx gyrate -f {__trajectories[i + j]} -s {__structures[i + j]} -o {basename_index}_radgyr.xvg"
-                
-                if __indices[i + j] is not None:
-                    _commands += f" -n {__indices[i + j]}"
-                
-                gyr_file = f"{basename_index}_radgyr.xvg"
-
-                print(f"Executing command: {_commands}")
-                print(f"Output file will be saved at: {os.path.join(output_dir, gyr_file)}")
-
-                result_files.append(gyr_file)
-
-                process = subprocess.Popen(_commands, shell=True, cwd=output_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                subprocesses.append(process)
-                pids.append(process.pid)
-
-                # Set CPU affinity to avoid oversubscription
-                p = psutil.Process(process.pid)
-                p.cpu_affinity([j * nskip])
-
-                # Sleep for 2 seconds to stagger commands
-                time.sleep(2)
-            
-            # Wait for the current batch of subprocesses to finish
-            exit_codes = [p.wait() for p in subprocesses]
-
-            for ex in exit_codes:
-                print(f"Process exited with code: {ex}")
-                if ex != 0:
-                    idx = exit_codes.index(ex)
-                    process = subprocesses[idx]
-                    stdout, stderr = process.communicate()
-                    print(f"Command failed for file {result_files[idx]}, checking logs...")
-                    print(f"stdout: {stdout.decode()}")
-                    print(f"stderr: {stderr.decode()}")
-        
-        process_gyration(result_files)
-        os.chdir(original_directory)
-        print("3) Changed back to original directory:", os.getcwd())
+    return [os.path.join(output_dir, f) for f in result_files]
 
 
-def run_commands(i, j, begin, end, trajectory_path, structure_path, index_path, output_dir, commands_base):
-    basename_index = os.path.basename(os.path.dirname(trajectory_path))
-    contact_file = f"{basename_index}_dist_{begin}.xvg"
-    output_file = os.path.join(output_dir, contact_file)
-    command = commands_base.format(
-        trajectory=trajectory_path,
-        structure=structure_path,
-        begin=begin,
-        end=end,
-        output_file=output_file
-    )
-    if index_path is not None:
-        command += f" -n {index_path}"
-    
-    print(f"Executing command: {command}")
-    print(f"Output file will be saved at: {output_file}")
-    
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=output_dir)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        print(f"Error in processing {contact_file}. Command failed")
-        print(f"stdout: {stdout.decode()}")
-        print(f"stderr: {stderr.decode()}")
-    return output_file
+def process_contact(contact_files, contact_cutoff=0.5):
+    """Turn gmx pairdist files (time, then one minimum distance in nm per residue pair) into contact fractions.
 
-def contact_map(trajectory, structure, md_file, output_dir, index=None, interactive=False, maxprocs=90, **kwargs):
-    print("1) Initial working directory is:", os.getcwd())
-    if not os.path.exists(output_dir):
-        print(f"Directory {output_dir} does not exist. Creating it now.")
-        try:
-            os.makedirs(output_dir)
-            print(f"Directory {output_dir} created successfully.")
-        except OSError as e:
-            print(f"Failed to create {output_dir}. Error: {e}")
-            raise
-    else:
-        print(f"Directory {output_dir} already exists.")
-    print(f"Changing to output directory: {output_dir}")
-    original_directory = os.getcwd()
-    os.chdir(output_dir)
-    print("2) Current working directory is:", os.getcwd())
-    __trajectories = trajectory if isinstance(trajectory, list) else [trajectory]
-    __structures   = structure  if isinstance(structure, list) else [structure]
-    __indices      = index      if isinstance(index, list) else [index]
-    ntraj = len(__trajectories)
-    for i in range(ntraj):
-        check_file_exists(__trajectories[i])
-        check_file_exists(__structures[i])
-        if __indices[i] is not None:
-            check_file_exists(__indices[i])
-    if interactive:
-        nprocs    = min(psutil.cpu_count(logical=False), maxprocs)
-        nlogical  = psutil.cpu_count()
-        nskip     = max(1, int(nlogical / nprocs))
+    The fraction is the share of frames in which a residue pair is closer than `contact_cutoff` nm.
+    Each file gets <name>_fraction.dat and <name>_fraction.png. Returns one matrix per file.
+    """
+    from matplotlib.figure import Figure
 
-        print(f"Found {nprocs} physical CPUs available")
-        print(f"Will use {nprocs} CPUs at the same time")
-        
-        result_files = []
-
-        commands_base = (
-            "source /anfhome/.profile && module load gcc/13.2.0 intel-oneapi-mkl/2023.2.0/gcc13.2.0-hpcx_mpi-ddupx "
-            "&& source /anfhome/shared/qipd/gromacs/bin/GMXRC && "
-            "gmx pairdist -f {trajectory} -s {structure} -b {begin} -e {end} -refgrouping res -selgrouping res "
-            "-ref 0 -sel 0 -o {output_file} -cutoff 1.0 -dt 500"
-        )
-
-        with ProcessPoolExecutor(max_workers=nprocs) as executor:
-            futures = []
-            for i in range(ntraj):
-                num_frames = 0
-                total_frames = 3000
-                while num_frames < total_frames:
-                    begin, end = num_frames, num_frames + 1000
-                    futures.append(executor.submit(
-                        run_commands, i, 0, begin, end, __trajectories[i],
-                        __structures[i], __indices[i], output_dir, commands_base
-                    ))
-                    num_frames += 1000
-
-            for future in as_completed(futures):
-                result_file = future.result()
-                if result_file:
-                    result_files.append(result_file)
-
-        process_contact(result_files)
-         
-    os.chdir(original_directory)
-    print("3) Changed back to original directory:", os.getcwd())
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-def process_contact(contact_files):
-    # Create a list to store the contact matrices for each contact file
     matrices = []
-    print("Processing contact files")
-    
-    # Process each contact file
     for contact_file in contact_files:
-        with open(contact_file, 'r', encoding='latin-1') as file:
-            # Skip the first 24 lines; adjust if necessary based on comment lines
-            lines = file.readlines()[24:]
-            if not lines:
-                print(f"No data available in file: {contact_file}")
-                continue
-            
-            # Assuming all lines have the same number of entries based on the first line
-            first_line = lines[0]
-            parts = first_line.split()
-            
-            # Calculate nres as the square root of the number of entries, rounded down
-            nres = int(np.floor(np.sqrt(len(parts))))
-            
-            # Create a zero matrix of dimensions nres x nres
-            contact_matrix = np.zeros((nres, nres))
-            
-            # Accumulate matrix information from each line
-            for line in lines:
-                parts = [float(entry) for entry in line.split()]
-                
-                if len(parts) < nres * nres:
-                    # Adjust nres in cases of non-square number of parts
-                    print(f"Skipping line due to insufficient data: {line}")
-                    continue
-                
-                index = 0
-                for i in range(nres):
-                    for j in range(nres):
-                        if index < len(parts) and parts[index] > 0.5:
-                            contact_matrix[i, j] += 1
-                        index += 1
-            
-            # Store the contact matrix for each file
-            matrices.append(contact_matrix)
-    
-    if not matrices:
-        print("No valid data matrices found.")
-        return 
+        rows = []
+        with open(contact_file, "r", encoding="latin-1") as fh:
+            for line in fh:
+                if line.strip() and not line.startswith(("#", "@")):
+                    rows.append(np.array(line.split()[1:], dtype=float))   # drop the time column
+        if not rows:
+            print(f"No data available in file: {contact_file}")
+            continue
+        data = np.vstack(rows)
+        nres = int(round(np.sqrt(data.shape[1])))
+        if nres * nres != data.shape[1]:
+            raise ValueError(f"{contact_file}: {data.shape[1]} distances per frame is not a square number of residue pairs")
+        fraction = (data < contact_cutoff).mean(axis=0).reshape(nres, nres)
+        stem = os.path.splitext(contact_file)[0]
+        np.savetxt(f"{stem}_fraction.dat", fraction, fmt="%.4f")
+        fig = Figure(figsize=(8, 6.5))
+        ax = fig.subplots()
+        image = ax.imshow(fraction, cmap="Greens", vmin=0.0, vmax=1.0, interpolation="nearest")
+        fig.colorbar(image, ax=ax, label=f"Fraction of frames closer than {contact_cutoff:g} nm")
+        ax.set_xlabel("Residue index")
+        ax.set_ylabel("Residue index")
+        fig.savefig(f"{stem}_fraction.png", dpi=150)
+        matrices.append(fraction)
+    return matrices
 
-    # Calculate the average contact matrix
-    cumulative_matrix = sum(matrices)
-    average_contact_matrix = cumulative_matrix / len(matrices)
-    
-    # Plotting the heatmap
-    plt.figure(figsize=(10, 8))
-    plt.imshow(average_contact_matrix, cmap='Greens', interpolation='nearest')
-    
-    # Add a color bar with key
-    plt.colorbar(label='Fraction of Close Contact')
-    
-    # Annotate the axes
-    plt.xlabel('Residue Index (Columns)')
-    plt.ylabel('Residue Index (Rows)')
-    plt.title('Fraction of Close Contact for Residues')
-    
-    # Show the plot
-    plt.show()
 
-# Example usage:
-# process_contact(["contact_file1.txt", "contact_file2.txt", "contact_file3.txt"])
+def contact_map(trajectory, structure, md_file, output_dir, index=None, interactive=True, maxprocs=90, **kwargs):
+    """Residue-residue contact fractions from gmx pairdist, one matrix per trajectory.
 
-#for bash script
-if __name__ == "__main__":
-    # Example usage
-    trajectory = "/path/to/your/trajectory/whole_nojump_fit.xtc"
-    structure = "/path/to/your/structure/protein.tpr"
-    output_dir = "/path/to/your/output/directory"
-    contact_map([trajectory], [structure], output_dir)
+    `md_file` is not used. Before, three fixed 1000 ps windows were run; now the whole trajectory is. Keyword arguments: `dt` (ps between frames, default 500; None uses every
+    frame), `begin` and `end` (ps, default the whole trajectory), `selection` (gmx selection,
+    default "all", e.g. 'group "Protein"' for a solvated run) and `contact_cutoff` (nm, default 0.5).
+    """
+    _require_interactive(interactive, "contact_map")
+    dt = kwargs.pop("dt", 500)
+    begin = kwargs.pop("begin", None)
+    end = kwargs.pop("end", None)
+    selection = kwargs.pop("selection", "all")
+    contact_cutoff = kwargs.pop("contact_cutoff", 0.5)
+    gmx = find_gmx(kwargs.pop("gmx", None))
+    if kwargs.pop("start_residue", None) is not None or kwargs.pop("end_residue", None) is not None:
+        raise NotImplementedError("contact_map no longer takes start_residue/end_residue; pass a gmx `selection` instead")
+    _reject_unknown(kwargs, "contact_map")
+    trajectories, structures, indices = _inputs(trajectory, structure, index)
+    labels = _labels(trajectories)
+    output_dir = os.path.abspath(output_dir)
+    window = (["-dt", str(dt)] if dt else []) + (["-b", str(begin)] if begin is not None else []) + (["-e", str(end)] if end is not None else [])
+    with _working_dir(output_dir):
+        add_residue_file(trajectories[0])
+        result_files = [f"{label}_dist.xvg" for label in labels]
+        _run_all([partial(_run, [gmx, "pairdist", "-f", t, "-s", s, "-refgrouping", "res", "-selgrouping", "res",
+                                 "-ref", selection, "-sel", selection, "-cutoff", str(max(1.0, contact_cutoff)),
+                                 "-o", out, *window, *_index_args(n)], output_dir)
+                  for t, s, n, out in zip(trajectories, structures, indices, result_files)], maxprocs)
+        return process_contact(result_files, contact_cutoff=contact_cutoff)

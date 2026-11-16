@@ -1,4 +1,4 @@
-"""PTM-Psi trajectory preprocessing and MDAnalysis structural analysis tools."""
+"""PTM-aware MDAnalysis tools for PTM-Psi runs. GROMACS-based analyses live in ptmpsi.gromacs.analysis."""
 
 from .trajectory import (
     COFACTOR_RESNAMES,
@@ -10,19 +10,13 @@ from .trajectory import (
     compute_cartesian_pca,
     compute_contact_map,
     compute_joint_cartesian_pca,
-    compute_rmsd,
-    compute_rmsf,
-    compute_rog,
     contact_difference_map,
-    ensure_residuetypes_dat,
-    find_gmx,
     find_ptm_residues,
     get_ptmpsi_residue_sets,
     load_universe,
     protein_selection_str,
     save_standard_report,
     select_protein,
-    unwrap_trajectory,
 )
 
 __all__ = [
@@ -35,17 +29,11 @@ __all__ = [
     "compute_cartesian_pca",
     "compute_contact_map",
     "compute_joint_cartesian_pca",
-    "compute_rmsd",
-    "compute_rmsf",
-    "compute_rog",
     "contact_difference_map",
-    "ensure_residuetypes_dat",
-    "find_gmx",
     "find_ptm_residues",
     "get_ptmpsi_residue_sets",
     "load_universe",
     "protein_selection_str",
     "save_standard_report",
     "select_protein",
-    "unwrap_trajectory",
 ]

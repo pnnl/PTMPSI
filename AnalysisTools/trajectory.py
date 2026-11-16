@@ -1,13 +1,12 @@
-"""Trajectory preprocessing and structural analysis for PTM-Psi GROMACS runs.
+"""PTM-aware trajectory analysis for PTM-Psi GROMACS runs.
 
-Standardizes post-processing around two tools:
-1. GROMACS (`gmx_mpi` on HPC / `gmx` locally) for periodic-boundary-condition
-   unwrapping (`trjconv -pbc whole` -> `-pbc nojump`) with PTM-Psi's custom
-   `residuetypes.dat` staged so modified residues remain in `Protein`.
-2. `MDAnalysis` loading `.tpr` + unwrapped `.xtc` so exact atomic masses, bonds,
-   and nonstandard PTM residue names are preserved across RMSD, mass-weighted
-   radius of gyration (RoG), iteratively aligned RMSF, minimum-image contact
-   maps, and mass-weighted Cartesian PCA (single-system and joint WT-vs-PTM).
+Covers what ptmpsi.gromacs.analysis (gmx trjconv/rms/rmsf/gyrate/dssp/pairdist) does not:
+PTM-aware protein selections, a periodic-jump check, mass-weighted Cartesian PCA (single system
+and joint WT-vs-PTM), and a minimum-image contact map with a WT-minus-PTM difference.
+
+Unwrapping and RMSD, radius of gyration, RMSF, DSSP and contact fractions come from
+ptmpsi.gromacs.analysis. MDAnalysis loads the resulting .tpr + .xtc so exact atomic masses, bonds
+and nonstandard PTM residue names are preserved.
 """
 
 from __future__ import annotations
@@ -15,14 +14,11 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
-import subprocess
 import sys
-import tempfile
 from typing import Iterable, Mapping, Sequence
 
 import MDAnalysis as mda
-from MDAnalysis.analysis import align, pca as mda_pca, rms
+from MDAnalysis.analysis import align
 from MDAnalysis.coordinates.memory import MemoryReader
 from MDAnalysis.lib import distances as mda_distances
 import numpy as np
@@ -198,31 +194,6 @@ def find_ptm_residues(universe_or_ag: mda.Universe | mda.AtomGroup) -> mda.Resid
     return residues[np.flatnonzero(mask)]
 
 
-def find_gmx(gmx: str | None = None) -> str:
-    """Locate `gmx_mpi` (Deception / HPC) or `gmx` (local desktop)."""
-    if gmx:
-        resolved = shutil.which(gmx) or (gmx if Path(gmx).is_file() else None)
-        if not resolved:
-            raise FileNotFoundError(f"Requested GROMACS executable {gmx!r} was not found on PATH")
-        return resolved
-    for candidate in ("gmx_mpi", "gmx"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    raise FileNotFoundError(
-        "Neither 'gmx_mpi' nor 'gmx' was found on PATH. Load the GROMACS module on a compute node or install GROMACS locally."
-    )
-
-
-def ensure_residuetypes_dat(directory: str | Path) -> Path | None:
-    """Copy PTM-Psi's `residuetypes.dat` into `directory` if absent; returns path if created."""
-    target = Path(directory) / "residuetypes.dat"
-    if target.exists() or not RESIDUETYPES_DAT.is_file():
-        return None
-    shutil.copy2(RESIDUETYPES_DAT, target)
-    return target
-
-
 def load_universe(
     topology: str | Path,
     trajectory: str | Path | Sequence[str | Path] | None = None,
@@ -317,92 +288,6 @@ def check_pbc_jumps(
     }
 
 
-def unwrap_trajectory(
-    topology: str | Path,
-    trajectory: str | Path,
-    output_xtc: str | Path,
-    *,
-    gmx: str | None = None,
-    output_group: str = "System",
-    center_group: str | None = "Protein",
-    fit_group: str | None = None,
-    index: str | Path | None = None,
-) -> Path:
-    """Unwrap PBC jumps in a GROMACS trajectory via `trjconv -pbc whole` -> `-pbc nojump`.
-
-    Automatically stages PTM-Psi's `residuetypes.dat` in a temporary working
-    directory so `Protein` / `Backbone` groups include PTM-Psi modified residues.
-    """
-    gmx_bin = find_gmx(gmx)
-    top_path = Path(topology).resolve()
-    traj_path = Path(trajectory).resolve()
-    out_path = Path(output_xtc).resolve()
-    idx_args = ["-n", str(Path(index).resolve())] if index is not None else []
-
-    if not top_path.is_file():
-        raise FileNotFoundError(f"Topology file not found: {top_path}")
-    if not traj_path.is_file():
-        raise FileNotFoundError(f"Trajectory file not found: {traj_path}")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.TemporaryDirectory(prefix="ptmpsi_trjconv_") as tmpdir:
-        tmp = Path(tmpdir)
-        ensure_residuetypes_dat(tmp)
-
-        whole_xtc = tmp / "step1_whole.xtc"
-        cmd_whole = [
-            gmx_bin, "trjconv",
-            "-s", str(top_path),
-            "-f", str(traj_path),
-            "-o", str(whole_xtc),
-            "-pbc", "whole",
-            *idx_args,
-        ]
-        if center_group:
-            cmd_whole.extend(["-center"])
-            stdin_whole = f"{center_group}\n{output_group}\n"
-        else:
-            stdin_whole = f"{output_group}\n"
-
-        res1 = subprocess.run(cmd_whole, cwd=tmp, input=stdin_whole, text=True, capture_output=True)
-        if res1.returncode != 0:
-            raise RuntimeError(f"gmx trjconv -pbc whole failed:\n{res1.stderr}")
-
-        nojump_target = (tmp / "step2_nojump.xtc") if fit_group else out_path
-        cmd_nojump = [
-            gmx_bin, "trjconv",
-            "-s", str(top_path),
-            "-f", str(whole_xtc),
-            "-o", str(nojump_target),
-            "-pbc", "nojump",
-            *idx_args,
-        ]
-        res2 = subprocess.run(cmd_nojump, cwd=tmp, input=f"{output_group}\n", text=True, capture_output=True)
-        if res2.returncode != 0:
-            raise RuntimeError(f"gmx trjconv -pbc nojump failed:\n{res2.stderr}")
-
-        if fit_group:
-            cmd_fit = [
-                gmx_bin, "trjconv",
-                "-s", str(top_path),
-                "-f", str(nojump_target),
-                "-o", str(out_path),
-                "-fit", "rot+trans",
-                *idx_args,
-            ]
-            res3 = subprocess.run(
-                cmd_fit,
-                cwd=tmp,
-                input=f"{fit_group}\n{output_group}\n",
-                text=True,
-                capture_output=True,
-            )
-            if res3.returncode != 0:
-                raise RuntimeError(f"gmx trjconv -fit rot+trans failed:\n{res3.stderr}")
-
-    return out_path
-
-
 def _ensure_positive_masses(ag: mda.AtomGroup, context: str) -> np.ndarray:
     if not hasattr(ag, "masses"):
         raise ValueError(
@@ -428,78 +313,6 @@ def _ensure_positive_masses(ag: mda.AtomGroup, context: str) -> np.ndarray:
                 f"{context} found zero mass on atoms {bad[:5]}. Load a .tpr topology so PTM atoms carry exact masses."
             )
     return masses
-
-
-def compute_rmsd(
-    universe: mda.Universe,
-    *,
-    reference: mda.Universe | None = None,
-    ref_frame: int = 0,
-    select: str | None = None,
-    groupselections: Sequence[str] | None = None,
-    mass_weighted: bool = False,
-) -> pd.DataFrame:
-    """Compute superposed RMSD (in Å) across trajectory frames using `MDAnalysis.analysis.rms.RMSD`.
-
-    Defaults to PTM-aware backbone (`N CA C O`) so modified residues are included.
-    """
-    sel = select or protein_selection_str("backbone")
-    ref = reference if reference is not None else universe
-    ag = universe.select_atoms(sel)
-    if len(ag) == 0:
-        raise ValueError(f"RMSD selection matched 0 atoms: {sel}")
-    weights = "mass" if mass_weighted else None
-    if mass_weighted:
-        _ensure_positive_masses(ag, "Mass-weighted RMSD")
-
-    rmsd_calc = rms.RMSD(
-        universe,
-        ref,
-        select=sel,
-        groupselections=list(groupselections) if groupselections else None,
-        weights=weights,
-        ref_frame=ref_frame,
-    ).run()
-
-    arr = rmsd_calc.results.rmsd
-    cols = ["frame", "time_ps", "rmsd_angstrom"]
-    if groupselections:
-        cols.extend([f"group_{i}_rmsd_angstrom" for i in range(len(groupselections))])
-    df = pd.DataFrame(arr, columns=cols)
-    df["frame"] = df["frame"].astype(int)
-    return df
-
-
-def compute_rog(
-    universe: mda.Universe,
-    *,
-    select: str | None = None,
-    include_components: bool = False,
-) -> pd.DataFrame:
-    """Compute mass-weighted radius of gyration (in Å) across trajectory frames."""
-    sel = select or protein_selection_str("all")
-    ag = universe.select_atoms(sel)
-    if len(ag) == 0:
-        raise ValueError(f"RoG selection matched 0 atoms: {sel}")
-    _ensure_positive_masses(ag, "Mass-weighted radius of gyration")
-
-    rows: list[dict[str, float | int]] = []
-    for ts in universe.trajectory:
-        row: dict[str, float | int] = {
-            "frame": int(ts.frame),
-            "time_ps": float(ts.time),
-            "rg_angstrom": float(ag.radius_of_gyration()),
-        }
-        if include_components:
-            moments = ag.moment_of_inertia()
-            w, _ = np.linalg.eigh(moments)
-            total_m = float(ag.total_mass())
-            radii = np.sqrt(np.maximum(w / total_m, 0.0))
-            row["rg_p1_angstrom"], row["rg_p2_angstrom"], row["rg_p3_angstrom"] = (
-                float(radii[0]), float(radii[1]), float(radii[2])
-            )
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 
 def _aligned_in_memory_copy(
@@ -552,77 +365,6 @@ def _aligned_in_memory_copy(
         in_memory=True,
     ).run()
     return u_copy, ref_u
-
-
-def compute_rmsf(
-    universe: mda.Universe,
-    *,
-    select: str | None = None,
-    align_select: str | None = None,
-    reference: mda.Universe | None = None,
-    by_residue: bool = True,
-    mass_weighted_align: bool = True,
-) -> pd.DataFrame:
-    """Compute iteratively aligned RMSF (in Å) using `AverageStructure` + `AlignTraj` + `RMSF`.
-
-    When `by_residue=True` (default), aggregates atomic fluctuations per residue using
-    mass weights ($\\sqrt{\\sum_i m_i \\,\\mathrm{RMSF}_i^2 / \\sum_i m_i}$), matching `gmx rmsf -res`.
-    """
-    if len(universe.trajectory) < 2:
-        raise ValueError("RMSF requires at least 2 trajectory frames")
-
-    fit_sel = align_select or protein_selection_str("backbone")
-    calc_sel = select or (protein_selection_str("heavy") if by_residue else protein_selection_str("ca"))
-
-    u_aligned, _ = _aligned_in_memory_copy(
-        universe,
-        align_select=fit_sel,
-        reference=reference,
-        iterative_average=(reference is None),
-        mass_weighted=mass_weighted_align,
-    )
-    ag = u_aligned.select_atoms(calc_sel)
-    if len(ag) == 0:
-        raise ValueError(f"RMSF selection matched 0 atoms: {calc_sel}")
-
-    rmsf_vals = rms.RMSF(ag).run().results.rmsf
-    ptm_set = get_ptmpsi_residue_sets()["ptm"]
-
-    if not by_residue:
-        return pd.DataFrame(
-            {
-                "atom_index": ag.indices,
-                "atom_name": ag.names,
-                "resid": ag.resids,
-                "resname": ag.resnames,
-                "segid": ag.segids,
-                "is_ptm": [r in ptm_set for r in ag.resnames],
-                "rmsf_angstrom": rmsf_vals,
-            }
-        )
-
-    masses = _ensure_positive_masses(ag, "Mass-weighted residue RMSF")
-    rows: list[dict[str, object]] = []
-    for res in ag.residues:
-        mask = ag.resindices == res.resindex
-        m_r = masses[mask]
-        f_r = rmsf_vals[mask]
-        positive = m_r > 0
-        if np.any(positive):
-            res_rmsf = float(np.sqrt(np.sum(m_r[positive] * (f_r[positive] ** 2)) / np.sum(m_r[positive])))
-        else:
-            res_rmsf = float(np.sqrt(np.mean(f_r ** 2)))
-        rows.append(
-            {
-                "resid": int(res.resid),
-                "resname": str(res.resname),
-                "segid": str(res.segid),
-                "label": f"{res.segid}:{res.resname}{res.resid}" if res.segid else f"{res.resname}{res.resid}",
-                "is_ptm": res.resname in ptm_set,
-                "rmsf_angstrom": res_rmsf,
-            }
-        )
-    return pd.DataFrame(rows)
 
 
 @dataclass
@@ -1077,22 +819,16 @@ def save_standard_report(
     n_pca_components: int = 3,
     make_plots: bool = True,
 ) -> dict[str, Path]:
-    """Run all five starter analyses on `(topology, trajectory)` and write CSV/NPY (+ PNG) outputs."""
+    """Run the contact map and Cartesian PCA on `(topology, trajectory)` and write CSV/NPY (+ PNG) outputs."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     u = load_universe(topology, trajectory)
 
-    rmsd_df = compute_rmsd(u)
-    rog_df = compute_rog(u)
-    rmsf_df = compute_rmsf(u, by_residue=True)
     cmap = compute_contact_map(u, representation=contact_rep)
     pca_res = compute_cartesian_pca(u, n_components=n_pca_components)
 
     written: dict[str, Path] = {}
     for key, df in (
-        ("rmsd", rmsd_df),
-        ("rog", rog_df),
-        ("rmsf", rmsf_df),
         ("contact_residues", cmap.residues),
         ("pca_projections", pca_res.projections),
         ("pca_residue_loadings", pca_res.residue_loadings),
@@ -1118,39 +854,29 @@ def save_standard_report(
     written["pca_variance"] = pca_var_path
 
     if make_plots:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        from matplotlib.figure import Figure
 
-        fig, axes = plt.subplots(2, 2, figsize=(11, 8.5), constrained_layout=True)
-        axes[0, 0].plot(rmsd_df["time_ps"], rmsd_df["rmsd_angstrom"], lw=1.4)
-        axes[0, 0].set_xlabel("Time (ps)")
-        axes[0, 0].set_ylabel("Backbone RMSD (Å)")
-        axes[0, 0].set_title("Aligned Backbone RMSD")
+        fig = Figure(figsize=(11, 4.5), layout="constrained")
+        ax_pca, ax_map = fig.subplots(1, 2)
+        pcs = [c for c in pca_res.projections.columns if c.startswith("PC")]
+        if len(pcs) >= 2:
+            sc = ax_pca.scatter(
+                pca_res.projections[pcs[0]], pca_res.projections[pcs[1]],
+                c=pca_res.projections["time_ps"], cmap="viridis", s=14,
+            )
+            fig.colorbar(sc, ax=ax_pca, label="Time (ps)")
+            ax_pca.set_xlabel(f"{pcs[0]} ({100 * pca_res.explained_variance_ratio[0]:.1f}%)")
+            ax_pca.set_ylabel(f"{pcs[1]} ({100 * pca_res.explained_variance_ratio[1]:.1f}%)")
+        ax_pca.set_title("Mass-weighted Cartesian PCA")
 
-        axes[0, 1].plot(rog_df["time_ps"], rog_df["rg_angstrom"], lw=1.4, color="tab:orange")
-        axes[0, 1].set_xlabel("Time (ps)")
-        axes[0, 1].set_ylabel("Radius of Gyration (Å)")
-        axes[0, 1].set_title("Mass-Weighted Radius of Gyration")
-
-        axes[1, 0].plot(rmsf_df["resid"], rmsf_df["rmsf_angstrom"], lw=1.4, color="tab:green")
-        ptm_rows = rmsf_df[rmsf_df["is_ptm"]]
-        if not ptm_rows.empty:
-            axes[1, 0].scatter(ptm_rows["resid"], ptm_rows["rmsf_angstrom"], color="crimson", zorder=4, label="PTM")
-            axes[1, 0].legend(frameon=False)
-        axes[1, 0].set_xlabel("Residue ID")
-        axes[1, 0].set_ylabel("Residue RMSF (Å)")
-        axes[1, 0].set_title("Iteratively Aligned Per-Residue RMSF")
-
-        im = axes[1, 1].imshow(cmap.frequency, origin="lower", vmin=0.0, vmax=1.0, cmap="viridis")
-        fig.colorbar(im, ax=axes[1, 1], fraction=0.046, pad=0.04, label="Contact probability")
-        axes[1, 1].set_xlabel("Residue index")
-        axes[1, 1].set_ylabel("Residue index")
-        axes[1, 1].set_title(f"Contact Map ({cmap.representation.upper()}, < {cmap.cutoff_angstrom:g} Å)")
+        im = ax_map.imshow(cmap.frequency, origin="lower", vmin=0.0, vmax=1.0, cmap="Greens")
+        fig.colorbar(im, ax=ax_map, label="Contact probability")
+        ax_map.set_xlabel("Residue index")
+        ax_map.set_ylabel("Residue index")
+        ax_map.set_title(f"Contact map ({cmap.representation.upper()}, < {cmap.cutoff_angstrom:g} Å)")
 
         fig_path = out / f"{prefix}_summary.png"
         fig.savefig(fig_path, dpi=180)
-        plt.close(fig)
         written["summary_plot"] = fig_path
 
     return written

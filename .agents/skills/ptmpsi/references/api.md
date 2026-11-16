@@ -64,6 +64,8 @@ Valid PTM names (keys of `ptmdict`): acetylation, citrullination, cysteinylation
 
 `AlphaFoldOptions` takes `model="monomer"`, `version="2.3.2"`, `dbs="full_dbs"`, `machine`, `data_dir`, and others. `prediction(fasta, **kwargs)` is at line 147. Frontier and Polaris force version 2.3.2 and `full_dbs`.
 
-## Trajectory Analysis (`AnalysisTools/trajectory.py`)
+## Trajectory Analysis
 
-`get_ptmpsi_residue_sets`, `protein_selection_str`, `select_protein`, `find_ptm_residues`, `load_universe`, `check_pbc_jumps`, `unwrap_trajectory`, `compute_rmsd`, `compute_rog`, `compute_rmsf`, `compute_contact_map`, `contact_difference_map`, `compute_cartesian_pca`, `compute_joint_cartesian_pca`, `save_standard_report`.
+`ptmpsi/gromacs/analysis.py` (gmx wrappers): `find_gmx`, `add_residue_file`, `post_process`, `rmsd`, `rmsf`, `gyration`, `dssp`, `contact_map`, and the summarizers `process_rmsd`, `process_rmsf`, `process_gyration`, `process_dssp`, `process_contact`.
+
+`AnalysisTools/trajectory.py` (MDAnalysis): `get_ptmpsi_residue_sets`, `protein_selection_str`, `select_protein`, `find_ptm_residues`, `load_universe`, `check_pbc_jumps`, `compute_contact_map`, `contact_difference_map`, `compute_cartesian_pca`, `compute_joint_cartesian_pca`, `save_standard_report`.

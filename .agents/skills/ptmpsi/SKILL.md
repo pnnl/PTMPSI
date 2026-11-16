@@ -357,25 +357,31 @@ Checked with T4 lysozyme (`Protein(pdbid="2LZM")`, 33,323 atoms), nitrosylation 
 - `pip install alchemlyb pandas scipy` into a venv in project storage works on a compute node (module `python/3.13.5`).
 - Cost of the defaults for a system this size: each TI stage is 1,000,000 steps at `dt = 0.001` (1 ns), so 26 ns per combination, which is about 1.8 days on 16 cores (roughly 700 core-hours) at 14 ns/day. The default production md is 100 ns (`nsteps = 50000000`, `dt = 0.002`), about 2.8 days and 1,070 core-hours at 36 ns/day. `0000_slurm.sbatch` estimates the number of one-hour md jobs from the equilibration speed (67 for 100 ns at 0.668 hours/ns) and queues them, with the 13 TI jobs.
 - To run a generated chain in one allocation without queuing anything: `bash` the setup script cut at the line `# Extract performance value`, `bash` `md.sbatch` cut at the line `file_jobid=`, run `python update_topology.py` in `dualti/`, then `bash` each `dualti/lam-NN/<NNNN>_lamNN_slurm.sbatch`. The uncut scripts call `sbatch`.
-- `ptmpsi.gromacs.analysis.rmsf()` does not run on Deception. Its `interactive=True` branch runs `source /anfhome/.profile`, `module load gcc/13.2.0 ...` and `source /anfhome/shared/qipd/gromacs/bin/GMXRC` and calls `gmx`, and the other branch is `pass`. The command it wraps works: `echo "4 4" | gmx_mpi rmsf -f md.xtc -s md.tpr -o rmsf.xvg -res -oq bfac.pdb -fit` wrote 258 per-residue values from 100 frames of cutinase.
+- `ptmpsi.gromacs.analysis` used to be hardcoded to the AQE cluster (`/anfhome` paths, `module load`, bare `gmx`) and its `interactive=False` branches were `pass`. It now finds `gmx_mpi` (then `gmx`), and `interactive=False` raises `NotImplementedError`. See "Trajectory analysis" below.
 - PTM-Psi has no code that combines TI or BAR results. `pymbar` is in `setup.py` and is used only by the AWSEM subproject.
 - `gen_ptm_files(path=...)` now calls `os.path.realpath` on `path`. Before, a path under a symlinked folder (`/tmp` on macOS) produced `dualti/lam-NN/*/topol.top` links that climbed to the filesystem root and were dangling after upload.
 
-## Trajectory analysis (`AnalysisTools`)
+## Trajectory analysis
 
-`ptmpsi.gromacs.analysis` is unchanged and still hardcoded to the AQE cluster (see the `rmsf()` note above), so do not call it on Deception. Use `AnalysisTools` (`import AnalysisTools` or `python -m AnalysisTools`) for post-simulation structural analysis. It pairs GROMACS (`gmx_mpi` on Deception, `gmx` locally) for PBC unwrapping with `MDAnalysis` for RMSD, mass-weighted RoG, iteratively aligned RMSF, contact maps, and mass-weighted Cartesian PCA.
+Two modules, and each analysis lives in only one of them, so do not mix same-named results from both:
 
-1. **Always pass `.tpr` + unwrapped `.xtc`.** Load `md.tpr` (not a `.pdb`/`.gro`) as the `MDAnalysis` topology so exact force-field atomic masses and bonds—including modified PTM residues—are present for mass-weighted RoG, RMSF, and Cartesian PCA.
-2. **Unwrap dodecahedron PBC jumps first.** Raw `md.xtc` wraps chains across periodic faces. Run `AnalysisTools.unwrap_trajectory("md.tpr", "md.xtc", "md_clean.xtc")` (or `python -m AnalysisTools unwrap -s md.tpr -f md.xtc -o md_clean.xtc`), which runs `trjconv -pbc whole` then `-pbc nojump` in a staging folder with `ptmpsi/gromacs/forcefield/residuetypes.dat` present so `Protein` keeps PTM residues. `AnalysisTools.check_pbc_jumps(u)` flags un-unwrapped trajectories.
-3. **Never use bare `"protein"` or `"backbone"` selections on PTM runs.** Standard `MDAnalysis` keywords silently drop PTM-Psi residue names (`SNC`, `CSO`, `CSD`, `OCS`, `CSS`, `CGL`, `SMC`, `QCS`, `XCN`, `IYY`, `ALY`, `PTM`, `CYZ`). Use `AnalysisTools.select_protein(u, kind="all" | "backbone" | "ca" | "heavy")` or `AnalysisTools.protein_selection_str(...)`, which derives the live set from `ptmpsi/residues/` and `residuetypes.dat`.
-4. **Use the five tested analyses instead of scratch `sklearn`/NumPy:**
-   - `compute_rmsd(u, reference=...)`: aligned backbone RMSD (Å).
-   - `compute_rog(u)`: mass-weighted protein radius of gyration (Å).
-   - `compute_rmsf(u, by_residue=True)`: `AverageStructure` + `AlignTraj` + mass-weighted residue RMSF (Å).
-   - `compute_contact_map(u, representation="ca" | "heavy")` and `contact_difference_map(ptm_map, wt_map)`: PBC minimum-image residue contact probabilities and PTM-minus-WT $\Delta P_{ij}$ matched by `(segid, resid)`.
-   - `compute_cartesian_pca(u)` and `compute_joint_cartesian_pca({"WT": (wt_tpr, wt_xtc), "SNC54": (ptm_tpr, ptm_xtc)}, ref_system="WT")`: mass-weighted Cartesian PCA ($\text{amu}\cdot\text{\AA}^2$) over the shared `(segid, resid, atom_name)` backbone so side-chain atom-count differences between `CYS` and `SNC`/`CGL` never break joint projection axes.
-   - `save_standard_report(tpr, clean_xtc, out_dir)` (or `python -m AnalysisTools analyze -s md.tpr -f md_clean.xtc -o analysis_out`) runs all five and writes CSV/NPY/PNG summaries.
-5. **On Deception, run post-processing in a `shared` batch job via `dcx.py`.** Login nodes forbid `gmx_mpi` and Python workloads; install `MDAnalysis` into a project-storage venv (`/rcfs/projects/<project>/...`) and submit an `.sbatch` script on `shared` loading `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2` + activating that venv.
+- `ptmpsi.gromacs.analysis` runs GROMACS tools (`gmx_mpi`, then `gmx`) on `.tpr` + `.xtc` and writes `.xvg`/`.dat` files plus summaries: `post_process`, `rmsd`, `rmsf`, `gyration`, `dssp`, `contact_map`. Use it for PBC unwrapping, RMSD, radius of gyration, RMSF, secondary structure and residue contact fractions.
+- `AnalysisTools` (`import AnalysisTools` or `python -m AnalysisTools`) uses `MDAnalysis` for what that module lacks: PTM-aware selections (`select_protein`, `find_ptm_residues`), `check_pbc_jumps`, mass-weighted Cartesian PCA (single system and joint WT-vs-PTM), and the minimum-image contact map with a WT-minus-PTM difference.
+
+1. **Always pass `.tpr` + `.xtc`.** Load `md.tpr` (not a `.pdb`/`.gro`) as the `MDAnalysis` topology so exact force-field masses and bonds, including modified residues, are present.
+2. **Unwrap first.** Raw `md.xtc` wraps chains across periodic faces. `post_process("md.xtc", "md.tpr", prefix="clean", group="Protein", fit_group=4)` runs `trjconv -pbc whole`, then `-pbc nojump`, then a rot+trans fit, and returns the fitted `.xtc` paths. The default `fit_group=3` is C-alpha; pass `4` to fit on the backbone. CLI: `python -m AnalysisTools unwrap -s md.tpr -f md.xtc -o clean`. `AnalysisTools.check_pbc_jumps(u)` flags a trajectory that still has jumps.
+3. **PTM residue names need `residuetypes.dat`.** Without it in the working directory gmx drops `SNC`, `CGL` and the other PTM residues from `Protein`/`Backbone` (22 instead of 34 atoms for ACE-SNC-ALA-NME). Every function in `ptmpsi.gromacs.analysis` stages it, using the copy beside the run if there is one and the packaged one otherwise.
+4. **Never use bare `"protein"` or `"backbone"` selections in `MDAnalysis` on PTM runs.** They silently drop PTM-Psi residue names. Use `AnalysisTools.select_protein(u, kind="all" | "backbone" | "ca" | "heavy")` or `protein_selection_str(...)`.
+5. **What each call does** (all take `interactive=True`; `interactive=False` raises `NotImplementedError`):
+   - `rmsd(traj, tpr, out_dir, group=4)`: `gmx rms` against the `.tpr` structure, fitted on `group`. That reference is the `.tpr` structure, not trajectory frame 0, so the numbers differ from an MDAnalysis RMSD against frame 0 (by about 0.12 Å on the SNC test peptide).
+   - `gyration(...)`: `gmx gyrate`, mass-weighted, `group=4` (pass `group=1` for the whole protein).
+   - `rmsf(...)`: `gmx rmsf -res`, plus a B-factor PDB.
+   - `dssp(...)`: `gmx dssp`, then `process_dssp` summaries.
+   - `contact_map(...)`: `gmx pairdist` per residue pair; the result is the fraction of frames closer than `contact_cutoff` (0.5 nm).
+   - `AnalysisTools.compute_contact_map(u, representation="ca" | "heavy")` and `contact_difference_map(ptm_map, wt_map)`: minimum-image contact probabilities and PTM-minus-WT differences matched by `(segid, resid)`.
+   - `compute_cartesian_pca(u)` and `compute_joint_cartesian_pca({"WT": (wt_tpr, wt_xtc), "SNC54": (ptm_tpr, ptm_xtc)}, ref_system="WT")`: mass-weighted PCA ($\text{amu}\cdot\text{\AA}^2$) over the shared `(segid, resid, atom_name)` backbone, so `CYS` vs `SNC`/`CGL` side-chain atom counts never break the joint axes.
+   - `save_standard_report(tpr, xtc, out_dir)` (or `python -m AnalysisTools analyze -s md.tpr -f clean.xtc -o analysis_out`) runs the contact map and PCA and writes CSV/NPY/PNG summaries.
+6. **On Deception, run all of this in a `shared` batch job via `dcx.py`.** Login nodes forbid `gmx_mpi` and Python workloads. Install `MDAnalysis`, `numpy`, `pandas` and `matplotlib` into a project-storage venv (`/rcfs/projects/<project>/...`) and submit an `.sbatch` on `shared` that loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2` and activates that venv. The system modules do not include `psutil`, which the old `analysis.py` needed and the new one does not.
 
 ## Checking your work
 
