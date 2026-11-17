@@ -623,6 +623,7 @@ def contact_map(trajectory, structure, md_file, output_dir, index=None, interact
     total_time = kwargs.pop("total_time", 3000)
     selection = kwargs.pop("selection", "0")
     contact_cutoff = kwargs.pop("contact_cutoff", 0.5)
+    pairdist_cutoff = max(1.0, float(contact_cutoff) + 0.1)
     gmx = find_gmx(kwargs.pop("gmx", None))
     trajectories, structures, indices = _inputs(trajectory, structure, index)
     labels = _labels(trajectories)
@@ -636,6 +637,6 @@ def contact_map(trajectory, structure, md_file, output_dir, index=None, interact
                 result_files.append(out)
                 tasks.append(partial(_run, [gmx, "pairdist", "-f", t, "-s", s, "-b", str(begin), "-e", str(begin + window),
                                             "-refgrouping", "res", "-selgrouping", "res", "-ref", selection, "-sel", selection,
-                                            "-o", out, "-cutoff", "1.0", "-dt", str(dt), *_index_args(n)], output_dir))
+                                            "-o", out, "-cutoff", f"{pairdist_cutoff:g}", "-dt", str(dt), *_index_args(n)], output_dir))
         _run_all(tasks, maxprocs)
         return process_contact([os.path.join(output_dir, f) for f in result_files if os.path.isfile(f)], contact_cutoff=contact_cutoff)

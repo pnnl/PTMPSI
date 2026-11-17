@@ -179,3 +179,32 @@ def test_process_contact_averages_fraction_of_frames_below_cutoff(tmp_path):
     matrix = an.process_contact([str(first), str(second)], contact_cutoff=0.5)
     assert matrix == pytest.approx(np.array([[1.0, 0.375], [0.375, 1.0]]))
     assert (tmp_path / "contact_fraction.dat").is_file()
+
+
+def test_contact_map_pairdist_cutoff_exceeds_contact_cutoff(tmp_path, monkeypatch):
+    traj, tpr = tmp_path / "md.xtc", tmp_path / "md.tpr"
+    traj.touch()
+    tpr.touch()
+    monkeypatch.setattr(an, "find_gmx", lambda gmx: "gmx")
+    seen_cutoffs = []
+
+    def fake_run(command, cwd, stdin=None):
+        cutoff = float(command[command.index("-cutoff") + 1])
+        seen_cutoffs.append(cutoff)
+        out = Path(cwd) / command[command.index("-o") + 1]
+        # Simulate gmx pairdist clamping distances above -cutoff to -cutoff (true pair distance = 1.4 nm)
+        clamped = min(1.4, cutoff)
+        out.write_text(f"0 0.0 {clamped:.3f} {clamped:.3f} 0.0\n")
+
+    monkeypatch.setattr(an, "_run", fake_run)
+    default_mat = an.contact_map(traj, tpr, None, tmp_path / "cm_default", window=1000, total_time=1000, interactive=True)
+    assert seen_cutoffs == [1.0]
+    assert default_mat == pytest.approx(np.eye(2))
+
+    seen_cutoffs.clear()
+    wide_mat = an.contact_map(
+        traj, tpr, None, tmp_path / "cm_wide", contact_cutoff=1.2, window=1000, total_time=1000, interactive=True
+    )
+    assert seen_cutoffs[0] > 1.2
+    assert wide_mat == pytest.approx(np.eye(2))
+
