@@ -44,7 +44,10 @@ classifiers = [
   "License :: OSI Approved"
 ]
 
-[tool.setuptools]
-packages = ["ptmpsi", "AnalysisTools"]
+[tool.setuptools.packages.find]
+include = ["ptmpsi", "ptmpsi.*", "AnalysisTools", "AnalysisTools.*"]
+namespaces = false
 
+[tool.setuptools.package-data]
+"ptmpsi.gromacs" = ["forcefield/*", "forcefield/**/*"]
 

@@ -265,10 +265,15 @@ slurm_header["DECEPTION"] = """#!/bin/bash
 
 cleanup()
 {{
+local status=$?
 cp *.xyz *.log *.txt *.json *.grid *.qrs *.pdb *.rst *.top *.trj *.out $SLURM_SUBMIT_DIR 2>/dev/null || :
+return "$status"
 }}
 
-trap cleanup SIGINT SIGTERM
+trap cleanup EXIT
+trap 'exit 130' SIGINT
+trap 'exit 143' SIGTERM
+set -e
 
 if ! command -v module >/dev/null 2>&1; then
   source /etc/profile.d/modules.sh

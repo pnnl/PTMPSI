@@ -1739,7 +1739,9 @@ fi
 """
 submit_lambdas = """
 echo "Submitting lambdas"
-./submit_lambdas.sh $jobid
+if [ "$total_runs" -gt 0 ]; then
+  ./submit_lambdas.sh "$jobid"
+fi
 """
 check_and_update_topology = """
 self_jobid={self_jobid}

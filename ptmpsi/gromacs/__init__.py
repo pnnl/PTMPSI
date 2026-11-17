@@ -292,7 +292,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
         if checkpointing:
             if not bundling:
                 fh.write(queue_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours(), max_md_runs=(-1 if max_md_runs is None else max_md_runs)))
-                if auto_submit_ti:
+                if do_ti and auto_submit_ti and max_md_runs != 0:
                     fh.write(submit_lambdas)
             else:
                 fh.write(write_estimated_runs.format(log_file='fnpt.log', mdp_file='md.mdp', submit_cmd=submit_cmd, dependency=dependency, sed=sed, job_hours=slurm.get_time_hours()))
@@ -330,7 +330,7 @@ def generate_slurm(infile, posres=[1000.0,500.0,100.0,50.0,10.0,5.0,1.0],
                     md_sbatch.write(check_and_update_topology.format(job='md', jobpath=jobpath, self_jobid=self_jobid))
             if bundling and slurm.machine.name == "Polaris":
                 subprocess.run(["chmod", "+x", "md.sbatch"])
-        else:
+        elif max_md_runs != 0:
             fh.write(md_cmd)
             # GENERATE TOPOLOGY FOR TI
             if do_ti:

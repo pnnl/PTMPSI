@@ -2,7 +2,7 @@
 
 Covers what ptmpsi.gromacs.analysis (gmx trjconv/rms/rmsf/gyrate/dssp/pairdist) does not:
 PTM-aware protein selections, a periodic-jump check, mass-weighted Cartesian PCA (single system
-and joint WT-vs-PTM), and a minimum-image contact map with a WT-minus-PTM difference.
+and joint WT-vs-PTM), and a minimum-image contact map with a PTM-minus-WT difference.
 
 Unwrapping and RMSD, radius of gyration, RMSF, DSSP and contact fractions come from
 ptmpsi.gromacs.analysis. MDAnalysis loads the resulting .tpr + .xtc so exact atomic masses, bonds
@@ -318,26 +318,26 @@ def _ensure_positive_masses(ag: mda.AtomGroup, context: str) -> np.ndarray:
 def _aligned_in_memory_copy(
     universe: mda.Universe,
     *,
+    atoms: mda.AtomGroup,
     align_select: str,
     reference: mda.Universe | None = None,
     iterative_average: bool = True,
     mass_weighted: bool = True,
     ref_frame: int = 0,
-) -> tuple[mda.Universe, mda.Universe]:
-    """Return an aligned in-memory copy of `universe` without mutating the caller's trajectory."""
-    coords = np.empty((len(universe.trajectory), universe.atoms.n_atoms, 3), dtype=np.float64)
+) -> tuple[mda.Universe, mda.Universe, np.ndarray]:
+    """Copy and align selected atoms, returning original times separately from MemoryReader."""
+    coords = np.empty((len(universe.trajectory), len(atoms), 3), dtype=np.float64)
     times = np.empty(len(universe.trajectory), dtype=np.float64)
     dt = float(getattr(universe.trajectory, "dt", 1.0) or 1.0)
     for i, ts in enumerate(universe.trajectory):
-        coords[i] = ts.positions
+        coords[i] = atoms.positions
         times[i] = float(ts.time)
 
-    u_copy = mda.Merge(universe.atoms)
+    u_copy = mda.Merge(atoms)
     u_copy.load_new(coords, format=MemoryReader, dt=dt)
-    for i, ts in enumerate(u_copy.trajectory):
-        ts.time = times[i]
 
     weights = "mass" if mass_weighted else None
+    alignment_selection: str | dict[str, str] = align_select
     if mass_weighted:
         _ensure_positive_masses(u_copy.select_atoms(align_select), "Trajectory alignment")
 
@@ -352,19 +352,20 @@ def _aligned_in_memory_copy(
             weights=weights,
         ).run()
         ref_u = avg.results.universe
+        alignment_selection = {"mobile": align_select, "reference": "all"}
     else:
-        ref_u = mda.Merge(universe.atoms)
+        ref_u = mda.Merge(atoms)
         universe.trajectory[ref_frame]
-        ref_u.load_new(universe.atoms.positions[None, :, :].copy(), format=MemoryReader)
+        ref_u.load_new(atoms.positions[None, :, :].copy(), format=MemoryReader)
 
     align.AlignTraj(
         u_copy,
         ref_u,
-        select=align_select,
+        select=alignment_selection,
         weights=weights,
         in_memory=True,
     ).run()
-    return u_copy, ref_u
+    return u_copy, ref_u, times
 
 
 @dataclass
@@ -470,6 +471,14 @@ def compute_contact_map(
     )
 
 
+def _validate_residue_keys(keys: Iterable[tuple[str, int]], context: str) -> None:
+    seen: set[tuple[str, int]] = set()
+    for key in keys:
+        if key in seen:
+            raise ValueError(f"{context} has duplicate (segid, resid) key {key!r}")
+        seen.add(key)
+
+
 def contact_difference_map(
     target: ContactMapResult,
     reference: ContactMapResult,
@@ -479,6 +488,10 @@ def contact_difference_map(
     Aligning by `(segid, resid)` rather than `resname` allows direct comparison
     between Wild-Type (`CYS54`) and PTM-modified (`SNC54` / `CGL54`) runs.
     """
+    for label, result in (("Target contact map", target), ("Reference contact map", reference)):
+        _validate_residue_keys(
+            ((str(row.segid), int(row.resid)) for row in result.residues.itertuples()), label
+        )
     ref_keys = {(row.segid, int(row.resid)): int(row.res_pos) for row in reference.residues.itertuples()}
     tgt_keys = {(row.segid, int(row.resid)): int(row.res_pos) for row in target.residues.itertuples()}
     shared = [k for k in tgt_keys if k in ref_keys]
@@ -658,24 +671,31 @@ def compute_cartesian_pca(
     calc_sel = select or protein_selection_str("backbone")
     fit_sel = align_select or calc_sel
 
-    u_aligned, _ = _aligned_in_memory_copy(
+    calc_atoms = universe.select_atoms(calc_sel)
+    fit_atoms = universe.select_atoms(fit_sel)
+    if len(calc_atoms) == 0:
+        raise ValueError(f"PCA selection matched 0 atoms: {calc_sel}")
+    if len(fit_atoms) == 0:
+        raise ValueError(f"Alignment selection matched 0 atoms: {fit_sel}")
+    needed = calc_atoms | fit_atoms
+    calc_indices = np.searchsorted(needed.indices, calc_atoms.indices)
+    fit_indices = np.searchsorted(needed.indices, fit_atoms.indices)
+    local_fit_sel = "index " + " ".join(str(i) for i in fit_indices)
+    u_aligned, _, times = _aligned_in_memory_copy(
         universe,
-        align_select=fit_sel,
+        atoms=needed,
+        align_select=local_fit_sel,
         iterative_average=True,
         mass_weighted=mass_weighted,
     )
-    ag = u_aligned.select_atoms(calc_sel)
-    if len(ag) == 0:
-        raise ValueError(f"PCA selection matched 0 atoms: {calc_sel}")
+    ag = u_aligned.atoms[calc_indices]
     masses = _ensure_positive_masses(ag, "Mass-weighted Cartesian PCA") if mass_weighted else np.ones(len(ag))
 
     coords = np.empty((len(u_aligned.trajectory), len(ag), 3), dtype=np.float64)
     frames = np.empty(len(u_aligned.trajectory), dtype=int)
-    times = np.empty(len(u_aligned.trajectory), dtype=np.float64)
     for i, ts in enumerate(u_aligned.trajectory):
         coords[i] = ag.positions
         frames[i] = int(ts.frame)
-        times[i] = float(ts.time)
 
     ptm_set = get_ptmpsi_residue_sets()["ptm"]
     atom_meta = pd.DataFrame(
@@ -737,9 +757,14 @@ def compute_joint_cartesian_pca(
         ag = select_protein(u, kind=atom_kind, include_ptms=True)
         if len(ag) == 0:
             raise ValueError(f"System {name!r} matched 0 {atom_kind} atoms")
+        _validate_residue_keys(
+            ((str(r.segid), int(r.resid)) for r in ag.residues), f"System {name!r}"
+        )
         kmap: dict[tuple[str, int, str], int] = {}
         for atom in ag:
             key = (str(atom.segid), int(atom.resid), str(atom.name))
+            if key in kmap:
+                raise ValueError(f"System {name!r} has duplicate (segid, resid, atom_name) key {key!r}")
             kmap[key] = int(atom.index)
             if idx == 0:
                 ordered_keys.append(key)
@@ -818,13 +843,19 @@ def save_standard_report(
     contact_rep: str = "ca",
     n_pca_components: int = 3,
     make_plots: bool = True,
+    contacts_trajectory: str | Path | None = None,
 ) -> dict[str, Path]:
-    """Run the contact map and Cartesian PCA on `(topology, trajectory)` and write CSV/NPY (+ PNG) outputs."""
+    """Write contact/PCA summaries, optionally using a non-fitted trajectory for PBC contacts.
+
+    Both trajectories must match `topology`. Fitting rotates coordinates without rotating
+    the periodic cell, so use whole/nojump coordinates for minimum-image contacts.
+    """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     u = load_universe(topology, trajectory)
 
-    cmap = compute_contact_map(u, representation=contact_rep)
+    contacts_u = load_universe(topology, contacts_trajectory) if contacts_trajectory is not None else u
+    cmap = compute_contact_map(contacts_u, representation=contact_rep)
     pca_res = compute_cartesian_pca(u, n_components=n_pca_components)
 
     written: dict[str, Path] = {}

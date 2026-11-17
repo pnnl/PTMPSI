@@ -5,18 +5,23 @@ All generated inputs and mock programs remain in temporary directories. No MD ru
 """
 import ast
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import io
 import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+import zipfile
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / '.agents/skills/ptmpsi/scripts'
@@ -39,6 +44,76 @@ def scratch():
             yield Path(directory)
         finally:
             os.chdir(original)
+
+
+@pytest.mark.parametrize("thermo", [False, True])
+@pytest.mark.parametrize("max_md_runs", [0, 1])
+@pytest.mark.parametrize("checkpointing", [False, True])
+def test_gen_ptm_files_submission_gates(tmp_path, monkeypatch, thermo, max_md_runs, checkpointing):
+    from ptmpsi.protein import Protein
+    from ptmpsi.slurm import deception
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("ptmpsi.protein.concurrent.futures.ProcessPoolExecutor", ThreadPoolExecutor)
+    protein = Protein()
+    protein.prepend("A", "ALA")
+    uid = protein.gen_ptm_files(
+        [[()]], path=tmp_path, pdb2pqr=False, machine=deception, account="example_account",
+        conc=0.154, time=1, thermo=thermo, auto_submit_ti=True,
+        max_md_runs=max_md_runs, checkpointing=checkpointing, combination_logging=False,
+    )
+    run_dir = tmp_path / uid
+    setup = (run_dir / "1tuples/0000/0000_slurm.sbatch").read_text()
+    submit = (run_dir / "submit.sh").read_text()
+    if not thermo or max_md_runs == 0:
+        assert "./submit_lambdas.sh" not in setup + submit
+    if max_md_runs == 0:
+        assert " md.sbatch " not in submit
+        assert "-deffnm md " not in setup
+    if thermo and max_md_runs and checkpointing:
+        assert "./submit_lambdas.sh" in setup
+    mock_bin = tmp_path / "bin"
+    mock_bin.mkdir()
+    calls = tmp_path / "calls.log"
+    for name, content in (
+        ("sbatch", f'echo "$@" >> "{calls}"\necho "Submitted batch job 5000"\n'),
+        ("sleep", ":\n"),
+    ):
+        program = mock_bin / name
+        program.write_text("#!/bin/bash\n" + content)
+        program.chmod(0o755)
+    result = subprocess.run(
+        ["/bin/bash", "submit.sh"], cwd=run_dir, capture_output=True, text=True,
+        env=dict(os.environ, PATH=f'{mock_bin}:{os.environ["PATH"]}'),
+    )
+    assert result.returncode == 0, result.stderr
+    queued = calls.read_text().splitlines()
+    assert queued[0] == "0000_slurm.sbatch"
+    assert sum("md.sbatch" in line for line in queued) == int(checkpointing and max_md_runs > 0)
+    assert sum("_lam" in line for line in queued) == (13 if thermo and max_md_runs and not checkpointing else 0)
+
+
+def test_wheel_contains_subpackages_and_forcefield_data(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ("pyproject.toml", "setup.py", "README.md", "LICENSE"):
+        shutil.copy2(ROOT / name, source / name)
+    for name in ("ptmpsi", "AnalysisTools"):
+        shutil.copytree(ROOT / name, source / name, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    result = subprocess.run(
+        [sys.executable, "-c", 'from setuptools.build_meta import build_wheel; build_wheel("dist")'],
+        cwd=source, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    wheel, = (source / "dist").glob("*.whl")
+    with zipfile.ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+    for path in (ROOT / "ptmpsi").rglob("*.py"):
+        assert path.relative_to(ROOT).as_posix() in names
+    for path in (ROOT / "ptmpsi/gromacs/forcefield").rglob("*"):
+        if path.is_file():
+            assert path.relative_to(ROOT).as_posix() in names
+    assert "AnalysisTools/trajectory.py" in names
 
 
 class ResidueSelectors(unittest.TestCase):
@@ -279,6 +354,72 @@ class LocalScripts(unittest.TestCase):
             res_md = subprocess.run(['/bin/bash', str(md_harness)], cwd=directory, env=env_py, capture_output=True, text=True)
             self.assertEqual(res_md.returncode, 0, res_md.stderr)
             self.assertTrue((directory / 'dualti/updated.ok').is_file())
+
+    def test_setup_only_never_submits_md_or_ti(self):
+        slurm = runpy.run_path(str(ROOT / 'ptmpsi/slurm/__init__.py'))
+        templates = runpy.run_path(str(ROOT / 'ptmpsi/gromacs/templates.py'))
+        generator = definitions(ROOT / 'ptmpsi/gromacs/__init__.py', {'generate_slurm'},
+                                Slurm=slurm['Slurm'], subprocess=subprocess,
+                                **templates).generate_slurm
+        with scratch() as directory:
+            for i in range(13):
+                (directory / f'dualti/lam-{i:02d}').mkdir(parents=True)
+            generator('0000.pdb', conc=0.154, machine=slurm['deception'],
+                      account='example_account', time=1, max_md_runs=0, thermo=True,
+                      auto_submit_ti=True)
+            script = Path('0000_slurm.sbatch').read_text()
+            self.assertNotIn('./submit_lambdas.sh', script)
+            (directory / 'fnpt.log').write_text('Performance: 36.000 0.667\n')
+            (directory / 'md.mdp').write_text('dt = 0.002\nnsteps = 50000000\n')
+            for name in ('sbatch', 'submit_lambdas.sh'):
+                program = directory / name
+                program.write_text('#!/bin/bash\necho unexpected >> queued.log\n')
+                program.chmod(0o755)
+            queue = script[script.index('# Extract performance value'):]
+            env = dict(os.environ, PATH=f'{directory}:{os.environ["PATH"]}', SLURM_JOB_ID='4000')
+            for prequeued in (False, True):
+                if prequeued:
+                    (directory / 'md.jobid').write_text('1234\n')
+                result = subprocess.run(['/bin/bash', '-c', 'set -eo pipefail\n' + queue],
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse((directory / 'queued.log').exists())
+
+    def test_deception_nwchem_failure_status_survives_cleanup(self):
+        templates = runpy.run_path(str(ROOT / 'ptmpsi/nwchem/templates.py'))
+        with scratch() as directory:
+            submit_dir = directory / 'submit'
+            submit_dir.mkdir()
+            (submit_dir / 'peptide.pdb').touch()
+            (submit_dir / 'prepare.nw').touch()
+            (submit_dir / 'residue.frg').touch()
+            mock_bin = directory / 'bin'
+            mock_bin.mkdir()
+            mpirun = mock_bin / 'mpirun'
+            mpirun.write_text('#!/bin/bash\necho mpi-log\nexit "${MPI_EXIT_CODE}"\n')
+            mpirun.chmod(0o755)
+            env = dict(os.environ, PATH=f'{mock_bin}:{os.environ["PATH"]}',
+                       SLURM_SUBMIT_DIR=str(submit_dir), SLURM_JOB_ID='4000',
+                       SLURM_NTASKS='1', USER='test-user')
+            header = templates['slurm_header']['DECEPTION'].format(
+                account='example_account', partition='shared', time='01:00:00',
+                nnodes=1, ntasks=1, jname='nwtest', scratch=str(directory / 'scratch'),
+                user='module() { :; }',
+            )
+            bodies = (
+                templates['runsingularity']['DECEPTION'].format(name='conf0') + '\ncleanup\n',
+                templates['qmmm_slurm']['DECEPTION'].format(complex='peptide.pdb'),
+            )
+            for body in bodies:
+                for status in (0, 17):
+                    script = directory / 'job.sh'
+                    script.write_text(header + body)
+                    result = subprocess.run(['/bin/bash', str(script)],
+                                            env=dict(env, MPI_EXIT_CODE=str(status)),
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, status, result.stderr)
+            self.assertEqual((submit_dir / 'conf0.log').read_text(), 'mpi-log\n')
+            self.assertEqual((submit_dir / 'prepare.log').read_text(), 'mpi-log\n')
 
     def test_deception_nwchem_and_alphafold_templates(self):
         nwchem = runpy.run_path(str(ROOT / 'ptmpsi/nwchem/templates.py'))

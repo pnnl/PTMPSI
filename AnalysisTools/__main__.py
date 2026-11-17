@@ -29,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("analyze", help="Run the PTM-aware contact map and mass-weighted Cartesian PCA.")
     p_run.add_argument("-s", "--topology", required=True, help="GROMACS .tpr topology file.")
     p_run.add_argument("-f", "--trajectory", required=True, help="Unwrapped .xtc trajectory file.")
+    p_run.add_argument("--contacts-trajectory", help="Non-fitted .xtc for minimum-image contacts (default: --trajectory).")
     p_run.add_argument("-o", "--output-dir", required=True, help="Directory for CSV, NPY, and PNG outputs.")
     p_run.add_argument("--prefix", default="analysis", help="Filename prefix inside --output-dir.")
     p_run.add_argument("--contact-rep", choices=("ca", "heavy"), default="ca")
@@ -39,17 +40,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "unwrap":
         from ptmpsi.gromacs.analysis import post_process
 
-        outputs = post_process(
-            args.trajectory,
-            args.topology,
-            prefix=args.output_dir,
-            group=args.group,
-            fit_group=args.fit_group,
-            gmx=args.gmx,
-            interactive=True,
-        )
+        try:
+            outputs = post_process(
+                args.trajectory,
+                args.topology,
+                prefix=args.output_dir,
+                group=args.group,
+                fit_group=args.fit_group,
+                gmx=args.gmx,
+                interactive=True,
+            )
+        except (RuntimeError, OSError) as error:
+            parser.exit(1, f"Unwrap failed: {error}\n")
         for out in outputs:
-            print(f"Wrote processed trajectory: {out}")
+            name = str(out).removesuffix("_whole_nojump_fit.xtc")
+            print(f"fitted_trajectory: {out}")
+            print(f"topology: {name}_{args.group}.tpr")
+            print(f"contacts_trajectory: {name}_whole_nojump.xtc")
         return 0
 
     u = load_universe(args.topology, args.trajectory)
@@ -69,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         contact_rep=args.contact_rep,
         n_pca_components=args.n_components,
         make_plots=not args.no_plots,
+        contacts_trajectory=args.contacts_trajectory,
     )
     for name, path in written.items():
         print(f"{name}: {path}")

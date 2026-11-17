@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shutil
+import subprocess
+import sys
 
 import MDAnalysis as mda
 from MDAnalysis.analysis import rms
@@ -54,6 +57,53 @@ def test_add_residue_file_uses_packaged_copy(tmp_path):
     target = an.add_residue_file(None, destination=tmp_path)
     assert os.path.basename(target) == "residuetypes.dat"
     assert "SNC" in open(target).read()
+
+
+@pytest.mark.parametrize("failure", ["exit", "missing"])
+def test_post_process_propagates_command_and_missing_output_failures(tmp_path, monkeypatch, failure):
+    trajectory = tmp_path / "md.xtc"
+    structure = tmp_path / "md.tpr"
+    trajectory.touch()
+    structure.touch()
+    monkeypatch.setattr(an, "find_gmx", lambda gmx: "gmx")
+
+    def run(command, **kwargs):
+        if failure == "exit":
+            return subprocess.CompletedProcess(command, 7, "", "trjconv failed")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(an.subprocess, "run", run)
+    match = "exit code 7" if failure == "exit" else "expected output"
+    with pytest.raises(RuntimeError, match=match):
+        an.post_process(trajectory, structure, prefix=tmp_path / "clean", interactive=True)
+
+
+@pytest.mark.parametrize("missing_suffix", [".gro", "_whole.xtc", "_whole_nojump.xtc", "_whole_nojump_fit.xtc", "_Protein.tpr"])
+def test_post_process_checks_every_output(tmp_path, monkeypatch, missing_suffix):
+    trajectory, structure = tmp_path / "md.xtc", tmp_path / "md.tpr"
+    trajectory.touch()
+    structure.touch()
+    monkeypatch.setattr(an, "find_gmx", lambda gmx: "gmx")
+
+    def run(command, cwd, stdin):
+        output = Path(command[command.index("-o") + 1])
+        if output.name != f"md{missing_suffix}":
+            output.touch()
+
+    monkeypatch.setattr(an, "_run", run)
+    with pytest.raises(RuntimeError, match="expected output"):
+        an.post_process(trajectory, structure, prefix=tmp_path / "clean", group="Protein", interactive=True)
+
+
+def test_unwrap_cli_exits_nonzero_on_failure(tmp_path):
+    result = subprocess.run(
+        [sys.executable, "-m", "AnalysisTools", "unwrap", "-s", str(tmp_path / "md.tpr"),
+         "-f", str(tmp_path / "md.xtc"), "-o", str(tmp_path / "clean"), "--gmx", str(tmp_path / "missing-gmx")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "Unwrap failed:" in result.stderr
+    assert "fitted_trajectory:" not in result.stdout
 
 
 @pytest.mark.parametrize("label", ["0001", "spade"])

@@ -329,7 +329,8 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
     Writes <output>.gro (frame 0), <output>_whole.xtc, <output>_whole_nojump.xtc,
     <output>_whole_nojump_fit.xtc and <output>_<group>.tpr, where <output> is the trajectory name
     inside `prefix` (plus _<suffix>). Returns the fitted trajectories. `fit_group` is the gmx group
-    the fit uses (default 3, C-alpha).
+    the fit uses (default 3, C-alpha). Raises RuntimeError if any command fails or an
+    expected output is missing.
     """
     if not interactive:
         return _not_interactive("post_process")
@@ -346,14 +347,25 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
 
     def one(trajectory, structure, index, output):
         n = _index_args(index)
-        _run([gmx, "trjconv", "-dump", "0", "-f", trajectory, "-s", structure, "-o", f"{output}.gro", *n], workdir, f"{group}\n")
-        _run([gmx, "trjconv", "-f", trajectory, "-s", structure, "-o", f"{output}_whole.xtc", "-pbc", "whole", *n], workdir, f"{group}\n")
-        _run([gmx, "trjconv", "-f", f"{output}_whole.xtc", "-o", f"{output}_whole_nojump.xtc", "-pbc", "nojump"], workdir, "0\n")
-        _run([gmx, "trjconv", "-f", f"{output}_whole_nojump.xtc", "-o", f"{output}_whole_nojump_fit.xtc",
-              "-fit", "rot+trans", "-s", f"{output}.gro"], workdir, f"{fit_group}\n0\n")
-        _run([gmx, "convert-tpr", "-s", structure, "-o", f"{output}_{group}.tpr", *n], workdir, f"{group}\n")
+        commands = [
+            ([gmx, "trjconv", "-dump", "0", "-f", trajectory, "-s", structure, "-o", f"{output}.gro", *n], f"{group}\n"),
+            ([gmx, "trjconv", "-f", trajectory, "-s", structure, "-o", f"{output}_whole.xtc", "-pbc", "whole", *n], f"{group}\n"),
+            ([gmx, "trjconv", "-f", f"{output}_whole.xtc", "-o", f"{output}_whole_nojump.xtc", "-pbc", "nojump"], "0\n"),
+            ([gmx, "trjconv", "-f", f"{output}_whole_nojump.xtc", "-o", f"{output}_whole_nojump_fit.xtc",
+              "-fit", "rot+trans", "-s", f"{output}.gro"], f"{fit_group}\n0\n"),
+            ([gmx, "convert-tpr", "-s", structure, "-o", f"{output}_{group}.tpr", *n], f"{group}\n"),
+        ]
+        for command, stdin in commands:
+            _run(command, workdir, stdin)
+            expected = command[command.index("-o") + 1]
+            if not os.path.isfile(expected):
+                raise RuntimeError(f"GROMACS did not create expected output: {expected}")
 
-    _run_all([partial(one, t, s, n, o) for t, s, n, o in zip(trajectories, structures, indices, outputs)], maxprocs)
+    failures = _run_all(
+        [partial(one, t, s, n, o) for t, s, n, o in zip(trajectories, structures, indices, outputs)], maxprocs
+    )
+    if failures:
+        raise RuntimeError("Trajectory post-processing failed:\n" + "\n".join(failures))
     return [f"{output}_whole_nojump_fit.xtc" for output in outputs]
 
 

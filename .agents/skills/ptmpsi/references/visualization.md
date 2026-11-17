@@ -12,10 +12,11 @@ Both ChimeraX and VMD are free for academic, government, and non-profit research
 ### macOS (Apple Silicon, verified with ChimeraX 1.12)
 - Open the downloaded `.dmg` and copy `ChimeraX-1.12.app` to `/Applications/`.
 - ChimeraX opens `.gro` + `.xtc` (`open processed.gro`, then `open md_clean.xtc structureModel #1`).
+- In the GUI command line, paste commands on one line separated by semicolons: `open processed.gro; open md_clean.xtc structureModel #1; show #1/A atoms; view #1`. Short capped peptides may have no cartoon representation, so use `show #1/A atoms` to display chain A.
 - `--nogui` loads trajectories, selects PTM residues (`select :SNC`), and saves `.cxs` sessions, but cannot save images (`Unable to save images because OpenGL rendering is not available`). Use the GUI for image export on macOS.
 
 ### PNNL Deception (Rocky Linux 9.5, verified in job `1573564` on `dc068`)
-- `chimerax` is not a cluster module and `apptainer` is not on compute nodes, but `/usr/bin/rpm2cpio` and `/usr/bin/cpio` are available.
+- `chimerax` is not a cluster module. Apptainer requires `module load apptainer`; without it the executable is absent from `PATH`. Container execution in batch jobs has failed with a `squashfuse`/`fusermount` error even after loading the module. Use the unpacked RPM for the verified native offscreen workflow below. `/usr/bin/rpm2cpio` and `/usr/bin/cpio` are available.
 - Unpack the `centos-9` `.rpm` into project storage without root:
   ```bash
   mkdir -p /vast/projects/<project>/<user>/chimerax-1.12-unpack
@@ -45,6 +46,15 @@ Both ChimeraX and VMD are free for academic, government, and non-profit research
 ### PNNL Deception (verified in job `1573323` on `dc068`)
 - Load `module load vmd/2.0.0a7` (`vmd/1.9.4a57` is also present).
 - Run `vmd -dispdev text -e script.tcl` in a batch job. `render TachyonInternal frame0.tga` renders headless on CPU nodes, and `/usr/bin/ffmpeg -y -i frame0.tga frame0.png` converts to PNG.
+
+## Browser-compatible movies
+
+Encode rendered frames as H.264 with an 8-bit YUV pixel format and move MP4 metadata
+to the beginning of the file so that browsers can play the movie:
+
+```bash
+ffmpeg -y -framerate 20 -i frame%04d.png -c:v libx264 -pix_fmt yuv420p -movflags +faststart movie.mp4
+```
 
 ## Windows (stub, not tested)
 - ChimeraX provides a `windows` installer via `get_chimerax.py --platform windows`.

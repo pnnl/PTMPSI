@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 
 from ptmpsi.gromacs.analysis import post_process
+from AnalysisTools import trajectory as trajectory_tools
+from AnalysisTools.__main__ import main
 from AnalysisTools import (
     check_pbc_jumps,
     compute_cartesian_pca,
@@ -237,6 +239,133 @@ def test_mass_weighted_and_joint_wt_ptm_cartesian_pca():
     assert wt_pc1 < ptm_pc1
     assert joint.explained_variance_ratio[0] > 0.70
     assert joint.cumulative_variance_ratio[1] > 0.99
+
+
+def test_pca_preserves_irregular_times_and_copies_only_required_atoms(tmp_path, monkeypatch):
+    coords = np.repeat(_ideal_backbone_frame(4)[None], 4, axis=0)
+    coords[:, 4:8, 2] += np.arange(4)[:, None] * 0.2
+    u = _make_peptide_universe(["SOL", "ALA", "SNC", "SOL"], coords)
+    times = np.array([125.0, 127.5, 133.0, 141.0])
+    xtc = tmp_path / "irregular.xtc"
+    with mda.Writer(str(xtc), len(u.atoms)) as writer:
+        for ts, time in zip(u.trajectory, times):
+            ts.time = time
+            writer.write(u.atoms)
+    u.load_new(str(xtc))
+    before = np.array([ts.positions.copy() for ts in u.trajectory])
+    merge = mda.Merge
+    copied_atom_counts = []
+
+    def selected_merge(*groups):
+        copied_atom_counts.append(sum(len(ag) for ag in groups))
+        return merge(*groups)
+
+    monkeypatch.setattr(mda, "Merge", selected_merge)
+    # Calculation and alignment sets differ, and original indices start after solvent.
+    single = compute_cartesian_pca(u, select="index 5 9", align_select="index 4 5 6 8 9 10")
+    np.testing.assert_array_equal(single.projections["time_ps"], times)
+    assert copied_atom_counts and max(copied_atom_counts) == 6
+    assert list(single.atoms["atom_name"]) == ["CA", "CA"]
+    np.testing.assert_array_equal(np.array([ts.positions.copy() for ts in u.trajectory]), before)
+    joint = compute_joint_cartesian_pca({"WT": u, "PTM": u})
+    for _, projections in joint.projections.groupby("system"):
+        np.testing.assert_array_equal(projections["time_ps"], times)
+
+
+@pytest.mark.parametrize("duplicate_system", ["target", "reference"])
+def test_contact_difference_rejects_duplicate_residue_keys(duplicate_system):
+    u = _make_peptide_universe(["ALA", "SNC"], _ideal_backbone_frame(2)[None])
+    target, reference = compute_contact_map(u), compute_contact_map(u)
+    result = target if duplicate_system == "target" else reference
+    result.residues.loc[1, "resid"] = result.residues.loc[0, "resid"]
+    with pytest.raises(ValueError, match=r"duplicate \(segid, resid\)"):
+        contact_difference_map(target, reference)
+
+
+@pytest.mark.parametrize("duplicate_system", ["WT", "PTM"])
+def test_joint_pca_rejects_duplicate_residue_keys(duplicate_system):
+    coords = np.repeat(_ideal_backbone_frame(2)[None], 3, axis=0)
+    systems = {name: _make_peptide_universe(["ALA", "SNC"], coords) for name in ("WT", "PTM")}
+    systems[duplicate_system].residues.resids = [1, 1]
+    with pytest.raises(ValueError, match=r"duplicate \(segid, resid\)"):
+        compute_joint_cartesian_pca(systems)
+
+
+def test_report_and_cli_use_nonfitted_contacts_separately_from_pca(tmp_path, monkeypatch):
+    frame = _ideal_backbone_frame(4)
+    frame[12:16, 0] = frame[0:4, 0] + 48.0
+    coords = np.repeat(frame[None], 4, axis=0)
+    coords[:, 4:8, 2] += np.arange(4)[:, None] * 0.2
+    box = np.array([50., 50., 50., 90., 90., 90.])
+    angle = np.pi / 4
+    rot = np.array([[np.cos(angle), -np.sin(angle), 0], [np.sin(angle), np.cos(angle), 0], [0, 0, 1]])
+    whole = _make_peptide_universe(["ALA", "CYS", "GLY", "VAL"], coords, box=box)
+    fitted = _make_peptide_universe(["ALA", "CYS", "GLY", "VAL"], coords @ rot.T, box=box)
+    assert compute_contact_map(whole).frequency[0, 3] == 1.
+    assert compute_contact_map(fitted).frequency[0, 3] == 0.
+    monkeypatch.setattr(
+        trajectory_tools, "load_universe", lambda top, traj: whole if str(traj) == "nojump.xtc" else fitted
+    )
+    default = trajectory_tools.save_standard_report("protein.tpr", "fit.xtc", tmp_path / "default", make_plots=False)
+    assert np.load(default["contact_frequency"])[0, 3] == 0.
+    monkeypatch.setattr("AnalysisTools.__main__.load_universe", lambda *args: fitted)
+    assert main([
+        "analyze", "-s", "protein.tpr", "-f", "fit.xtc", "--contacts-trajectory", "nojump.xtc",
+        "-o", str(tmp_path / "separate"), "--no-plots",
+    ]) == 0
+    assert np.load(tmp_path / "separate/analysis_contact_frequency.npy")[0, 3] == 1.
+    np.testing.assert_allclose(
+        np.loadtxt(default["pca_variance"], delimiter=",", skiprows=1, usecols=(1, 2, 3)),
+        np.loadtxt(tmp_path / "separate/analysis_pca_variance.csv", delimiter=",", skiprows=1, usecols=(1, 2, 3)),
+    )
+
+
+def test_solvated_unwrap_cli_reports_matching_tpr_for_analyze(snc_system, tmp_path):
+    source = snc_system["dir"]
+    for name in ("amber99sb.ff",):
+        shutil.copytree(source / name, tmp_path / name)
+    for name in ("topol.top", "box.gro", "md.mdp", "residuetypes.dat", "specbond.dat"):
+        shutil.copy2(source / name, tmp_path / name)
+    gmx = snc_system["gmx"]
+    for command in (
+        ["solvate", "-cp", "box.gro", "-cs", "spc216.gro", "-o", "solvated.gro", "-p", "topol.top"],
+        ["grompp", "-f", "md.mdp", "-c", "solvated.gro", "-p", "topol.top", "-o", "solvated.tpr", "-maxwarn", "2"],
+    ):
+        subprocess.run([gmx, *command], cwd=tmp_path, check=True, capture_output=True, text=True)
+    u = load_universe(tmp_path / "solvated.tpr", tmp_path / "solvated.gro")
+    protein = select_protein(u)
+    base = u.atoms.positions.copy()
+    raw = tmp_path / "solvated.xtc"
+    with mda.Writer(str(raw), len(u.atoms)) as writer:
+        for i in range(4):
+            u.atoms.positions = base
+            protein.positions += i * 0.02
+            u.trajectory.ts.time = 50.0 + 2.0 * i
+            writer.write(u.atoms)
+    unwrapped = subprocess.run(
+        [sys.executable, "-m", "AnalysisTools", "unwrap", "-s", str(tmp_path / "solvated.tpr"),
+         "-f", str(raw), "-o", str(tmp_path / "clean"), "--gmx", gmx],
+        capture_output=True, text=True,
+    )
+    assert unwrapped.returncode == 0, unwrapped.stderr
+    outputs = dict(line.split(": ", 1) for line in unwrapped.stdout.splitlines())
+    for path in outputs.values():
+        assert Path(path).is_file()
+    assert outputs["topology"] == str(tmp_path / "clean/solvated_Protein.tpr")
+    reduced = load_universe(outputs["topology"], outputs["fitted_trajectory"])
+    assert len(reduced.atoms) == len(protein) < len(u.atoms)
+    result = subprocess.run(
+        [sys.executable, "-m", "AnalysisTools", "analyze", "-s", outputs["topology"],
+         "-f", outputs["fitted_trajectory"], "--contacts-trajectory", outputs["contacts_trajectory"],
+         "-o", str(tmp_path / "report"), "--no-plots"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "report/analysis_contact_frequency.npy").is_file()
+    np.testing.assert_array_equal(
+        np.loadtxt(tmp_path / "report/analysis_pca_projections.csv", delimiter=",", skiprows=1, usecols=2),
+        [50., 52., 54., 56.],
+    )
 
 
 @pytest.mark.skipif(shutil.which("gmx") is None and shutil.which("gmx_mpi") is None, reason="GROMACS CLI not installed")

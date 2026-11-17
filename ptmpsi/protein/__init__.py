@@ -499,7 +499,12 @@ class Protein:
             submit_cmd = "sbatch"
             dependency = "--dependency"
             sed = "| sed 's/Submitted batch job //'"
-        auto_submit_ti = kwargs.get("auto_submit_ti", True)
+        max_md_runs = kwargs.get("max_md_runs", 1 if machine == "Deception" else None)
+        if max_md_runs is not None:
+            max_md_runs = int(max_md_runs)
+            if max_md_runs < 0:
+                raise ValueError(f"max_md_runs must be >= 0 or None, got {max_md_runs}")
+        auto_submit_ti = do_ti and kwargs.get("auto_submit_ti", True) and max_md_runs != 0
         
         checkpointing = kwargs.get("checkpointing", True)
 
@@ -555,11 +560,11 @@ class Protein:
                 if machine == "Frontier":
                     submit.write(f"jobid=$({submit_cmd} {prefix}bundle.sbatch {sed}) \n")
                     submit.write(f"echo \"Submitted {prefix}bundle.sbatch as job id $jobid\"\n")
-                    if checkpointing:
+                    if checkpointing and max_md_runs != 0:
                         submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md_bundle.sbatch {sed}) \n")
                         submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
                         submit.write(f"echo $jobid > md.jobid\n")
-                    else:
+                    elif not checkpointing:
                         raise NotImplementedError("Checkpointing is currently required for bundling on Frontier")
                 elif machine == "Polaris" and checkpointing:
                         raise NotImplementedError("Checkpointing is currently not supported for bundling on Polaris")
@@ -592,7 +597,7 @@ class Protein:
                             fh.write(f"  flux batch -N 1 -t {jobtime_hours}h -l --gpus-per-slot=8 --cores-per-slot=56 -x --cwd=$dir --output=$base.flux.out --error=$base.flux.err $line\n")
                             fh.write(f"done < {prefix}{jobname}fluxjobs.txt\n")
                             fh.write("flux queue drain\n")
-                            if jobname == "":
+                            if jobname == "" and max_md_runs != 0:
                                 fh.write(check_and_queue_estimated_runs_flux.format(prefix=prefix, jobname="md", submit_cmd=submit_cmd, sed=sed, dependency=dependency))
                         subprocess.run(["chmod", "+x", f"{path}/{prefix}{jobname}bundle_flux.sh"])
                 elif machine == "Polaris":
@@ -637,7 +642,7 @@ class Protein:
                         submit.write(f"cd {os.path.relpath(jpath, path)} \n")
                         submit.write(f"jobid=$({submit_cmd} {prefix}{j:04d}_slurm.sbatch {sed}) \n")
                         submit.write(f"echo \"Submitted {prefix}{j:04d}_slurm.sbatch as job id $jobid\"\n")
-                        if checkpointing:
+                        if checkpointing and max_md_runs != 0:
                             submit.write(f"jobid=$({submit_cmd} {dependency}=afterok:$jobid md.sbatch {sed}) \n")
                             submit.write(f"echo \"Submitted md.sbatch as job id $jobid with a dependency on the previous job.\"\n")
                             submit.write(f"echo $jobid > md.jobid\n")
