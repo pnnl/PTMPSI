@@ -390,10 +390,10 @@ Both programs are free for academic, government and non-profit research and neit
 | | Status |
 |---|---|
 | ChimeraX opens `.xtc` and `.trr`, but needs a topology from an open model (`.gro`, `.pdb`) and not a `.tpr`. `post_process` writes a `.gro` of frame 0 beside the fitted `.xtc`. | Verified on macOS arm64 (ChimeraX 1.12 `--nogui`): loaded PTM-Psi `.gro` + `.xtc` (10 frames), selected `:SNC` (12 atoms, 11 bonds), saved `.cxs` |
-| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Verified on macOS arm64 (`--nogui` cannot save PNG: no OpenGL); Linux `--offscreen` not run |
-| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Unknown (`chimerax` is not a cluster module) |
-| VMD text mode (`vmd -dispdev text`) has no OpenGL `snapshot`, but Tachyon rendering works | Vendor docs; not run |
-| Deception module `vmd/2.0.0a7` (`vmd/1.9.4a57` also present), and `/usr/bin/ffmpeg` on Deception | Present on login node; batch render not run |
+| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Verified on macOS arm64 (`--nogui` cannot save PNG: no OpenGL) and on Deception (`dc068`, job `1573564`): `--offscreen --nogui` rendered a `512x512` PNG (`37K`) |
+| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Verified on Deception (`dc068`, job `1573564`): unpack `centos-9` `.rpm` with `rpm2cpio`/`cpio` into project storage and set `LD_LIBRARY_PATH` + `LD_PRELOAD` to `/share/apps/python/miniforge25.3.0/lib/{libcrypto,libssl}.so.3` (Rocky 9.5 lacks `OPENSSL_3.3.0`). See `references/visualization.md`. |
+| VMD text mode (`vmd -dispdev text`) has no OpenGL `snapshot`, but Tachyon rendering works | Verified on Deception (`vmd/2.0.0a7`, job `1573323` on `dc068`): loaded `.gro` + `.xtc` (11 frames), selected `resname SNC`, rendered `TachyonInternal` `.tga` (0.4 s) and converted to `.png` via `/usr/bin/ffmpeg` |
+| Deception module `vmd/2.0.0a7` (`vmd/1.9.4a57` also present), and `/usr/bin/ffmpeg` on Deception | Verified on Deception login & compute (`dc068`, job `1573323`) |
 | `conda install conda-forge::vmd-python` gives VMD as a Python module (no GUI) | Verified on macOS arm64 (`vmd-python` 3.1.7 / VMD 1.9.4a26 via isolated `micromamba`): loaded `.gro` + `.xtc`, selected `resname SNC`, wrote Tachyon `.dat` scene; `TachyonInternal` not compiled in |
 | ChimeraX plugin for adding Cys modifications | In `plugins/` (see `references/templates.md`, section C) |
 
