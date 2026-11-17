@@ -383,6 +383,28 @@ Two modules, and each analysis lives in only one of them, so do not mix same-nam
    - `save_standard_report(tpr, xtc, out_dir)` (or `python -m AnalysisTools analyze -s md.tpr -f clean.xtc -o analysis_out`) runs the contact map and PCA and writes CSV/NPY/PNG summaries.
 6. **On Deception, run all of this in a `shared` batch job via `dcx.py`.** Login nodes forbid `gmx_mpi` and Python workloads. Install `MDAnalysis`, `numpy`, `pandas` and `matplotlib` into a project-storage venv (`/rcfs/projects/<project>/...`) and submit an `.sbatch` on `shared` that loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2` and activates that venv. The system modules do not include `psutil`, which the old `analysis.py` needed and the current one does not.
 
+## Visualization (ChimeraX, VMD)
+
+Both programs are free for academic, government and non-profit research and neither can be installed with `pip` or `brew`. Neither is part of PTM-Psi and nothing here vendors them. What is verified and what is not:
+
+| | Status |
+|---|---|
+| ChimeraX opens `.xtc` and `.trr`, but needs a topology from an open model (`.gro`, `.pdb`) and not a `.tpr`. `post_process` writes a `.gro` of frame 0 beside the fitted `.xtc`. | Vendor docs; not run with a PTM-Psi system |
+| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Vendor docs; not run |
+| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Unknown |
+| VMD text mode (`vmd -dispdev text`) has no OpenGL `snapshot`, but Tachyon rendering works | Vendor docs; not run |
+| Deception module `vmd/2.0.0a7`, and `ffmpeg` on Deception | Listed in the cluster notes; not checked |
+| `conda install conda-forge::vmd-python` gives VMD as a Python module (no GUI) | Package page; not installed |
+| ChimeraX plugin for adding Cys modifications | In `plugins/` (see `references/templates.md`, section C) |
+
+**Installing ChimeraX needs the user's agreement to UCSF's licence.** The download page asks for a click on "Accept", and `scripts/get_chimerax.py` does that click for the user. Using this skill does not mean the user has agreed. Before running it with `--accept-license`:
+
+1. Run it without the flag. It prints the licence link and downloads nothing.
+2. Tell the user that downloading means accepting UCSF's non-commercial licence (https://www.cgl.ucsf.edu/chimerax/docs/licensing.html), which covers academic, non-profit and government-sponsored research, and that commercial use needs a separate licence.
+3. Ask for a clear yes. Only then run `python .agents/skills/ptmpsi/scripts/get_chimerax.py --accept-license -o <folder>`. It checks the SHA-256 the site publishes, and it only downloads: it does not install.
+
+Do not pass `--accept-license` because a task seems to need ChimeraX, or on a user's behalf from an earlier session. VMD has no such script: its download needs a registered login, so ask the user to download it.
+
 ## Checking your work
 
 After step 9, list `<uid>/` and compare it with the layout in `references/templates.md`. A complete combination folder has 14 `.mdp` files, `<NNNN>_slurm.sbatch`, `md.sbatch`, `submit_lambdas.sh` and a `dualti/` folder with `lam-00` to `lam-12`. If something is missing, do not edit generated files by hand. Fix the input and regenerate.
