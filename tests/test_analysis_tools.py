@@ -153,6 +153,9 @@ def test_pbc_jump_check():
     report = check_pbc_jumps(u_wrapped)
     assert report["has_pbc_jumps"] is True
     assert 5 in report["split_chain_frames"]
+    non_ca_report = check_pbc_jumps(u_wrapped, selection="name N CA C O")
+    assert non_ca_report["has_pbc_jumps"] is True
+    assert 5 in non_ca_report["jump_frames"]
 
 
 def test_minimum_image_contact_map_and_wt_ptm_difference():

@@ -229,7 +229,6 @@ def check_pbc_jumps(
     selection: str | None = None,
     *,
     max_step_angstrom: float = 15.0,
-    max_ca_span_fraction: float = 0.85,
 ) -> dict[str, object]:
     """Detect likely un-unwrapped PBC jumps across trajectory frames.
 
@@ -272,10 +271,6 @@ def check_pbc_jumps(
             ca_dists = np.linalg.norm(pos[idx_b] - pos[idx_a], axis=1)
             if float(ca_dists.max()) > 6.0:
                 split_chain_frames.append(int(ts.frame))
-        elif ts.dimensions is not None and np.all(ts.dimensions[:3] > 0):
-            span = pos.max(axis=0) - pos.min(axis=0)
-            if np.any(span > max_ca_span_fraction * ts.dimensions[:3]):
-                pass
         prev_pos = pos
 
     has_jumps = bool(jump_frames or split_chain_frames)
