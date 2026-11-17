@@ -42,6 +42,8 @@ def site():
             if self.path.endswith("production.json"):
                 build = {"name": "macOS (Apple Silicon)", "link": LINK, "size": "1 MiB", "sha256": state["sha"]}
                 self._send(json.dumps(["9.9", "1 Jan 2027", {"mac_arm64": build}]).encode(), "application/json")
+            elif "choice=Notified" in self.path:
+                self._send(PAYLOAD, "application/octet-stream")
             else:
                 gate = (f'<form method="POST"><input type="hidden" name="file" value="{LINK}"/>'
                         '<input type="submit" name="choice" value="Decline"/>'
@@ -51,7 +53,12 @@ def site():
         def do_POST(self):
             fields = urllib.parse.parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode())
             state["posts"].append(fields)
-            self._send(PAYLOAD, "application/octet-stream")
+            if state.get("refresh"):
+                refresh_url = f"/cgi-bin/secure/chimerax-get.py?ident=tok&file={urllib.parse.quote(LINK)}&choice=Notified"
+                page = f'<meta http-equiv="Refresh" content="2;url={refresh_url}"/>'
+                self._send(page.encode(), "text/html; charset=UTF-8")
+            else:
+                self._send(PAYLOAD, "application/octet-stream")
 
     server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -73,6 +80,13 @@ def test_with_the_flag_it_accepts_downloads_and_verifies(site, tmp_path):
     module = _load()
     assert module.main(["--platform", "mac_arm64", "--accept-license", "--base-url", site["url"], "-o", str(tmp_path)]) == 0
     assert site["posts"] == [{"file": [LINK], "choice": ["Accept"]}]
+    assert (tmp_path / "ChimeraX-9.9.dmg").read_bytes() == PAYLOAD
+
+
+def test_meta_refresh_redirect_is_followed(site, tmp_path):
+    site["refresh"] = True
+    module = _load()
+    assert module.main(["--platform", "mac_arm64", "--accept-license", "--base-url", site["url"], "-o", str(tmp_path)]) == 0
     assert (tmp_path / "ChimeraX-9.9.dmg").read_bytes() == PAYLOAD
 
 

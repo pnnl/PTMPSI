@@ -15,6 +15,7 @@ It only downloads. It does not install anything.
 
 import argparse
 import hashlib
+import html
 import json
 import os
 import platform
@@ -53,13 +54,27 @@ def download(base, link, destination, sha256):
     hidden = dict(re.findall(r'<input type="hidden" name="(\w+)" value="([^"]*)"', page))
     body = urllib.parse.urlencode({**hidden, "choice": "Accept"}).encode()
     digest = hashlib.sha256()
-    with urllib.request.urlopen(urllib.request.Request(gate, data=body), timeout=60) as response:
+
+    def _save(response):
         if "text/html" in response.headers.get("Content-Type", ""):
             raise SystemExit("ChimeraX returned a web page instead of the installer. Download it in a browser.")
         with open(destination, "wb") as out:
             for chunk in iter(lambda: response.read(1 << 20), b""):
                 digest.update(chunk)
                 out.write(chunk)
+
+    with urllib.request.urlopen(urllib.request.Request(gate, data=body), timeout=60) as response:
+        if "text/html" in response.headers.get("Content-Type", ""):
+            refresh_page = response.read().decode("utf-8", "replace")
+            match = re.search(r'<meta\s+http-equiv=["\']?Refresh["\']?\s+content=["\']?\d+;\s*url=([^"\'>]+)',
+                              refresh_page, re.IGNORECASE)
+            if not match:
+                raise SystemExit("ChimeraX returned a web page instead of the installer. Download it in a browser.")
+            next_url = urllib.parse.urljoin(gate, html.unescape(match.group(1)))
+            with urllib.request.urlopen(next_url, timeout=120) as file_response:
+                _save(file_response)
+        else:
+            _save(response)
     if digest.hexdigest() != sha256:
         os.remove(destination)
         raise SystemExit(f"SHA-256 mismatch for {destination}: got {digest.hexdigest()}, expected {sha256}. Deleted it.")

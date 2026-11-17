@@ -389,12 +389,12 @@ Both programs are free for academic, government and non-profit research and neit
 
 | | Status |
 |---|---|
-| ChimeraX opens `.xtc` and `.trr`, but needs a topology from an open model (`.gro`, `.pdb`) and not a `.tpr`. `post_process` writes a `.gro` of frame 0 beside the fitted `.xtc`. | Vendor docs; not run with a PTM-Psi system |
-| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Vendor docs; not run |
-| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Unknown |
+| ChimeraX opens `.xtc` and `.trr`, but needs a topology from an open model (`.gro`, `.pdb`) and not a `.tpr`. `post_process` writes a `.gro` of frame 0 beside the fitted `.xtc`. | Verified on macOS arm64 (ChimeraX 1.12 `--nogui`): loaded PTM-Psi `.gro` + `.xtc` (10 frames), selected `:SNC` (12 atoms, 11 bonds), saved `.cxs` |
+| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Verified on macOS arm64 (`--nogui` cannot save PNG: no OpenGL); Linux `--offscreen` not run |
+| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Unknown (`chimerax` is not a cluster module) |
 | VMD text mode (`vmd -dispdev text`) has no OpenGL `snapshot`, but Tachyon rendering works | Vendor docs; not run |
-| Deception module `vmd/2.0.0a7`, and `ffmpeg` on Deception | Listed in the cluster notes; not checked |
-| `conda install conda-forge::vmd-python` gives VMD as a Python module (no GUI) | Package page; not installed |
+| Deception module `vmd/2.0.0a7` (`vmd/1.9.4a57` also present), and `/usr/bin/ffmpeg` on Deception | Present on login node; batch render not run |
+| `conda install conda-forge::vmd-python` gives VMD as a Python module (no GUI) | Verified on macOS arm64 (`vmd-python` 3.1.7 / VMD 1.9.4a26 via isolated `micromamba`): loaded `.gro` + `.xtc`, selected `resname SNC`, wrote Tachyon `.dat` scene; `TachyonInternal` not compiled in |
 | ChimeraX plugin for adding Cys modifications | In `plugins/` (see `references/templates.md`, section C) |
 
 **Installing ChimeraX needs the user's agreement to UCSF's licence.** The download page asks for a click on "Accept", and `scripts/get_chimerax.py` does that click for the user. Using this skill does not mean the user has agreed. Before running it with `--accept-license`:
