@@ -1752,14 +1752,14 @@ else
 fi
 if [ "$file_jobid" = "$self_jobid" ]; then
   echo "This is the last {job} job. Checking to see if requested steps match completed steps."
-  requested_nsteps=$(grep "^nsteps" {job}.mdp | awk '{{print $3}}')
+  requested_nsteps=$(grep "^[[:space:]]*nsteps[[:space:]]*=" {job}.mdp | head -1 | sed 's/[^=]*=//; s/;.*//' | tr -d '[:space:]' || true)
   completed_nsteps=$(grep "Writing checkpoint, step" {job}.log | tail -1 | awk '{{print $4}}' || true)
   if [ -n "$requested_nsteps" ] && [ -n "$completed_nsteps" ] && [ "$requested_nsteps" -eq "$completed_nsteps" ]; then
     echo "nsteps completed match the requested nsteps! $completed_nsteps steps completed."
   else
-    echo "WARNING: nsteps completed (${{completed_nsteps:-unknown}}) do not match the requested nsteps (${{requested_nsteps:-unknown}})."
+    echo "ERROR: nsteps completed (${{completed_nsteps:-unknown}}) do not match the requested nsteps (${{requested_nsteps:-unknown}}). Refusing to run update_topology.py or start afterok TI jobs from an unfinished {job} run." >&2
+    exit 1
   fi
-  echo "Updating topology whether nsteps was achieved or not."
   cd dualti
   python update_topology.py
 fi

@@ -343,14 +343,21 @@ class LocalScripts(unittest.TestCase):
             self.assertEqual(calls, ['--dependency=afterok:4000 md.sbatch'])
             self.assertEqual((directory / 'md.jobid').read_text().strip(), '5001')
 
-            # Verify check_and_update_topology in md.sbatch succeeds under set -eo pipefail
-            (directory / 'md.log').write_text('Writing checkpoint, step 100 at ...\n')
+            # Verify check_and_update_topology in md.sbatch refuses incomplete runs and updates on completion
             (directory / 'dualti').mkdir(exist_ok=True)
             (directory / 'dualti/update_topology.py').write_text('from pathlib import Path; Path("updated.ok").write_text("yes")\n')
             tail_block = md_sbatch[md_sbatch.index('self_jobid='):]
             md_harness = directory / 'run_md_tail.sh'
             md_harness.write_text('set -eo pipefail\nSLURM_JOBID=5001\n' + tail_block)
             env_py = dict(env, PATH=f'{Path(sys.executable).parent}:{env["PATH"]}')
+
+            (directory / 'md.log').write_text('Writing checkpoint, step 100 at ...\n')
+            res_incomplete = subprocess.run(['/bin/bash', str(md_harness)], cwd=directory, env=env_py, capture_output=True, text=True)
+            self.assertEqual(res_incomplete.returncode, 1)
+            self.assertIn('Refusing to run update_topology.py', res_incomplete.stderr)
+            self.assertFalse((directory / 'dualti/updated.ok').exists())
+
+            (directory / 'md.log').write_text('Writing checkpoint, step 50000000 at ...\n')
             res_md = subprocess.run(['/bin/bash', str(md_harness)], cwd=directory, env=env_py, capture_output=True, text=True)
             self.assertEqual(res_md.returncode, 0, res_md.stderr)
             self.assertTrue((directory / 'dualti/updated.ok').is_file())
