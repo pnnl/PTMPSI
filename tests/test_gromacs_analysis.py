@@ -208,3 +208,22 @@ def test_contact_map_pairdist_cutoff_exceeds_contact_cutoff(tmp_path, monkeypatc
     assert seen_cutoffs[0] > 1.2
     assert wide_mat == pytest.approx(np.eye(2))
 
+
+def test_rmsd_and_rmsf_pass_selected_group_on_stdin(tmp_path, monkeypatch):
+    traj, tpr = tmp_path / "md.xtc", tmp_path / "md.tpr"
+    traj.touch()
+    tpr.touch()
+    monkeypatch.setattr(an, "find_gmx", lambda gmx: "gmx")
+    calls = []
+
+    def fake_run(command, cwd, stdin=None):
+        calls.append((command[1], stdin))
+        out = Path(cwd) / command[command.index("-o") + 1]
+        out.write_text("0.0 0.1\n")
+
+    monkeypatch.setattr(an, "_run", fake_run)
+    an.rmsd(traj, tpr, tmp_path / "rmsd_g1", group=1, interactive=True)
+    an.rmsf(traj, tpr, tmp_path / "rmsf_g1", group=1, interactive=True)
+    assert calls == [("rms", "1\n1\n"), ("rmsf", "1\n")]
+
+

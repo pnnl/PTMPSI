@@ -452,7 +452,7 @@ def rmsd(trajectory, structure, output_dir, index=None, group=4, interactive=Fal
     with _working_dir(output_dir):
         add_residue_file(trajectories[0])
         result_files = [f"{label}_rmsd.xvg" for label in labels]
-        _run_all([partial(_run, [gmx, "rms", "-s", s, "-f", t, "-o", out, *_index_args(n)], output_dir, f"{group} 4\n")
+        _run_all([partial(_run, [gmx, "rms", "-s", s, "-f", t, "-o", out, *_index_args(n)], output_dir, f"{group}\n{group}\n")
                   for t, s, n, out in zip(trajectories, structures, indices, result_files)], maxprocs)
         process_rmsd(result_files, result_files[ref])
     return [os.path.join(output_dir, f) for f in result_files]
@@ -504,7 +504,7 @@ def rmsf(trajectory, structure, output_dir, index=None, group=4, interactive=Fal
         add_residue_file(trajectories[0])
         result_files = [(f"{label}_rmsf.xvg", f"{label}_bfactors.pdb") for label in labels]
         _run_all([partial(_run, [gmx, "rmsf", "-f", t, "-s", s, "-o", xvg, "-res", "-oq", pdb, "-fit", *_index_args(n)],
-                          output_dir, f"{group} 4\n")
+                          output_dir, f"{group}\n")
                   for t, s, n, (xvg, pdb) in zip(trajectories, structures, indices, result_files)], maxprocs)
         process_rmsf(result_files)
     return [(os.path.join(output_dir, xvg), os.path.join(output_dir, pdb)) for xvg, pdb in result_files]
