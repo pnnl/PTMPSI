@@ -56,6 +56,22 @@ to the beginning of the file so that browsers can play the movie:
 ffmpeg -y -framerate 20 -i frame%04d.png -c:v libx264 -pix_fmt yuv420p -movflags +faststart movie.mp4
 ```
 
+### Making a trajectory movie from a Deception run (one Trp-cage WT vs SNC run)
+
+Render on Deception, encode on the laptop:
+- Deception's `/usr/bin/ffmpeg` has no `libx264` ("Unknown encoder"), so the command above fails there. Use it only for `.tga` to `.png`, then encode with a local ffmpeg.
+- `dcx.py` has no download command and `read-files` is capped at 4 MiB. In a small sbatch job, `tar` the PNG frames, `base64 -w 0` the tar, `split -b 3000000` it, and record `sha256sum` of the tar. Fetch each part with `read-files`, join, decode, and check the hash locally.
+- Make the molecules whole before rendering: re-extract the protein with `trjconv` only, then `MDAnalysis.lib.mdamath.make_whole`, fit on the backbone, and rotate every system with the same matrix so that they face the same way. The `gmx` nojump and fit pipeline left bad frames (see SKILL.md).
+- For a side-by-side video, render each system separately, then join the frames and add labels and a timestamp locally (Pillow), then encode. Keep the header strip and the timestamp in separate areas so one cannot overwrite the other.
+
+VMD 2.0.0a7 headless (`vmd -dispdev text -eofexit -e script.tcl < /dev/null`):
+- Do not use `display rendermode GLSL` (error) or `molinfo ... get scale` (invalid attribute).
+- `display resize` before a `TachyonInternal` render gave blank images. Leave the default size.
+- A cartoon of a PDB with no `HELIX` records draws as a plain tube. Add `HELIX` records from DSSP.
+- VMD does not treat `SNC` as a protein residue. For drawing only, write a PDB with `SNC` renamed `CYS`.
+- A Tcl error ends the run silently. Wrap the body in `catch` and print the error.
+- "Duplicate resname" errors at start-up are harmless.
+
 ## Windows (stub, not tested)
 - ChimeraX provides a `windows` installer via `get_chimerax.py --platform windows`.
 - VMD provides a Windows installer via UIUC's registered download page.
