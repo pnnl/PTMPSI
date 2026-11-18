@@ -15,6 +15,19 @@ slurm_header["AQE-LDRD"] = """#!/bin/bash
 # {nthreads}
 """
 
+slurm_header["DECEPTION"] = """#!/bin/bash
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --nodes={nnodes}
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task={ntasks}
+{gpuline}
+#SBATCH --time={time}
+#SBATCH --job-name={jname}
+#SBATCH --output={jname}-%j.out
+#SBATCH --error={jname}-%j.err
+"""
+
 slurm_header["Tahoma"] = """#!/bin/bash
 #SBATCH --nodes={nnodes}
 #SBATCH --ntasks-per-node={ntasks}
@@ -60,6 +73,27 @@ slurm_header["Polaris"] = """#!/bin/bash -l
 #PBS -q {partition}
 #PBS -N {jname}
 #PBS -A {account}
+"""
+
+slurm_body["Deception"] = """{header}
+if ! command -v module >/dev/null 2>&1; then
+  source /etc/profile.d/modules.sh
+fi
+module purge
+module load apptainer/1.4.1
+
+export PYTHONUNBUFFERED=1
+Data_Loc={data_dir}
+OUTPUT_DIR=${{SLURM_SUBMIT_DIR}}/AF_results.${{SLURM_JOB_ID}}
+mkdir -p $OUTPUT_DIR
+
+apptainer run {nv}--bind /people:/people,/rcfs:/rcfs,/qfs/people:/qfs/people,/qfs/projects:/qfs/projects,/scratch:/scratch,/share/apps:/share/apps,/vast:/vast --env TF_FORCE_UNIFIED_MEMORY=1 --env XLA_PYTHON_CLIENT_MEM_FRACTION=4.0 --env OPENMM_CPU_THREADS=12 {container} \\
+    --fasta_paths={fasta_paths} --output_dir=$OUTPUT_DIR --max_template_date={date} \\
+    --db_preset={dbs} --model_preset={model} --benchmark=False --use_precomputed_msas=False \\
+    --num_multimer_predictions_per_model=5 --run_relax={run_relax} --use_gpu_relax={gpu_relax} --logtostderr \\
+    --data_dir=$Data_Loc --uniref90_database_path=$Data_Loc --mgnify_database_path=$Data_Loc \\
+    --template_mmcif_dir=$Data_Loc --obsolete_pdbs_path=$Data_Loc/obsolete.dat \\
+    --bfd_database_path=$Data_Loc --uniref30_database_path=$Data_Loc --pdb70_database_path=$Data_Loc/pdb70
 """
 
 slurm_body["Tahoma"] = """{header}

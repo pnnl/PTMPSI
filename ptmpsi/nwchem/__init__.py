@@ -42,6 +42,7 @@ class NWChem:
         self.tdgrid  = kwargs.get("tdgrid","lebedev 100 14")
         self.nscf    = kwargs.get("nscf",100)
         self.nopt    = kwargs.get("nopt",60)
+        self.xtb     = kwargs.get("xtb",True)
         self.disp    = kwargs.get("disp","disp vdw 4")
         self.delta   = kwargs.get("delta",0.0189)
         self.lshift  = kwargs.get("lshift",0.1)
@@ -96,6 +97,12 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
     # Process all keyword arguments
     slurm  = Slurm("nwchem", **kwargs)
     nwchem = NWChem(**kwargs)
+    # the NWChem module on Deception is built without xtb
+    if slurm.machine.name == "DECEPTION" and "xtb" not in kwargs:
+        nwchem.xtb = False
+    # With these two flags the NWChem build on Deception stops in the first SCF step with
+    # "int_2e4c: fatal error"; the container builds used elsewhere need them
+    cando = "" if slurm.machine.name == "DECEPTION" else cando_flags
     tdrive = TorsionDrive(**kwargs)
     _dohfresp = hfresp if dohfresp else ""
 
@@ -258,7 +265,8 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, nopt=nwchem.nopt, disp=nwchem.disp, gcons=gcons,
                 constraint=consnw,geometry=geometry,lshift=nwchem.lshift,
-                noautoz=noautoz, dohfresp=_dohfresp))
+                noautoz=noautoz, dohfresp=_dohfresp, cando=cando,
+                xtb=xtbopt if nwchem.xtb else "", xtbtask=xtbtask if nwchem.xtb else ""))
         filename = filename[:-3] + "_hess.nw"
         _geometry = f""" load "conf{str(idx)}.xyz" """
         with open(os.path.join(qm_path, filename),"w") as infile:
@@ -267,7 +275,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                 mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                 grid=nwchem.grid, aobasis=nwchem.aobasis, cdbasis=nwchem.cdbasis,
                 nscf=nwchem.nscf, disp=nwchem.disp, delta=nwchem.delta,
-                geometry=_geometry))
+                geometry=_geometry, cando=cando))
         if dotorsions and single:
             filename = f"conf{str(idx)}_tdrive.nw"
             with open(os.path.join(qm_path, filename),"w") as infile:
@@ -276,7 +284,7 @@ def get_qm_data(residue,ligand=False,metal=False,ff="AMBER99",dohfresp=True,path
                     mult=nwchem.mult, memory=nwchem.memory, xcfun=nwchem.xcfun,
                     grid=nwchem.tdgrid, aobasis=nwchem.tdbasis, cdbasis=nwchem.cdbasis,
                     nscf=nwchem.nscf, disp=nwchem.disp, lshift=nwchem.lshift,
-                    geometry="@geometry@"))
+                    geometry="@geometry@", cando=cando))
             with open(os.path.join(qm_path, f"dihedrals{str(idx)}.txt"),"w") as infile:
                 infile.write("{} {} {} {}".format(*tdrive.torsions[-1]))
             with open(os.path.join(qm_path, f"extras{str(idx)}.txt"),"w") as infile:
@@ -309,10 +317,14 @@ python -m pip install numpy'''
         infile.write("\npython espfit.py\n")
         infile.write("\npython modseminario.py\n")
         infile.write("\ndeactivate\n")
-        if dotorsions and single: 
+        # The torsion scan setup (proxy, git clone, container image) is specific to Tahoma
+        tdrive_in_script = dotorsions and single and slurm.machine.name != "DECEPTION"
+        if dotorsions and single and not tdrive_in_script:
+            print("\t Warning: torsion scans are not added to the Deception job script")
+        if tdrive_in_script:
             infile.write(slurm_tdrive.format(scratch=slurm.scratch))
         infile.write("\n")
-        if dotorsions and single:
+        if tdrive_in_script:
             for idx in range(len(coords)):
                 tail = f"conf{str(idx)}"
                 infile.write(script_copy[script_method].format(filename=f"dihedrals{str(idx)}.txt"))

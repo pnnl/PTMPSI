@@ -1,0 +1,435 @@
+---
+name: ptmpsi
+description: Use the PTM-Psi Python package (import ptmpsi) to build proteins and polymers, apply post-translational modifications (PTMs), and prepare simulations. Covers installing ptmpsi, loading or building structures (PDB, AlphaFold DB, local file, from scratch), AlphaFold job scripts, nylon surfaces, point mutations, AMBER99 parameters via NWChem, PTMs, docking, QM/MM input, and generating GROMACS .mdp/.itp/.tpr run directories for PTM combinations with thermodynamic integration. Encodes tutorials/Tutorial.ipynb as the worked example. Use when the user mentions PTM-Psi, ptmpsi, PTMPSI, Protein.modify, get_ptm_combinations, gen_ptm_files, get_qm_data, or asks to set up GROMACS or thermodynamic integration runs for modified residues.
+---
+
+# PTM-Psi
+
+PTM-Psi is a Python package (`import ptmpsi`) for building proteins with post-translational modifications and preparing simulations. This skill covers the package. The steps below follow `tutorials/Tutorial.ipynb`, which is the worked example of every main feature.
+
+Read this file first. Open the references only when a step tells you to:
+
+- `references/api.md`: every function the tutorial calls, with file and line.
+- `references/templates.md`: the GROMACS `.mdp`, `.itp`, `.tpr` and other template files. Read it before changing or checking any generated run directory.
+
+## Background: what PTM-Psi is for
+
+A post-translational modification (PTM) is a chemical change to an amino acid after the protein is made, for example a phosphate, methyl or acetyl group, or an oxidized cysteine. Standard force fields (the energy models used by molecular dynamics) have no parameters for most modified residues. PTM-Psi builds the modified structure, gets the missing parameters from quantum chemistry, and writes the inputs for simulations that show how the PTM changes protein dynamics and stability.
+
+The workflow is: get a structure (steps 1-3), modify it (4, 6), parameterize new residues (5), optionally dock a ligand (7) or set up QM/MM (8), then generate the MD run folders (9). PTM-Psi prepares inputs. The simulation and quantum programs are separate and are run on a cluster (or locally for small tests).
+
+| Program | What it does here |
+|---|---|
+| GROMACS | Molecular dynamics engine. PTM-Psi writes the `.mdp` settings, topology, and Slurm scripts for minimization, heating, equilibration, and production. With `thermo=True` it also writes 13 thermodynamic integration (TI) windows, which estimate the free-energy change of adding a PTM or forming a disulfide bond. |
+| NWChem | Quantum chemistry. `get_qm_data` writes inputs for RESP partial charges and bond and angle constants of a modified residue (it also writes `espfit.py` and `modseminario.py` for the fits). `qmmm_optimize` writes a QM/MM input in which a reactive region is quantum and the rest of the protein is classical. |
+| AutoDock Vina (with Meeko) | Docking. Places a ligand, such as a nylon fragment, on a protein. Meeko converts structures to Vina's format. |
+| pdb2pqr | Adds hydrogens and charges at a chosen pH. Docking and GROMACS setup both need them. |
+| ForceBalance, torsiondrive | Declared dependencies (maintainer forks) for fitting force-field parameters from QM data. The tutorial does not call them directly. |
+| AlphaFold | PTM-Psi writes Slurm and Singularity scripts for a prediction (step 1) and downloads finished models from the AlphaFold Database (`uniprotid=`). It never runs AlphaFold. Boltz and BioEmu are not part of the repository. |
+
+Parallelism and GPUs (from the code and the generated scripts):
+
+| Component | Multiprocessing / MPI | CUDA | Apple GPU (MPS) |
+|---|---|---|---|
+| PTM-Psi (`gen_ptm_files`, `gromacs/analysis.py`) | Process pools across combinations and trajectories | No GPU code | No |
+| GROMACS | Threads and MPI, set in the generated scripts (`mpirun` or `srun`, rank files) | Yes, on the A100 and H100 partitions | No. The Homebrew build is CPU only. |
+| NWChem | MPI through `srun`, with `OMP_NUM_THREADS` | Not used by PTM-Psi | No |
+| Vina | Multithreaded on CPU | `engine="adgpu"` uses AutoDock-GPU (not run here) | No |
+| AlphaFold (cluster job) | n/a | Yes, in the Singularity image | No |
+| pdb2pqr, RDKit, Meeko | Single process | No | No |
+
+A Mac therefore runs everything on CPU. That is enough for the smoke test in "Platform notes: macOS" and not for production MD or TI.
+
+## Ground rules
+
+1. Run every Python snippet from a scratch directory, not from the repo root. `Protein(pdbid=...)` writes `<pdbid>.pdb` into the current directory, and `gen_ptm_files` writes a UUID-named folder there.
+2. Use the exact strings below. PTM names are lowercase and must be keys of `ptmdict` (`ptmpsi/residues/__init__.py`, line 178). The tutorial text spells one of them wrong ("sulfynilation"). The valid key is `sulfinylation`.
+3. Residue selectors use `"<chain>:<RES><number>"`, for example `"A:ALA130"`. The residue name may be left out (`"A:130"`), or given as a one-letter code (`"A:A130"`). Named selectors verify that the residue name matches. The number is the 1-based position in the chain's residue list, not the PDB number.
+4. Do not invent keyword arguments. If a keyword is not listed in `references/api.md`, read the source function before using it.
+5. Needs internet: `pdbid=`, `uniprotid=`.
+6. Run `scripts/check_env.sh` before anything else. It reports what is missing.
+7. Any script that calls `gen_ptm_files` must put its code under `if __name__ == "__main__":`. On macOS and Windows, Python starts worker processes by re-importing the script, and without the guard the run dies with `RuntimeError: An attempt has been made to start a new process before the current process has finished its bootstrapping phase`, followed by `BrokenProcessPool`. `scripts/ptm_combinations.py` shows the pattern.
+8. On macOS, read "Platform notes: macOS (Apple Silicon)" below before running any GROMACS command.
+9. Do the work yourself. Do not start subagents unless the user has explicitly said you may.
+10. On a cluster, submit the sbatch files PTM-Psi generates as they are written (`sbatch` or `./submit.sh`; or `dcx.py submit-script` when using the `pnnl-deception` skill). Do not rewrite them into another tool's job wrapper format, such as `dcx.py submit`.
+
+## Step 0: environment
+
+```bash
+# From the repository root. Creates the venv (Python 3.9 to 3.12), installs ptmpsi, downloads Vina, runs check_env.sh
+bash .agents/skills/ptmpsi/scripts/setup_env.sh ~/ptmpsi-venv --install-system-tools
+source ~/ptmpsi-venv/bin/activate     # puts pdb2pqr30 and vina on PATH; do this in every new shell
+```
+
+`--install-system-tools` runs `brew install gromacs nwchem gnu-sed` for whichever of those is missing (macOS only). Without the flag the script lists what is missing and prints the command. On Linux, install GROMACS and NWChem with the system package manager; that path was not tested.
+
+Manual equivalent: `python3.12 -m venv ~/ptmpsi-venv`, `source ~/ptmpsi-venv/bin/activate`, `pip install -e <repo root>`, `brew install gromacs nwchem gnu-sed`, then `bash .agents/skills/ptmpsi/scripts/check_env.sh`.
+
+`Protein.protonate` (`ptmpsi/protein/__init__.py`, line 729) calls `which("pdb2pqr30")` and raises `KeyError("Cannot find PDB2PQR")` if it is missing. `gen_ptm_files` calls `protonate` by default, so the venv must be activated, or its `bin` directory exported on `PATH`, in the shell that runs Python.
+
+External programs by step:
+
+| Step | Needs |
+|---|---|
+| 1-4, 6 (AlphaFold scripts, structures, chains, mutation, PTMs) | `ptmpsi` only |
+| 5 get_qm_data | `ptmpsi`; the generated NWChem inputs are run later with NWChem |
+| 7 docking | AutoDock Vina (`vina`) |
+| 8 QM/MM | `pdb2pqr30`, NWChem input generation needs `gsed` on macOS (`brew install gnu-sed`); running the input needs NWChem |
+| 9 PTM combinations | `pdb2pqr30`, internet for the example PDB; GROMACS only to run the output |
+
+## Where things are
+
+All paths are relative to the repository root. Do not search for these; open them directly.
+
+| To do this | Open |
+|---|---|
+| Load, build, mutate, modify, dock, protonate | `ptmpsi/protein/__init__.py` (`Protein`) |
+| Combination logic | `ptmpsi/protein/tools.py` (`ptm_combination`, line 138) |
+| Point mutation and PTM geometry | `ptmpsi/protein/mutate.py`, `ptmpsi/residues/ptms.py` |
+| Valid residue and PTM names | `ptmpsi/residues/__init__.py` (`resdict`, `ptmdict`, `ptm2nonstandard`) |
+| GROMACS run folders and `.mdp` files | `ptmpsi/gromacs/__init__.py`, `ptmpsi/gromacs/templates.py` |
+| Force fields, `specbond.dat` | `ptmpsi/gromacs/forcefield/` |
+| Cluster and partition definitions | `ptmpsi/slurm/__init__.py` |
+| NWChem inputs (`get_qm_data`, `qmmm_optimize`) | `ptmpsi/nwchem/__init__.py`, `ptmpsi/nwchem/templates.py`, `ptmpsi/nwchem/qmmm.py` |
+| Docking | `ptmpsi/docking/__init__.py` |
+| Nylon surfaces | `ptmpsi/polymers/nylon6.py`, `nylon4.py` |
+| AlphaFold scripts | `ptmpsi/alphafold/__init__.py` |
+| The tutorial | `tutorials/Tutorial.ipynb` (`Tutorial_lcf.ipynb`, `Tutorial_frontier.ipynb` for those clusters) |
+
+Machines and partitions (names are what `machine=` and `partition=` accept):
+
+| Machine object | Partitions (CPUs / GPUs per node, max nodes) |
+|---|---|
+| `ptmpsi.slurm.aqe_ldrd` | `basic` (120/0, 200), `standard` (120/0, 10), `premium` (40/8, 8), `prm96c4g` (96/4, 3) |
+| `ptmpsi.slurm.aqe_h100` | `premium` / `prm96c8g` (96/8, 28) |
+| `ptmpsi.slurm.tahoma` | `normal` (36/0, 10, 72 h), `analysis` (36/1, 1, 3 h) |
+| `ptmpsi.slurm.perlmutter` | `regular` (64/0, 10, 48 h), `preempt`, `shared` |
+| `ptmpsi.slurm.frontier` | `batch` (56/8, 12 h), `extended` (56/8, 24 h, 64 nodes) |
+| `ptmpsi.slurm.polaris` | `debug` (32/4, 1 h), `prod` (32/4, 24 h, 476 nodes), `preemptable` (32/4, 72 h) |
+| `ptmpsi.slurm.deception` | `shared` (64/0, 1 node, 168 h; default), `slurm` (64/0, 1 node, 168 h), `short` (64/0, 1 node, 3 h); `a100_shared`, `a100_80_shared`, `h100_shared` for AlphaFold only. See "Running on PNNL Deception" |
+
+The default machine is `tahoma`. Requests beyond a partition's limits raise `KeyError`.
+
+## Platform notes: macOS (Apple Silicon)
+
+Checked on macOS 26, arm64, Python 3.12.14, Homebrew GROMACS 2026.4 (CPU only, `thread_mpi`).
+
+| Issue | What happens | What to do |
+|---|---|---|
+| Worker start method | `spawn` is the default, so unguarded scripts crash (ground rule 7) | Use `if __name__ == "__main__":` |
+| BSD `sed` | The generated scripts used `sed -i '...\n...'`, which macOS `sed` rejects (`undefined label`). The restraint `#ifdef` blocks never reach `topol.top` and the later `grompp` calls fail | Fixed in this branch: `ptmpsi/gromacs/__init__.py` now writes a `perl -0pi -e` line. Folders generated by older code still contain `sed -i`; `scripts/localize_sbatch.py` rewrites it |
+| Cluster launch lines | Generated `*_slurm.sbatch` files call `mpirun -np N --rankfile ... apptainer exec --nv ... gmx_mpi` and pass `-gpu_id`, `-nb gpu`, `-pme gpu`, `-update gpu`. None of that exists on a Mac | `scripts/localize_sbatch.py` strips them and emits a plain `gmx` script |
+| `pdb2pqr30` | Not on `PATH` unless the venv is active; `protonate()` then raises `KeyError: Cannot find PDB2PQR` | `source ~/ptmpsi-venv/bin/activate`, or export `<venv>/bin` on `PATH` |
+| Receptor hydrogens | `Protein.dock` fails for a receptor without hydrogens | Call `protonate()` before `write_pdb` (see step 7) |
+| AutoDock Vina | Step 7 needs `vina` on `PATH`. `brew` has no `autodock-vina` formula and `pip download vina` fails to build on this Mac | Download the official arm64 release: `curl -L -o "$VIRTUAL_ENV/bin/vina" https://github.com/ccsb-scripps/AutoDock-Vina/releases/download/v1.2.7/vina_1.2.7_mac_aarch64 && chmod +x "$VIRTUAL_ENV/bin/vina"`, then `vina --version` (expect `v1.2.7`). Use `vina_1.2.7_mac_x86_64` on an Intel Mac (not tested) |
+| Python version | `requires-python` is `>=3.6,<3.13` | Use 3.12, not the newest Homebrew Python |
+
+Running the generated GROMACS workflow on a Mac (cluster steps and time limits do not apply):
+
+```bash
+cd <uid>/1tuples/0000
+python <skill>/scripts/localize_sbatch.py 0000_slurm.sbatch --smoke 10 > smoke.sh   # 10 steps per mdrun
+bash smoke.sh                                                                        # 148 s on a 15-core M-series Mac
+```
+
+Drop `--smoke 10` for the full-length stages. The localized script ends at `grompp ... -o md.tpr`; run production yourself with `gmx mdrun -deffnm md`.
+
+Sizing a local run (measured on the 6gve CP12 reduction, 776,653 atoms, 15-core M-series Mac, 8 threads):
+
+- Setup before the first `mdrun` (`pdb2gmx`, `solvate`, `genion`, first `grompp`) takes about 2 minutes. Each of the 12 `mdrun` launches adds 30 to 50 seconds of its own start-up and output cost, even at 100 steps, because every stage writes 35 to 55 MB structure files.
+- Production speed was 0.74 to 0.88 ns/day (about 0.2 s per step). A 100-step probe of `md.tpr` gives the per-step cost only, not the total.
+- Total wall time = about 2 min setup + 12 stages x (30 to 50 s + steps x 0.2 s). The measured total for 100 steps per stage plus 1,400 production steps was 14 min 38 s. To fit a time budget, time `--smoke 10` first, subtract that from the budget, then spend the rest on steps.
+- Overriding `nsteps` to 100 in every `.mdp` (or `--smoke 100`) does not let steepest-descent minimization converge. Expect `Steepest Descents did not converge to Fmax < 10` with Fmax in the thousands. The potential energy from such a run is not a minimized energy; report it as unconverged. Converging a system this size takes the full 50,000 steps per minimization stage.
+- Edit a copy of the run folder, not the original, when changing `nsteps`; the original is the record of what `gen_ptm_files` produced.
+
+## Step 1: AlphaFold prediction (writes job files, does not run AlphaFold)
+
+```python
+from ptmpsi.alphafold import prediction
+prediction("GGGGGGGGGGG", model="monomer")
+```
+
+Writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta` in the current directory. Database paths default to the Tahoma cluster. Consecutive raw sequence strings in a list are grouped into one multi-record FASTA file. For independent target predictions, pass paths to separate single-record FASTA files, or make separate calls in separate output directories. For multimer pass `model="multimer"` and a path to a FASTA file with two or more `>name` records. Run the output on a cluster, not locally.
+
+## Step 2: load a structure
+
+```python
+from ptmpsi.protein import Protein
+local   = Protein(filename="/path/to/local.pdb")
+fetched = Protein(pdbid="6tht")          # downloads from RCSB, saves 6tht.pdb
+af      = Protein(uniprotid="G9BY57")    # downloads the current AlphaFold DB model
+```
+
+`delwat=True` and `delhet=True` are the defaults, so waters and hetero atoms are dropped on load.
+
+## Step 3: build a chain from scratch
+
+```python
+chain = Protein()
+chain.prepend(chain="A", residue="EAC")
+chain.append(chain="A", residue="EAC", psi=120.0)
+chain.append(chain="A", residue="EAC", psi=120.0)
+chain.prepend(chain="A", residue="ACE", phi=-120.0)
+chain.append(chain="A", residue="NME", psi=120.0)
+```
+
+- Give `phi` and `psi` as numbers or as `"alpha"` / `"beta"`.
+- Defaults: `psi=-40.0` for `append`, `phi=-60.0` for `prepend`. Both accept `"alpha"` or `"beta"` as well as numbers (`append` needed a one-word fix for the string form; it is in this branch).
+- Valid residue names are the keys of `resdict` (`ptmpsi/residues/__init__.py`, line 132). A one-letter code also works.
+- Write results with `write_pdb("x.pdb")` or `write_xyz("x.xyz")`.
+
+## Step 3b: nylon surfaces
+
+```python
+import ptmpsi
+ptmpsi.polymers.nylon6.gen_surface(rangea=3, rangeb=3, rangec=3, model="Malta1979")
+ptmpsi.polymers.nylon4.gen_surface(rangea=3, rangeb=3, rangec=3)
+```
+
+Nylon-6 models: `"Malta1979"`, `"Holmes"`, `"Arimoto"`. Nylon-4 has one model. Two PDB files are written: one with all strands in one MODEL, one with a MODEL per strand.
+
+## Step 4: point mutation
+
+```python
+cutinase = Protein(pdbid="6tht")
+cutinase.mutate("A:ALA130", "SER")
+```
+
+## Step 5: AMBER99 parameters for a residue (NWChem inputs)
+
+```python
+from ptmpsi.nwchem import get_qm_data
+eac = Protein()
+eac.prepend(chain="A", residue="EAC")
+get_qm_data(eac)
+```
+
+Generates NWChem inputs for RESP charges and bonded force constants. Two ACE/NME-capped conformers are made. RESP is fitted on both together, so there is one set of charges. Bond and angle constants come out per conformer and must be averaged by hand. Defaults, all overridable as keyword arguments (`ptmpsi/nwchem/__init__.py`, line 91): `mult=1`, `charge=0`, `memory=2000`, `aobasis="def2-tzvp"`, `tdbasis="def2-svp"`, `cdbasis="def2-universal-jfit"`, `xcfun="r2scan"`, `grid="lebedev 120 14"`, `tdgrid="lebedev 100 14"`, `nscf=100`, `nopt=60`, `disp="disp vdw 4"`, `delta=0.0189`, `lshift=0.1`.
+
+## Step 6: post-translational modifications
+
+```python
+snc = Protein()
+snc.prepend(chain="A", residue="CYS")
+snc.modify("A:CYS1", "nitrosylation")
+```
+
+Cysteine PTMs: nitrosylation, sulfenylation, sulfinylation, sulfonylation, sulfhydration, glutathionylation, cysteinylation, methylation, carbamoylation, cyanylation. The mapping to residue names is `ptm2nonstandard` (`ptmpsi/residues/__init__.py`, line 206): nitrosylation to SNC, sulfhydration to CSS, sulfenylation to CSO, sulfinylation to CSD, sulfonylation to OCS, glutathionylation to CGL, methylation to SMC, carbamoylation to QCS, cyanylation to XCN, cysteinylation to IYY, reduction to CYS, oxidation to CYX.
+
+Other residues:
+
+| PTM | Residues |
+|---|---|
+| acetylation | LYS, LYN |
+| methylation | GLU, GLH, LYS, LYN, ARG, HIS, HIP, HID, HIE |
+| dimethylation | LYS, LYN, ARG |
+| trimethylation | LYS, LYN |
+| symmetric / asymmetric dimethylation | ARG |
+| phosphorylation | SER, THR, TYR, ARG, HIS, HIP, HID, HIE, LYS, LYN, ASP, ASH, CYS, CYM |
+
+The check lives in `check_ptm` (`ptmpsi/residues/ptms.py`, line 179). Anything else raises `MyDockingError`.
+
+Histidine methylation and phosphorylation stop and ask `Selection:` on stdin (1 = pros, 2 = tele). A non-interactive agent must supply the answer (for example by replacing `builtins.input`), or the call blocks forever.
+
+## Step 7: docking (needs `vina`)
+
+```python
+cutinase = Protein(pdbid="6tht")
+cutinase.mutate("A:ALA130", "SER")
+cutinase.protonate()                     # required: Meeko needs hydrogens; sets cutinase.charge
+cutinase.write_pdb("cutinase.pdb")
+
+nylon6 = Protein()
+nylon6.prepend("A", "EAC"); nylon6.prepend("A", "ACE")
+nylon6.append("A", "EAC");  nylon6.append("A", "NME")
+nylon6.write_xyz("nylon6.xyz")
+
+cutinase.dock(ligand="nylon6.xyz", receptor="cutinase.pdb",
+              boxcenter="A:SER130", boxsize=20.0)
+```
+
+`engine` is `"vina"` (default) or `"adgpu"`. The output file is named `<receptor>_<ligand>_<engine>.pdbqt`. `ligand` and `receptor` need a 3-letter extension, because the code strips the last four characters.
+
+## Step 8: NWChem QM/MM input
+
+Same setup as step 7 (which already protonates), then:
+
+```python
+ptmpsi.docking.write_pdb(cutinase.docking, filename="test2.pdb", pose=0, template=nylon6)
+ptmpsi.nwchem.qmmm_optimize(filename="test2.pdb",
+    qmres=[130, 207, 259, 260, 261, 262], counter=True,
+    totcharge=cutinase.charge, xcfun="pbe96", grid="medium", aobasis="def2-svp")
+```
+
+`cutinase.charge` is only set by `protonate()`.
+
+## Step 9: PTM combinations and GROMACS run directories
+
+**Reduction TI currently produces no perturbation.** For CYX-to-CYS reduction,
+`update_topology.py` leaves `TItop.top` identical to `topol.top`, so all derivatives
+and the resulting free energy are zero. Do not interpret these as reduction free
+energies or submit reduction TI windows for scientific results. Use `thermo=False`
+for reduction MD. The reduction generation example below demonstrates folder setup
+only. Nitrosylation has a nonzero perturbation and has been used for TI smoke tests.
+
+This is the part that produces `.mdp`, `.itp` and `.tpr` inputs. Read `references/templates.md` before touching its output. A runnable version is `scripts/ptm_combinations.py`: run it with `--generate` to write the run directory for the chain M reduction (the 4-tuple) without writing your own script. Run it from a scratch directory with the venv active.
+
+```python
+import ptmpsi
+from ptmpsi.protein import Protein
+
+protein = Protein(pdbid="6gve")          # GAP2/CP12/PRK complex
+protein.findresidue("CYS")               # prints "<chain>:CYS<n>" lines
+
+c1 = protein.get_ptm_combinations(
+    [("CYS", "nitrosylation"), ("CYS", "sulfhydration")], ntuple=1)
+
+exclude = [f"{ch}:{r}" for ch in ["A","D","E","F","I","K","N","O"] for r in ["CYS19","CYS77"]]
+c2 = protein.get_ptm_combinations(
+    [("CYS", "nitrosylation"), ("CYS", "sulfhydration")], exclude=exclude, ntuple=2)
+
+protein.findresidue("CYX")               # disulfide cysteines
+c3 = protein.get_ptm_combinations([("M:CYX", "reduction")], ntuple=4)
+# c3 is a list; c3[k] holds the (k+1)-tuples. Lengths for this input: [4, 6, 4, 1]
+
+uid = protein.gen_ptm_files(
+    [c3[3]],                                         # note the extra list
+    machine=ptmpsi.slurm.aqe_ldrd,
+    **ptmpsi.slurm.aqe_ldrd.partitions["premium"].options["gromacs"])
+```
+
+Facts to rely on:
+
+- `get_ptm_combinations` returns a list indexed by tuple size. Each entry is a list of combinations. Each combination is a tuple of `(residue_string, ptm_name)`.
+- `gen_ptm_files` takes a list of lists of tuples. Passing `c3[3]` alone triggers a warning and an automatic wrap; wrap it yourself with `[c3[3]]`.
+- It returns the UID string. The run directory is `<cwd>/<uid>/` (or `path=...`).
+- The 4-tuple `[("M:CYX","reduction")]` case reduces both disulfides of chain M. 2-tuples that split a disulfide pair are chemically meaningless. CYX19 bonds to CYX29, CYX61 bonds to CYX70.
+- A modified `specbond.dat` is copied into the run directory so that GROMACS makes a disulfide bond between nearby CYX residues and not between nearby CYS residues.
+- Default simulation: minimization, heating, NPT equilibration, 100 ns production (`lenmd=100.0` in `generate_mdp`), plus 13 lambda windows of thermodynamic integration (TI) when `thermo=True` (default).
+- `machine=` and the spread `options["gromacs"]` describe the PNNL AQE-LDRD cluster (apptainer image, rankfile, `gmx_mpi`). They only shape the generated sbatch scripts. Generating the files ran on a Mac with no cluster access.
+- `pdb2pqr=False` skips protonation and writes the input structure as `protonated.pdb`. It failed with `UnboundLocalError` before this branch's fix.
+- Other machines are defined in `ptmpsi/slurm/__init__.py`: `deception` (line 38), `aqe_ldrd` (101), `aqe_h100` (174), `tahoma` (202), `perlmutter` (214), `frontier` (230), `polaris` (273).
+- `ff` is `"amber99sb"` (default), `"amber99zn"` or `"amber14sb"`. An invalid name does not raise (the `KeyError` in `gen_ptm_files` is built but never raised), and the later copy fails instead.
+
+## Running on PNNL Deception
+
+PTM-Psi writes standard Slurm scripts that run on Deception as generated. When driving Deception through the `pnnl-deception` skill (`dcx.py`), use that driver for access, account confirmation, upload, `submit-script`, status and cancel, and do not convert PTM-Psi's scripts into `dcx.py submit` payloads.
+
+```python
+dc = ptmpsi.slurm.deception
+opts = dc.partitions["shared"].options["gromacs"]        # gmx_mpi, 8 ranks x 2 threads
+uid = protein.gen_ptm_files([combos], machine=dc, partition="shared",
+                            account="<account the user named>", time=2.0, conc=0.154, **opts)
+```
+
+GROMACS:
+
+- `account` is required on Deception (`Slurm` and `gen_ptm_files` raise `ValueError` if `account` is missing, blank, or `"XXXX"`). On other machines a missing account still falls back to `XXXX` in the header. `time` is in hours and must be above 0.2, because `md.sbatch` runs `mdrun -maxh time-0.2`.
+- `max_md_runs` caps the total number of `md.sbatch` production jobs queued through direct setup submission or `submit.sh`. On Deception it defaults to `1` (`max_md_runs=1`), so one setup job queues at most 1 `md.sbatch` (+ 13 TI jobs when enabled = 15 jobs total) and matches `dcx.py submit-script`'s single-pass child receipt. With `thermo=True` (default), the final `md.sbatch` exits nonzero without running `update_topology.py` (blocking `--dependency=afterok` TI windows) if `md.log` has not reached `md.mdp`'s `nsteps`; size `lenmd` to finish in one `time` slot, pass `max_md_runs=N` for longer chained production runs, pass `thermo=False` for MD without TI, or pass `max_md_runs=0` for a setup-only check without queuing MD or TI. `thermo=False` disables TI submission even with `auto_submit_ti=True`.
+- The module `gromacs/2025.2` has no CUDA, so `generate_slurm` raises `ValueError` for the GPU partitions. The header loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2 python/3.13.5` (python is for `update_topology.py`) and ends with `set -eo pipefail`, so a failed GROMACS command ends the job as `FAILED`.
+- `shared` bills the cores requested. `slurm` and `short` bill whole 64-core nodes. All three accept one node, because the generated `mpirun -np` counts the ranks of a single node. Keep `ntasks * nthreads` at 64 or less.
+- Ranks start with `mpirun -np N --bind-to none`. With `--bind-to core --map-by slot:PE=2`, 6 of 13 TI jobs exited with status 85 after 3 seconds, because cores handed out on a shared node can sit on two sockets.
+- Small peptide boxes around 2 nm fail GROMACS domain decomposition with the default 8 MPI ranks. Override `opts` with `opts = dict(opts, ntasks=1, nthreads=N)` to use 1 rank x N threads within the allocation.
+- Short smoke runs need more frequent trajectory output: pass `nstxout_compressed=10` instead of the default 50000 so that the run contains enough frames for PCA and contact analysis.
+
+NWChem (`get_qm_data`, `qmmm_optimize`):
+
+- The scripts load `nwchem/7.2.3` and set `NWCHEM_BASIS_LIBRARY`, which the module leaves unset (its built-in default points at a missing directory). The `xtb` pre-optimization is left out because the build has no `xtb` (pass `xtb=True` to keep it). Torsion scans are not added to Deception scripts, and a warning says so.
+- Inputs with `set int:cando_txs f` and `set int:cando_nw f` stop at the first SCF step with `int_2e4c: fatal error` on the Deception module and on Homebrew NWChem on macOS. `get_qm_data` now leaves those two lines out when the machine is Deception, and a local macOS run of the resulting `conf0.nw` passes the first SCF iteration. On Deception, `conf0.nw` without those lines ran for the full 1 hour limit (8 ranks) without exiting, where the original input exited within seconds. The log was lost, because the script's `cleanup` trap runs only after `mpirun` returns and Slurm kills the job first, so the SCF energies on Deception are unconfirmed. The `md optimize` step of `prepare.nw` from `qmmm_optimize` stops with `Illegal input to pfft3d. INFO= -8` on the Deception module (7.2.3). It does so with `fft 2`, with no `fft` option, with `fft 1`, with a 64 grid, and on 1, 4 and 8 ranks, so the `pme` settings are not the cause. nwchemgit/nwchem#1196 reports the same error for 7.3.0 and lists the fix in 7.3.1, and Homebrew 7.3.1 runs the same file on macOS. QM/MM on Deception needs a newer NWChem. `apptainer pull` of the Tahoma image (`oras://ghcr.io/edoapra/nwchem-singularity/nwchem-dev.mpi3.ompi5x:latest`) works on a compute node, but `apptainer exec` on it failed with a `squashfuse`/`fusermount` error; `--unsquash` was not tried.
+- Deception NWChem scripts use `set -e` and an exit cleanup trap that preserves the MPI exit status. Read the `.log` and `.err` files when a job fails.
+
+AlphaFold (`prediction`):
+
+- `prediction("<sequence>", machine=dc, partition="a100_shared", account="<account>", ntasks=8, date="2022-01-01")` writes `alphafold.sbatch`. It runs the cluster's AlphaFold 2.3.0 container (`/share/apps/alphafold/2.3.0/alphafold.sif`) on `/share/apps/alphafold-data` with one GPU. Only `model="monomer"` and `dbs="full_dbs"` are accepted. The generated script matches the cluster's `/share/apps/alphafold/readme.txt` recipe. Job 1531328 ran on `a100-01` and failed after 4 seconds with `FATAL: container creation failed ... squashfuse_ll exited: fusermount: mountpoint /dev/fuse is not a directory or a regular file`, before AlphaFold started. The same error stopped `apptainer exec` on another image on `dc009`, so it looks like a cluster setting that affects every squashfs container run from a batch job. It needs a report to the cluster support team, or a test with `apptainer --unsquash`, which has not been tried.
+
+Upload and submit:
+
+1. Archive and unpack `<uid>` so the relative symlinks in `dualti/lam-NN` are preserved and macOS `._*` AppleDouble files are omitted (without `COPYFILE_DISABLE=1`, `._*` files inside `amber99sb.ff` stop `pdb2gmx` with `Invalid atomtype format`): `COPYFILE_DISABLE=1 tar czf run.tgz <uid>`, copy `run.tgz` to `<project dir>` (`scp`/`rsync`), and extract with `tar xzf run.tgz`. With the `pnnl-deception` skill, `dcx.py upload -r --archive <uid> --dest <project dir>` does all three steps.
+2. In an interactive shell on Deception, run `./submit.sh` from `<uid>/` or `sbatch 0000_slurm.sbatch` from the combination folder: when `md.jobid` is absent, `0000_slurm.sbatch` queues `md.sbatch` itself (`--dependency=afterok:$SLURM_JOB_ID`, capped by `max_md_runs`, default `1` on Deception), writes `md.jobid`, and passes that job ID to `submit_lambdas.sh`. With the `pnnl-deception` skill (which blocks running `submit.sh` on the login node), `dcx.py submit-script <dir>/0000_slurm.sbatch --account <account>` prints a receipt covering `0000_slurm.sbatch`, `md.sbatch`, and the 13 `dualti/lam-NN` scripts, and rerunning with `--submit --submission-id <id> --content-digest <digest> --allow-nested` submits `0000_slurm.sbatch` directly.
+3. With the Deception defaults (`max_md_runs=1`, `auto_submit_ti=True`), `0000_slurm.sbatch` queues 1 `md.sbatch` + 13 TI jobs = 15 jobs total (matching `dcx.py submit-script`'s child-script receipt when `dcx.py` is used). Pass `max_md_runs=N` (after confirming the total job count with the user) when production MD needs `N` chained `md.sbatch` jobs, or `auto_submit_ti=False` to hold back the 13 TI windows (`dualti/lam-NN/<prefix>_lamNN_slurm.sbatch`).
+4. After a rerun of setup and md, repoint queued TI jobs with `scontrol update JobId=<id> Dependency=afterok:<new md id>`, one call per job.
+
+Tests on `shared` (account chosen by the user), using cutinase `6tht` with `reduction` of `A:CYX203` and `A:CYX240`, `lennvt=0.04, lennpt=0.04, lenmd=0.002, lenlambda=0.002, time=0.25`, and `nsteps = 100` in the `minim*.mdp` files of the uploaded copy:
+
+- Setup took 59 s, md 9 s, and a TI window 16 to 24 s. The md job rebuilt `dualti/TItop.top`.
+- 12 of the 13 TI windows have completed on Deception and written `lam-NN.xvg`. `lam-10` failed in the first run, because of the core binding above. A later run of all 13 windows, `lam-10` included, completed (see "Free energy on Deception"). The 13 scripts differ only in the window number.
+- The `short` partition ran the whole setup chain through `grompp -o md.tpr` in 69 s. The job then ended `FAILED` because the test had no `md.jobid` file.
+- A setup job with a truncated `0000.pdb` ended `FAILED` after 5 seconds.
+
+## Free energy on Deception
+
+Checked with T4 lysozyme (`Protein(pdbid="2LZM")`, 33,323 atoms), nitrosylation of `A:CYS54`, generated with `machine=dc, partition="shared", time=1, **opts` and run on `shared` with 16 cores (8 ranks x 2 threads). The generated scripts ran in one allocation with 1,000 steps for heating and equilibration and 10,000 steps for md and for each TI stage (10 ps). Setup took 296 s, md 51 s (36 ns/day), `update_topology.py` 1 s, and the 13 windows 111 to 161 s each (12 to 16 ns/day). The whole job took 34 minutes.
+
+- Which PTMs get a perturbation: `update_topology.py` changes the topology only for residues named `SNC`, `CSO`, `CGL`, `IYY` or `CYZ`. For nitrosylation, `TItop.top` differs from `topol.top` by 39 lines and has one `DU` atom. For `reduction` of `A:CYX203` and `A:CYX240` in cutinase `6tht`, `TItop.top` is identical to `topol.top`, every `dH/dl` and `dH` column in `lam-NN.xvg` is 0.0, and `gmx bar` prints `DG 0.00` for every pair. `CYZ` residues (a cysteine with a `DU` atom) come from `Protein.save_cyz_modified_pdb()`, which `gen_ptm_files` does not call.
+- `gmx_mpi bar -f dualti/lam-*/01-q/lam-*.xvg -o bar.xvg` works on the module build. Results for the nitrosylation case: 01-q 107.3 +/- 1.4 kJ/mol, 02-vdw -16.1 +/- 1.8 kJ/mol. alchemlyb gave the same BAR values, and TI values of 108.1 and -20.6 kJ/mol. These come from 10 ps per stage and check the pipeline. They are not results.
+- alchemlyb `MBAR` raised `LinAlgError: SVD did not converge` on both stages. The window `.mdp` sets `calc_lambda_neighbors = 1`, so each `.xvg` holds energy differences to the adjacent states only. I did not test `calc_lambda_neighbors = -1`.
+- `pip install alchemlyb pandas scipy` into a venv in project storage works on a compute node (module `python/3.13.5`).
+- Cost of the defaults for a system this size: each TI stage is 1,000,000 steps at `dt = 0.001` (1 ns), so 26 ns per combination, which is about 1.8 days on 16 cores (roughly 700 core-hours) at 14 ns/day. The default production md is 100 ns (`nsteps = 50000000`, `dt = 0.002`), about 2.8 days and 1,070 core-hours at 36 ns/day. Deception defaults to `max_md_runs=1`, which caps production at one walltime-limited job; if `md` stops at `-maxh` before `nsteps`, `md.sbatch` exits nonzero before `update_topology.py` so the `afterok` TI jobs do not start from an unfinished run. Explicitly set a larger `max_md_runs` (or lower `lenmd`) after confirming the job count and budget.
+- To run a generated chain in one allocation without queuing anything: `bash` the setup script cut at the line `# Extract performance value`, `bash` `md.sbatch` cut at the line `self_jobid=`, run `python update_topology.py` in `dualti/`, then `bash` each `dualti/lam-NN/<NNNN>_lamNN_slurm.sbatch`. The uncut setup and submission scripts call `sbatch`.
+- `ptmpsi.gromacs.analysis` was written for the AQE cluster and could not run on Deception: `add_residue_file` raised `NameError` (`fzile_path`), the gmx call was a bare `gmx` after `/anfhome` setup lines, and a `-n` index file was passed as the literal text `{__indices[i+j]}`. Those are fixed; everything else keeps its old behavior. See "Trajectory analysis" below.
+- PTM-Psi has no code that combines TI or BAR results. `pymbar` is in `setup.py` and is used only by the AWSEM subproject.
+- `gen_ptm_files(path=...)` now calls `os.path.realpath` on `path`. Before, a path under a symlinked folder (`/tmp` on macOS) produced `dualti/lam-NN/*/topol.top` links that climbed to the filesystem root and were dangling after upload.
+
+## Trajectory analysis
+
+Two modules, and each analysis lives in only one of them, so do not mix same-named results from both:
+
+- `ptmpsi.gromacs.analysis` runs GROMACS tools (`gmx_mpi`, then `gmx`) on `.tpr` + `.xtc` and writes `.xvg`/`.dat` files plus summaries: `post_process`, `rmsd`, `rmsf`, `gyration`, `dssp`, `contact_map`. Use it for PBC unwrapping, RMSD, radius of gyration, RMSF, secondary structure and residue contact fractions.
+- `AnalysisTools` (`import AnalysisTools` or `python -m AnalysisTools`) uses `MDAnalysis` for what that module lacks: PTM-aware selections (`select_protein`, `find_ptm_residues`), `check_pbc_jumps`, mass-weighted Cartesian PCA (single system and joint WT-vs-PTM), and the minimum-image contact map with a PTM-minus-WT difference.
+
+1. **Always pass a matching `.tpr` + `.xtc`.** Use a GROMACS topology so exact force-field masses and bonds, including modified residues, are present. For Protein-only output from a solvated run, use the reduced `clean/md_Protein.tpr` with both processed trajectories. The original solvated `md.tpr` has a different atom count.
+2. **Unwrap first.** Raw `md.xtc` wraps chains across periodic faces. `post_process("md.xtc", "md.tpr", prefix="clean", group="Protein", fit_group=4, interactive=True)` dumps a whole frame 0, runs `trjconv -pbc whole`, writes a `-pbc nojump` copy for contacts, then fits the whole trajectory (rot+trans) to that frame, and returns the fitted `.xtc` paths. It raises `RuntimeError` if a command fails or an expected output is missing. The default `fit_group=3` is C-alpha; pass `4` to fit on the backbone. CLI: `python -m AnalysisTools unwrap -s md.tpr -f md.xtc -o clean` prints the fitted trajectory, matching reduced TPR, and non-fitted trajectory, and exits nonzero on failure. `AnalysisTools.check_pbc_jumps(u)` flags a trajectory that still has jumps.
+3. **PTM residue names need `residuetypes.dat`.** Without it in the working directory gmx drops `SNC`, `CGL` and the other PTM residues from `Protein`/`Backbone` (22 instead of 34 atoms for ACE-SNC-ALA-NME). Every function in `ptmpsi.gromacs.analysis` stages it, using the copy beside the run if there is one and the packaged one otherwise (the old code only looked beside the run).
+4. **Never use bare `"protein"` or `"backbone"` selections in `MDAnalysis` on PTM runs.** They silently drop PTM-Psi residue names. Use `AnalysisTools.select_protein(u, kind="all" | "backbone" | "ca" | "heavy")` or `protein_selection_str(...)`.
+5. **What each call does.** Pass `interactive=True`: the default is still `False`, which only prints that nothing was run (the Slurm branch was never written). `gmx` is used if on `PATH`, else `gmx_mpi` (Deception), else the AQE `GMXRC`. `post_process` propagates failures; the other gmx analyses print command failures and continue.
+   - `rmsd(traj, tpr, out_dir, group=4)`: `gmx rms` against the `.tpr` structure, fitted on `group`. That reference is the `.tpr` structure, not trajectory frame 0, so the numbers differ from an MDAnalysis RMSD against frame 0 (by about 0.12 Å on the SNC test peptide).
+   - `gyration(...)`: `gmx gyrate`, mass-weighted, `group=4` (pass `group=1` for the whole protein).
+   - **Fixed (cause found on a Trp-cage run, GROMACS 2025.2 on Deception).** `post_process` used to dump frame 0 without `-pbc whole` and fit the `-pbc nojump` file to it. When the protein straddled the box at frame 0, the reference had 40 Å "bonds", about 450 of 5,001 frames of that system were badly superposed (backbone RMSD up to 9 Å), and `gmx rms` and `gmx rmsf` stopped with "inconsistent shifts over periodic boundaries". It now makes frame 0 whole and fits the `_whole.xtc` file; `_whole_nojump.xtc` is still written for contacts. With that input `rms`, `rmsf` and `dssp` ran on Deception for both systems, and RMSF (within 0.02 Å) and helix count (9.75 vs 9.84) matched `MDAnalysis`. Still open: `gmx dssp` segfaults in `pbc_dx` whenever `-nopbc` is passed, in every combination tried, so do not pass it. If a result still looks wrong, compare it with `AnalysisTools`/`MDAnalysis` (for DSSP, rename the C-terminal `OC1` to `O`, drop `OC2` and call PTM residues `CYS` for that call only), and confirm that bonds stay under about 2 Å (S–N in `SNC` averages about 1.9 Å).
+   - `rmsf(...)`: `gmx rmsf -res`, plus a B-factor PDB.
+   - `dssp(...)`: `gmx dssp`, then `process_dssp` summaries.
+   - `contact_map(...)`: `gmx pairdist` per residue pair over three 1000 ps windows (`window`, `total_time`, `dt=500`), averaged by `process_contact` into the fraction of frames closer than `contact_cutoff` (0.5 nm). It writes `contact_fraction.dat/.png` and returns the matrix. `start_residue`/`end_residue` are accepted and ignored; use `selection` to restrict residues.
+   - `AnalysisTools.compute_contact_map(u, representation="ca" | "heavy")` and `contact_difference_map(ptm_map, wt_map)`: minimum-image contact probabilities and PTM-minus-WT differences matched by `(segid, resid)`.
+   - `compute_cartesian_pca(u)` and `compute_joint_cartesian_pca({"WT": (wt_tpr, wt_xtc), "SNC54": (ptm_tpr, ptm_xtc)}, ref_system="WT")`: mass-weighted PCA ($\text{amu}\cdot\text{\AA}^2$) over the shared `(segid, resid, atom_name)` backbone, so `CYS` vs `SNC`/`CGL` side-chain atom counts never break the joint axes.
+   - `save_standard_report(tpr, xtc, out_dir, contacts_trajectory=nojump_xtc)` runs contacts on the optional non-fitted trajectory and PCA on the main trajectory. Omitting `contacts_trajectory` uses the main trajectory for both. CLI: `python -m AnalysisTools analyze -s clean/md_Protein.tpr -f clean/md_whole_nojump_fit.xtc --contacts-trajectory clean/md_whole_nojump.xtc -o analysis_out`. A rot+trans fit rotates coordinates without rotating the periodic box, so use the non-fitted trajectory for minimum-image contacts.
+6. **On Deception, run all of this in a `shared` batch job (`sbatch`, or `dcx.py submit-script` with the `pnnl-deception` skill).** Login nodes forbid `gmx_mpi` and Python workloads. Install `MDAnalysis`, `numpy`, `pandas` and `matplotlib` into a project-storage venv (`/rcfs/projects/<project>/...`) and submit an `.sbatch` on `shared` that loads `gcc/14.2.0 openmpi/5.0.7 gromacs/2025.2` and activates that venv. The system modules do not include `psutil`, which the old `analysis.py` needed and the current one does not.
+
+## Visualization (ChimeraX, VMD)
+
+Both programs are free for academic, government and non-profit research and neither can be installed with `pip` or `brew`. Neither is part of PTM-Psi and nothing here vendors them. What is verified and what is not:
+
+| | Status |
+|---|---|
+| ChimeraX opens `.xtc` and `.trr`, but needs a topology from an open model (`.gro`, `.pdb`) and not a `.tpr`. `post_process` writes a `.gro` of frame 0 beside the fitted `.xtc`. | Verified on macOS arm64 (ChimeraX 1.12 `--nogui`): loaded PTM-Psi `.gro` + `.xtc` (10 frames), selected `:SNC` (12 atoms, 11 bonds), saved `.cxs` |
+| ChimeraX `--offscreen` renders without a display, on Linux only. It is an interactive viewer on macOS and Windows. | Verified on macOS arm64 (`--nogui` cannot save PNG: no OpenGL) and on Deception (`dc068`, job `1573564`): `--offscreen --nogui` rendered a `512x512` PNG (`37K`) |
+| ChimeraX on Deception (no admin rights; packages are `.deb`, `.rpm`, Flatpak) | Verified on Deception (`dc068`, job `1573564`): unpack `centos-9` `.rpm` with `rpm2cpio`/`cpio` into project storage and set `LD_LIBRARY_PATH` + `LD_PRELOAD` to `/share/apps/python/miniforge25.3.0/lib/{libcrypto,libssl}.so.3` (Rocky 9.5 lacks `OPENSSL_3.3.0`). See `references/visualization.md`. |
+| VMD text mode (`vmd -dispdev text`) has no OpenGL `snapshot`, but Tachyon rendering works | Verified on Deception (`vmd/2.0.0a7`, job `1573323` on `dc068`): loaded `.gro` + `.xtc` (11 frames), selected `resname SNC`, rendered `TachyonInternal` `.tga` (0.4 s) and converted to `.png` via `/usr/bin/ffmpeg` |
+| Deception module `vmd/2.0.0a7` (`vmd/1.9.4a57` also present), and `/usr/bin/ffmpeg` on Deception | Verified on Deception login & compute (`dc068`, job `1573323`) |
+| `conda install conda-forge::vmd-python` gives VMD as a Python module (no GUI) | Verified on macOS arm64 (`vmd-python` 3.1.7 / VMD 1.9.4a26 via isolated `micromamba`): loaded `.gro` + `.xtc`, selected `resname SNC`, wrote Tachyon `.dat` scene; `TachyonInternal` not compiled in |
+| ChimeraX plugin for adding Cys modifications | In `plugins/` (see `references/templates.md`, section C) |
+
+**Installing ChimeraX needs the user's agreement to UCSF's licence.** The download page asks for a click on "Accept", and `scripts/get_chimerax.py` does that click for the user. Using this skill does not mean the user has agreed. Before running it with `--accept-license`:
+
+1. Run it without the flag. It prints the licence link and downloads nothing.
+2. Tell the user that downloading means accepting UCSF's non-commercial licence (https://www.cgl.ucsf.edu/chimerax/docs/licensing.html), which covers academic, non-profit and government-sponsored research, and that commercial use needs a separate licence.
+3. Ask for a clear yes. Only then run `python .agents/skills/ptmpsi/scripts/get_chimerax.py --accept-license -o <folder>`. It checks the SHA-256 the site publishes, and it only downloads: it does not install.
+
+Do not pass `--accept-license` because a task seems to need ChimeraX, or on a user's behalf from an earlier session. VMD has no such script: its download needs a registered login, so ask the user to download it.
+
+## Checking your work
+
+After step 9, list `<uid>/` and compare it with the layout in `references/templates.md`. A complete combination folder has 14 `.mdp` files, `<NNNN>_slurm.sbatch`, `md.sbatch`, `submit_lambdas.sh` and a `dualti/` folder with `lam-00` to `lam-12`. If something is missing, do not edit generated files by hand. Fix the input and regenerate.
+
+The non-TI `.mdp` files come from `generate_mdp()`, the TI windows from `ptmpsi/gromacs/templates.py`, and `specbond.dat` and `forcefield.itp` are in `ptmpsi/gromacs/forcefield/`.
+
+## Known gaps
+
+- The tutorial's last cell is empty.
+- `Tutorial_lcf.ipynb` and `Tutorial_frontier.ipynb` in the same folder are the same workflow for the LCF and Frontier machines. Use them for those clusters.
+- Run on macOS arm64 (outputs inspected): step 1 (`prediction` writes `alphafold.sbatch`, `run_singularity.py`, `temp1.fasta`); step 2 (`pdbid=`, `filename=`, `uniprotid=`); step 3 (the trimer with `phi`/`psi`, and `"alpha"`/`"beta"` strings); step 3b (both `gen_surface` calls wrote `*_333.pdb` and `*_models_333.pdb`); step 5 (`get_qm_data` wrote `conf0.nw`, `conf1.nw`, the two `*_hess.nw`, `espfit.py`, `modseminario.py`, `torsions.dat`, `get_qm_data.sbatch`); step 6 (every CYS PTM, plus acetylation, methylation, dimethylation, trimethylation of LYS/LYN, ARG methylation and dimethylations, HIS/HIP/HID/HIE methylation, and phosphorylation of SER, THR, TYR, ARG, HIS, LYS, ASP, ASH, CYS, CYM, plus CYS reduction and oxidation); step 7 (docking, 9 poses); step 8 (`dock_cutinase.py --qmmm` exit 0; `prepare.nw` and `qmmm_optimization.sbatch` written; the cleaned PDB has 1174 lines with the renamed-hydrogen pattern and none with `HB2`/`HB3`); step 9 (combination counts 4, 6, 4, 1; `gen_ptm_files` for the 4-tuple and for a 1-combination run with `pdb2pqr=False`; the localized GROMACS chain through `grompp ... md.tpr` with 10-step `mdrun` calls, exit 0).
+- GLU and GLH methylation work after the `ptmsite` fix in `ptmpsi/residues/ptms.py` (the residue becomes `PTM`; geometry mirrors ASP/ASH and was not chemically validated).
+- Not run: executing the full generated NWChem parameterization inputs, dimethylation and trimethylation on residues other than the ones above, and `Protein.dock` with `flexible=` or `engine="adgpu"`.
+- Native Apple Silicon runtime smoke: GROMACS 2026.4 ran 20 steps each of the repository's `01-q` and `02-vdw` TI templates at lambda state 6 with finite derivative output, using a manually defined neutral two-site dual topology in TIP3P water (one rank, two threads). Velocities were initialized and pressure coupling disabled for the tiny test; lambda schedules and soft-core settings were retained. NWChem 7.3.0 converged an HF/STO-3G single-point calculation on ACE-GLY-NME coordinates generated by `get_qm_data` (one rank, one thread). Preparation and runtime were under ten minutes.
+- The exact generated TI topology updater compiles and executes on a two-CYZ fixture, with checks of B-state atoms and disulfide bond, angle, and dihedral output. The fixture test does not validate force-field chemistry or a complete PTM TI trajectory.
+- Known gaps (not tested): production MD, Linux and Intel Mac, the `--install-system-tools` install itself (only detection and the hint were run), `qmmm_optimize` run to completion, the `vina` pip path, the full NWChem optimization/ESP/RESP/Hessian workflow, a Deception AlphaFold run, a multi-node run, and generated scripts on any cluster other than Deception.
+- Deception was tested with GROMACS (setup, minimization, equilibration, a 1,000-step md run, all 13 TI windows, a full TI chain with BAR and TI analysis, `gmx_mpi rmsf`, the `short` partition) and with the failure case. The NWChem module started but could not run PTM-Psi's NWChem inputs (see "Running on PNNL Deception").
+- The local GROMACS is 2026.4; the cluster image is 2023.4.

@@ -19,6 +19,7 @@ dependencies = [
             'future',
             'pymbar',
             'matplotlib',
+            'MDAnalysis',
             'lxml',
             'prody',
             'torsiondrive @ git+https://github.com/dmejiar/torsiondrive.git@nwchem ',
@@ -43,7 +44,10 @@ classifiers = [
   "License :: OSI Approved"
 ]
 
-[tool.setuptools]
-packages = ["ptmpsi"]
+[tool.setuptools.packages.find]
+include = ["ptmpsi", "ptmpsi.*", "AnalysisTools", "AnalysisTools.*"]
+namespaces = false
 
+[tool.setuptools.package-data]
+"ptmpsi.gromacs" = ["forcefield/*", "forcefield/**/*"]
 
