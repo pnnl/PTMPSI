@@ -123,6 +123,34 @@ def test_post_process_removes_box_jumps(snc_system, fitted):
     assert os.path.isfile(str(fitted["xtc"]).replace("_whole_nojump_fit.xtc", ".gro"))
 
 
+@pytest.mark.skipif(shutil.which("gmx") is None and shutil.which("gmx_mpi") is None, reason="GROMACS CLI not installed")
+def test_post_process_fit_survives_a_split_frame_zero(snc_system, tmp_path):
+    u = mda.Universe(str(snc_system["tpr"]), str(snc_system["raw_xtc"]))
+    box = u.dimensions.copy()
+    split_xtc = tmp_path / "split.xtc"
+    with mda.Writer(str(split_xtc), u.atoms.n_atoms) as writer:
+        for i, ts in enumerate(u.trajectory[:5]):
+            pos = ts.positions.copy()
+            if i == 0:
+                pos[u.atoms.n_atoms // 2:, 0] += box[0]
+            ts.positions = pos
+            writer.write(u.atoms)
+    xtc = an.post_process(
+        split_xtc, snc_system["tpr"], prefix=tmp_path / "pp", group="Protein", fit_group=4, gmx=snc_system["gmx"], interactive=True
+    )[0]
+    gro = mda.Universe(str(snc_system["tpr"]), str(xtc).replace("_whole_nojump_fit.xtc", ".gro"))
+    bonds = gro.bonds.indices
+    longest = np.linalg.norm(gro.atoms.positions[bonds[:, 0]] - gro.atoms.positions[bonds[:, 1]], axis=1).max()
+    assert longest < 3.0
+    fitted_u = mda.Universe(str(snc_system["tpr"]), str(xtc))
+    backbone = fitted_u.select_atoms("name N CA C")
+    reference = gro.select_atoms("name N CA C").positions
+    for _ in fitted_u.trajectory:
+        stored = rms.rmsd(backbone.positions, reference, superposition=False)
+        best = rms.rmsd(backbone.positions, reference, center=True, superposition=True)
+        assert stored - best < 0.1
+
+
 def test_rmsd_matches_mdanalysis_against_tpr_structure(fitted):
     (xvg,) = an.rmsd(fitted["xtc"], fitted["tpr"], fitted["out"] / "rmsd", gmx=fitted["gmx"], interactive=True)
     gmx_rmsd = _xvg(xvg)[:, 1] * 10.0

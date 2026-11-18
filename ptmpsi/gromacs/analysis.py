@@ -331,6 +331,12 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
     inside `prefix` (plus _<suffix>). Returns the fitted trajectories. `fit_group` is the gmx group
     the fit uses (default 3, C-alpha). Raises RuntimeError if any command fails or an
     expected output is missing.
+
+    The .gro (frame 0) is made whole too, and the fit reads <output>_whole.xtc, not the nojump file.
+    The fit removes translation, so jumps do not matter, and a reference split across the box or a
+    -pbc nojump input left about 450 of 5001 frames badly superposed for one SNC run and made
+    gmx rms and rmsf stop with "inconsistent shifts over periodic boundaries" (GROMACS 2025.2).
+    The _whole_nojump.xtc file is still written for contact analysis.
     """
     if not interactive:
         return _not_interactive("post_process")
@@ -348,10 +354,10 @@ def post_process(trajectories, structures, indices=None, prefix=None, suffix=Non
     def one(trajectory, structure, index, output):
         n = _index_args(index)
         commands = [
-            ([gmx, "trjconv", "-dump", "0", "-f", trajectory, "-s", structure, "-o", f"{output}.gro", *n], f"{group}\n"),
+            ([gmx, "trjconv", "-dump", "0", "-f", trajectory, "-s", structure, "-o", f"{output}.gro", "-pbc", "whole", *n], f"{group}\n"),
             ([gmx, "trjconv", "-f", trajectory, "-s", structure, "-o", f"{output}_whole.xtc", "-pbc", "whole", *n], f"{group}\n"),
             ([gmx, "trjconv", "-f", f"{output}_whole.xtc", "-o", f"{output}_whole_nojump.xtc", "-pbc", "nojump"], "0\n"),
-            ([gmx, "trjconv", "-f", f"{output}_whole_nojump.xtc", "-o", f"{output}_whole_nojump_fit.xtc",
+            ([gmx, "trjconv", "-f", f"{output}_whole.xtc", "-o", f"{output}_whole_nojump_fit.xtc",
               "-fit", "rot+trans", "-s", f"{output}.gro"], f"{fit_group}\n0\n"),
             ([gmx, "convert-tpr", "-s", structure, "-o", f"{output}_{group}.tpr", *n], f"{group}\n"),
         ]
